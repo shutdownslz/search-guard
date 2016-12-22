@@ -34,15 +34,15 @@ public class FlsFieldsTest extends AbstractDlsFlsTest{
     protected void populate(TransportClient tc) {
 
         tc.index(new IndexRequest("searchguard").type("config").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-                .source(FileHelper.readYamlContent("sg_config.yml"))).actionGet();
+                .source("config", FileHelper.readYamlContent("sg_config.yml"))).actionGet();
         tc.index(new IndexRequest("searchguard").type("internalusers").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0")
-                .source(FileHelper.readYamlContent("sg_internal_users.yml"))).actionGet();
+                .source("internalusers", FileHelper.readYamlContent("sg_internal_users.yml"))).actionGet();
         tc.index(new IndexRequest("searchguard").type("roles").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-                .source(FileHelper.readYamlContent("sg_roles.yml"))).actionGet();
+                .source("roles", FileHelper.readYamlContent("sg_roles.yml"))).actionGet();
         tc.index(new IndexRequest("searchguard").type("rolesmapping").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0")
-                .source(FileHelper.readYamlContent("sg_roles_mapping.yml"))).actionGet();
+                .source("rolesmapping", FileHelper.readYamlContent("sg_roles_mapping.yml"))).actionGet();
         tc.index(new IndexRequest("searchguard").type("actiongroups").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0")
-                .source(FileHelper.readYamlContent("sg_action_groups.yml"))).actionGet();
+                .source("actiongroups", FileHelper.readYamlContent("sg_action_groups.yml"))).actionGet();
         
         tc.admin().indices().create(new CreateIndexRequest("deals")
         .mapping("deals", "timestamp","type=date","@timestamp","type=date")).actionGet();
