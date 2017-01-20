@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HeaderHelper;
+import com.floragunn.searchguard.support.WildcardMatcher;
 import com.google.common.collect.Sets;
 
 public class SearchGuardFlsDlsIndexSearcherWrapper extends SearchGuardIndexSearcherWrapper {
@@ -93,8 +94,8 @@ public class SearchGuardFlsDlsIndexSearcherWrapper extends SearchGuardIndexSearc
         
         return searcher;
     }
-        
-    private String evalMap(Map<String, Set<String>> map, String index) {
+
+    private String evalMap(final Map<String,Set<String>> map, final String index) {
 
         if (map == null) {
             return null;
@@ -108,7 +109,15 @@ public class SearchGuardFlsDlsIndexSearcherWrapper extends SearchGuardIndexSearc
         if (map.get("_all") != null) {
             return "_all";
         }
-
+        
+        //regex
+        for(final String key: map.keySet()) {
+            if(WildcardMatcher.containsWildcard(key) 
+                    && WildcardMatcher.match(key, index)) {
+                return key;
+            }
+        }
+        
         return null;
     }
 }
