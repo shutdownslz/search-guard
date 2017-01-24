@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HeaderHelper;
-import com.floragunn.searchguard.support.WildcardMatcher;
 import com.google.common.collect.Sets;
 
 public class SearchGuardFlsDlsIndexSearcherWrapper extends SearchGuardIndexSearcherWrapper {
