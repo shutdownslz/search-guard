@@ -1,4 +1,4 @@
-#Search Guard 5 for Elasticsearch 5
+# Search Guard 5 for Elasticsearch 5
 
 Search Guard 5 (compatible with Elasticsearch >= 5.0.0)
 
@@ -11,17 +11,6 @@ You may also want to read this [blog post about Search Guard 5](https://floragun
 ## Quick Start
 
 If you want to try out Search Guard, we recommend to download the [Search Guard Bundle](https://github.com/floragunncom/search-guard/wiki/Search-Guard-Bundle). This is an Elasticsearch installation, preconfigured with Search Guard. It contains all enterprise features and templates for all configuration files. Just download, unzip and you're ready to go! 
-
-## Roadmap
-This is almost a complete rewrite of Search Guard 1 which comes with a lot of new features:
-
-* Configuration hot reloading
-* Open SSL support
-* Easier to configure
- * Syntax is more easy
- * Admin CLI tool introduced (sgadmin)
- 
-Advanced functionalities like LDAP and Kerberos authentication/authorization as well as DLS/FLS are also available as separate and commercial licensed add-ons (but still Open Source). See https://github.com/floragunncom/search-guard-docs/blob/master/installation.md for additional information.
 
 ## Support
 * Commercial support now available through [floragunn UG](http://floragunn.com)
