@@ -36,6 +36,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RealtimeRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -50,6 +51,7 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -57,6 +59,10 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotUtils;
 import org.elasticsearch.transport.TransportRequest;
 
 import com.floragunn.searchguard.action.configupdate.TransportConfigUpdateAction;
@@ -91,11 +97,17 @@ public class PrivilegesEvaluator implements ConfigChangeListener {
 
     private final String searchguardIndex;
     private PrivilegesInterceptor privilegesInterceptor;
+    private final boolean enableSnapshotRestorePrivilege;
+    private final RepositoriesService repositoriesService;
+    public static final String SG_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE = "searchguard.enable_snapshot_restore_privilege";
+    public static final boolean SG_DEFAULT_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE = false;
+
+
     
     @Inject
     public PrivilegesEvaluator(final ClusterService clusterService, final TransportConfigUpdateAction tcua, final ActionGroupHolder ah,
             final IndexNameExpressionResolver resolver, final AuditLog auditLog, final Settings settings,
-            final PrivilegesInterceptor privilegesInterceptor) {
+            final PrivilegesInterceptor privilegesInterceptor, final RepositoriesService repositoriesService) {
         super();
         tcua.addConfigChangeListener(ConfigurationService.CONFIGNAME_ROLES_MAPPING, this);
         tcua.addConfigChangeListener(ConfigurationService.CONFIGNAME_ROLES, this);
@@ -106,6 +118,12 @@ public class PrivilegesEvaluator implements ConfigChangeListener {
         this.auditLog = auditLog;
         this.searchguardIndex = settings.get(ConfigConstants.SG_CONFIG_INDEX, ConfigConstants.SG_DEFAULT_CONFIG_INDEX);
         this.privilegesInterceptor = privilegesInterceptor;
+        this.repositoriesService = repositoriesService;
+        
+        this.enableSnapshotRestorePrivilege = settings.getAsBoolean(SG_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE,
+                SG_DEFAULT_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE);
+
+
         
         /*
         indices:admin/template/delete
@@ -237,13 +255,17 @@ public class PrivilegesEvaluator implements ConfigChangeListener {
 
     public boolean evaluate(final User user, final String action, final ActionRequest<?> request) {
         
-        if(action.startsWith("cluster:admin/snapshot/restore")) {
-            auditLog.logMissingPrivileges(action, request);
-            log.warn(action + " is not allowed for a regular user");
-            return false;
-        }
-        
         final TransportAddress caller = Objects.requireNonNull((TransportAddress) request.getFromContext(ConfigConstants.SG_REMOTE_ADDRESS));
+        
+        if(action.startsWith("cluster:admin/snapshot/restore")) {          
+            
+            if (enableSnapshotRestorePrivilege) {
+                return evaluateSnapshotRestore(user, action, request, caller);
+            } else {
+                log.warn(action + " is not allowed for a regular user");
+                return false;
+            }
+        }
 
         if (log.isDebugEnabled()) {
             log.debug("evaluate permissions for {}", user);
@@ -949,4 +971,106 @@ public class PrivilegesEvaluator implements ConfigChangeListener {
             return modified;
         }  
     }
+    
+    private boolean evaluateSnapshotRestore(final User user, String action, final ActionRequest<?> request, final TransportAddress caller) {
+        if (!(request instanceof RestoreSnapshotRequest)) {
+            return false;
+        }
+
+        final RestoreSnapshotRequest restoreRequest = (RestoreSnapshotRequest) request;
+
+        // Do not allow restore of global state
+        if (restoreRequest.includeGlobalState()) {
+            auditLog.logSgIndexAttempt(request, action);
+            log.warn(action + " with 'include_global_state' enabled is not allowed");
+            return false;
+        }
+
+        // Start resolve for RestoreSnapshotRequest
+        final Repository repository = repositoriesService.repository(restoreRequest.repository());
+        Snapshot snapshot = null;
+
+        for (final SnapshotId snapshotId : repository.snapshots()) {
+            if (snapshotId.getSnapshot().equals(restoreRequest.snapshot())) {
+                
+                if(log.isDebugEnabled()) {
+                    log.debug("snapshot found: {}", snapshotId.getSnapshot());    
+                }
+                
+                snapshot = repository.readSnapshot(snapshotId);
+                break;
+            }
+        }
+
+        if (snapshot == null) {
+            log.warn(action + " for repository '" + restoreRequest.repository() + "', snapshot '" + restoreRequest.snapshot() + "' not found");
+            return false;
+        }
+
+        final List<String> requestedResolvedIndices = SnapshotUtils.filterIndices(snapshot.indices(), restoreRequest.indices(), restoreRequest.indicesOptions());
+
+        if (log.isDebugEnabled()) {
+            log.debug("resolved indices for restore to: {}", requestedResolvedIndices.toString());
+        }
+        // End resolve for RestoreSnapshotRequest
+
+        // Check if the source indices contain the searchguard index
+        if (requestedResolvedIndices.contains(searchguardIndex) || requestedResolvedIndices.contains("_all")) {
+            auditLog.logSgIndexAttempt(request, action);
+            log.warn(action + " for '{}' as source index is not allowed", searchguardIndex);
+            return false;
+        }
+
+        // Check if the renamed destination indices contain the searchguard index
+        final List<String> renamedTargetIndices = renamedIndices(restoreRequest, requestedResolvedIndices);
+        if (renamedTargetIndices.contains(searchguardIndex) || requestedResolvedIndices.contains("_all")) {
+            auditLog.logSgIndexAttempt(request, action);
+            log.warn(action + " for '{}' as target index is not allowed", searchguardIndex);
+            return false;
+        }
+
+        // Check if the user has the required role to perform the snapshot restore operation
+        final Set<String> sgRoles = mapSgRoles(user, caller);
+
+        if (log.isDebugEnabled()) {
+            log.debug("mapped roles: {}", sgRoles);
+        }
+
+        for (final Iterator<String> iterator = sgRoles.iterator(); iterator.hasNext();) {
+            final String sgRole = iterator.next();
+            final Settings sgRoleSettings = roles.getByPrefix(sgRole);
+
+            if (sgRoleSettings.names().isEmpty()) {
+                continue;
+            }
+            
+            final Set<String> resolvedActions = resolveActions(sgRoleSettings.getAsArray(".cluster", new String[0]));
+
+            if (WildcardMatcher.matchAny(resolvedActions.toArray(new String[0]), action)) {
+                if (log.isDebugEnabled()) {
+                    log.debug("  found a match for '{}' and {}, skip other roles", sgRole, action);
+                }
+                return true;
+            }
+        }
+
+        if (log.isInfoEnabled()) {
+            log.info("No perm match for {} [Action [{}]] [RolesChecked {}]", user, action, sgRoles);
+        }
+        return false;
+    }
+
+    private List<String> renamedIndices(RestoreSnapshotRequest request, List<String> filteredIndices) {
+        List<String> renamedIndices = new ArrayList<>();
+        for (String index : filteredIndices) {
+            String renamedIndex = index;
+            if (request.renameReplacement() != null && request.renamePattern() != null) {
+                renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+            }
+            renamedIndices.add(renamedIndex);
+        }
+        return renamedIndices;
+    }
+
+
 }
