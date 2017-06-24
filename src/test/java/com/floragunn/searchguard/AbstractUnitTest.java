@@ -21,6 +21,7 @@ import io.netty.handler.ssl.OpenSsl;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
@@ -28,6 +29,7 @@ import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URL;
 import java.net.URLDecoder;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Arrays;
@@ -104,6 +106,7 @@ public abstract class AbstractUnitTest {
         System.out.println("Open SSL available: "+OpenSsl.isAvailable());
         System.out.println("Open SSL version: "+OpenSsl.versionString());
         
+        System.setProperty("sg.display_lic_only_stdout","true");
         //System.setProperty("org.apache.logging.log4j.simplelog.StatusLogger.level","TRACE");
     }
 
@@ -219,6 +222,11 @@ public abstract class AbstractUnitTest {
     public void setUp() throws Exception {
         enableHTTPClientSSL = false;
         enableHTTPClientSSLv3Only = false;
+        try (FileOutputStream out = new FileOutputStream(new File("unittest.log"), true)) {
+            FileChannel ch = out.getChannel();
+            ch.truncate(0);
+            ch.close();
+        }
     }
 
     @After
