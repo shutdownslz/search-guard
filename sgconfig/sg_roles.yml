@@ -193,6 +193,24 @@ sg_alerting:
     '*':
       '*':
         - READ
+       
+# Make xpack ML work 
+sg_machine_learning:
+  cluster:
+    - CLUSTER_MONITOR
+    - CLUSTER_COMPOSITE_OPS
+    - cluster:admin/xpack/ml*
+    - cluster:admin/persistent*
+    - cluster:internal/xpack/ml*
+    - indices:data/read/scroll*
+  indices:
+    '*':
+      '*':
+        - READ
+        - indices:admin/get*
+    '?ml-*':
+      '*':
+        - "*"
     
 # Examples
 sg_role_starfleet:

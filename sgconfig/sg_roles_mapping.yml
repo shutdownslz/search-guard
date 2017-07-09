@@ -25,6 +25,10 @@ sg_alerting:
   backendroles:
     - kibanarole
 
+sg_machine_learning:
+  backendroles:
+    - kibanarole
+
 sg_public:
   users:
     - '*'
