@@ -276,6 +276,9 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
     
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {
+        if(client || disabled) {
+            return (rh) -> rh;
+        }
         return (rh) -> sgRestHandler.wrap(rh);
     }
 
@@ -337,7 +340,7 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
     public List<TransportInterceptor> getTransportInterceptors(ThreadContext threadContext) {
         List<TransportInterceptor> interceptors = new ArrayList<TransportInterceptor>(1);
         
-        if (!client && !tribeNodeClient) {
+        if (!client && !tribeNodeClient && !disabled) {
             interceptors.add(new TransportInterceptor() {
 
                 @Override
@@ -383,9 +386,11 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
 
         Map<String, Supplier<Transport>> transports = new HashMap<String, Supplier<Transport>>();
-        transports.put("com.floragunn.searchguard.ssl.http.netty.SearchGuardSSLNettyTransport", 
+        
+        if(!disabled) {
+            transports.put("com.floragunn.searchguard.ssl.http.netty.SearchGuardSSLNettyTransport", 
                 () -> new SearchGuardSSLNettyTransport(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, sgks));
- 
+        }
         return transports;
 
     }
@@ -395,12 +400,15 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
             CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
             NamedXContentRegistry xContentRegistry, NetworkService networkService) {
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<String, Supplier<HttpServerTransport>>(1);
-        if (!client && httpSSLEnabled && !tribeNodeClient) {
-            httpTransports.put("com.floragunn.searchguard.http.SearchGuardHttpServerTransport", 
-                    () -> new SearchGuardHttpServerTransport(settings, networkService, bigArrays, threadPool, sgks, null, xContentRegistry));
-        } else if (!client && !tribeNodeClient) {
-            httpTransports.put("com.floragunn.searchguard.http.SearchGuardHttpServerTransport", 
-                    () -> new SearchGuardNonSslHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry));
+        
+        if(!disabled) {
+            if (!client && httpSSLEnabled && !tribeNodeClient) {
+                httpTransports.put("com.floragunn.searchguard.http.SearchGuardHttpServerTransport", 
+                        () -> new SearchGuardHttpServerTransport(settings, networkService, bigArrays, threadPool, sgks, null, xContentRegistry));
+            } else if (!client && !tribeNodeClient) {
+                httpTransports.put("com.floragunn.searchguard.http.SearchGuardHttpServerTransport", 
+                        () -> new SearchGuardNonSslHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry));
+            }
         }
         
         return httpTransports;
@@ -415,7 +423,7 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
         
         final List<Object> components = new ArrayList<Object>();
         
-        if (client || tribeNodeClient) {
+        if (client || tribeNodeClient || disabled) {
             return components;
         }
         
@@ -660,7 +668,7 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
     @Override
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
 
-        if (client || tribeNodeClient) {
+        if (client || tribeNodeClient || disabled) {
             return Collections.emptyList();
         }
         
