@@ -38,9 +38,9 @@
   </licenses>
 
   <properties>
-    <sgssl.version>5.4.3-22</sgssl.version>
+    <sgssl.version>5.4.3-23</sgssl.version>
     <!-- <netty.replace.version>4.1.12.Final</netty.replace.version>  -->
-    <netty-native.version>2.0.3.Final</netty-native.version>
+    <netty-native.version>2.0.5.Final</netty-native.version>
     <elasticsearch.version>5.4.3</elasticsearch.version>
     <elasticsearch.assembly.descriptor>${basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
     <sgstandalone.descriptor>${basedir}/src/main/assemblies/sgadmin-standalone.xml</sgstandalone.descriptor>
