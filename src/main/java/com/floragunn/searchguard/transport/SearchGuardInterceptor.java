@@ -50,6 +50,7 @@ public class SearchGuardInterceptor {
     private final PrincipalExtractor principalExtractor;
     private final InterClusterRequestEvaluator requestEvalProvider;
     private final ClusterService cs;
+    private final Settings settings;
 
     public SearchGuardInterceptor(final Settings settings, 
             final ThreadPool threadPool, final BackendRegistry backendRegistry, 
@@ -62,6 +63,7 @@ public class SearchGuardInterceptor {
         this.principalExtractor = principalExtractor;
         this.requestEvalProvider = requestEvalProvider;
         this.cs = cs;
+        this.settings = settings;
     }
 
     public <T extends TransportRequest> SearchGuardRequestHandler<T> getHandler(String action, 
@@ -80,6 +82,19 @@ public class SearchGuardInterceptor {
         try (ThreadContext.StoredContext stashedContext = getThreadContext().stashContext()) {
             final RestoringTransportResponseHandler<T> restoringHandler = new RestoringTransportResponseHandler<T>(handler, stashedContext);
             getThreadContext().putHeader("_sg_remotecn", cs.getClusterName().value());
+            
+            //boolean tribeNodeClient = this.settings.get("tribe.name", null) != null;
+            
+            /*if(tribeNodeClient) {
+                getThreadContext().putHeader("_sg_header_tnc", "true");
+            }*/
+            
+            if(settings.getAsBoolean("action.master.force_local", false) 
+                    && settings.getByPrefix("tribe").getAsMap().size() > 0) {
+                getThreadContext().putHeader("_sg_header_tn", "true");
+            }
+            
+            
             //add conf request header if any
             getThreadContext().putHeader(
                     Maps.filterKeys(origHeaders0, k->k!=null && (
