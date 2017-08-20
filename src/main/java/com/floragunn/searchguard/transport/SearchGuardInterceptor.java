@@ -81,18 +81,13 @@ public class SearchGuardInterceptor {
         
         try (ThreadContext.StoredContext stashedContext = getThreadContext().stashContext()) {
             final RestoringTransportResponseHandler<T> restoringHandler = new RestoringTransportResponseHandler<T>(handler, stashedContext);
-            getThreadContext().putHeader("_sg_remotecn", cs.getClusterName().value());
-            
-            //boolean tribeNodeClient = this.settings.get("tribe.name", null) != null;
-            
-            /*if(tribeNodeClient) {
-                getThreadContext().putHeader("_sg_header_tnc", "true");
-            }*/
             
             if(settings.getAsBoolean("action.master.force_local", false) 
                     && settings.getByPrefix("tribe").getAsMap().size() > 0) {
                 getThreadContext().putHeader("_sg_header_tn", "true");
             }
+            
+            getThreadContext().putHeader("_sg_remotecn", settings.get("searchguard.tribe.clustername", cs.getClusterName().value()));
             
             
             //add conf request header if any
