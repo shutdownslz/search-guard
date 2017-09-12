@@ -22,7 +22,9 @@ import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -62,7 +64,12 @@ public class SearchGuardIndexSearcherWrapper extends IndexSearcherWrapper {
     public final IndexSearcher wrap(final IndexSearcher searcher) throws EngineException {
 
         if (isSearchGuardIndexRequest() && !isAdminAuthenticatedOrInternalRequest()) {
-            return new IndexSearcher(new EmptyReader(searcher.getIndexReader().getCoreCacheKey()));
+            try {
+                return new IndexSearcher(new MultiReader());
+            } catch (IOException e) {
+                log.error("Eroor wrapping index searcher due to "+e,e);
+                throw new ElasticsearchException(e);
+            }
         }
 
         if (!isAdminAuthenticatedOrInternalRequest()) {
@@ -83,11 +90,7 @@ public class SearchGuardIndexSearcherWrapper extends IndexSearcherWrapper {
     protected final boolean isAdminAuthenticatedOrInternalRequest() {
 
         User user = (User) threadContext.getTransient(ConfigConstants.SG_USER);
-        
-        if(user == null) {
-            user = (User) threadContext.getTransient(ConfigConstants.SG_USER+"copy");
-        }
-                
+
         if (user != null && AdminDNs.isAdmin(user.getName())) { //TODO static hack
             return true;
         }

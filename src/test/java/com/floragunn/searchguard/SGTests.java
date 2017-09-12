@@ -81,6 +81,7 @@ public class SGTests extends AbstractUnitTest {
 
     static {
         System.setProperty("sg.nowarn.client","true");
+        System.setProperty("jdk.tls.rejectClientInitiatedRenegotiation","true");
     }
     
     @Rule

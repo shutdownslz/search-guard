@@ -292,7 +292,7 @@ public class PrivilegesEvaluator {
         }
     }
 
-    public boolean evaluate(final User user, String action, final ActionRequest request) {
+    public boolean evaluate(final User _user, String action, final ActionRequest request) {
            
         if (!isInitialized()) {
             throw new ElasticsearchSecurityException("Search Guard is not initialized.");
@@ -305,6 +305,7 @@ public class PrivilegesEvaluator {
         boolean clusterLevelPermissionRequired = false;
         
         final TransportAddress caller = Objects.requireNonNull((TransportAddress) this.threadContext.getTransient(ConfigConstants.SG_REMOTE_ADDRESS));
+        final User user = Objects.requireNonNull(_user);
         
         if (log.isDebugEnabled()) {
             log.debug("evaluate permissions for {}", user);
@@ -1312,7 +1313,7 @@ public class PrivilegesEvaluator {
 
         if (log.isDebugEnabled()) {
             log.debug("indicesOptions {}", request.indicesOptions());
-            log.debug("{} raw indices {}", request.indices().length, Arrays.toString(request.indices()));
+            log.debug("{} raw indices {}", request.indices()==null?0:request.indices().length, Arrays.toString(request.indices()));
         }
 
         final Set<String> indices = new HashSet<String>();

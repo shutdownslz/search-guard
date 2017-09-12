@@ -73,6 +73,7 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
             final TransportChannel transportChannel, Task task) throws Exception {
         
         final ThreadContext.StoredContext sgContext = getThreadContext().newStoredContext(false);
+        getThreadContext().putTransient("_sg_origin", "TRANSPORT");
         
         try {
 
@@ -90,12 +91,21 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
                  throw new RuntimeException("channel type mismtach "+ct+"!="+transportChannel.getChannelType());
             }
             
-            //bypass non-netty requests
+            //bypass non-netty requests which are emitted from our own node
             if(transportChannel.getChannelType().equals("local") || transportChannel.getChannelType().equals("direct")) {
+                
+                assert !transportChannel.getChannelType().equals("local") :"nolocal";
+                
                 String userHeader = getThreadContext().getHeader(ConfigConstants.SG_USER_HEADER);
                 
                 if(!Strings.isNullOrEmpty(userHeader)) {
-                    getThreadContext().putTransient(ConfigConstants.SG_USER+"copy", Objects.requireNonNull((User) Base64Helper.deserializeObject(userHeader)));  
+                    getThreadContext().putTransient(ConfigConstants.SG_USER, Objects.requireNonNull((User) Base64Helper.deserializeObject(userHeader)));  
+                }
+                
+                String originalRemoteAddress = getThreadContext().getHeader(ConfigConstants.SG_REMOTE_ADDRESS_HEADER);
+
+                if(!Strings.isNullOrEmpty(originalRemoteAddress)) {
+                    getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, new InetSocketTransportAddress((InetSocketAddress) Base64Helper.deserializeObject(originalRemoteAddress)));
                 }
                 
                 super.messageReceivedDecorate(request, handler, transportChannel, task);
@@ -136,8 +146,9 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
                     String userHeader = getThreadContext().getHeader(ConfigConstants.SG_USER_HEADER);
                     
                     if(Strings.isNullOrEmpty(userHeader)) {
+                        //can happen
                         //user can be null when a node client wants connect
-                        getThreadContext().putTransient(ConfigConstants.SG_USER, User.SG_INTERNAL);               
+                        //getThreadContext().putTransient(ConfigConstants.SG_USER, User.SG_INTERNAL);               
                     } else {
                         getThreadContext().putTransient(ConfigConstants.SG_USER, Objects.requireNonNull((User) Base64Helper.deserializeObject(userHeader)));
                     }
@@ -147,6 +158,7 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
                     if(!Strings.isNullOrEmpty(originalRemoteAddress)) {
                         getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, new InetSocketTransportAddress((InetSocketAddress) Base64Helper.deserializeObject(originalRemoteAddress)));
                     } else {
+                        //can happen
                         getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, (InetSocketTransportAddress)request.remoteAddress());
                     }
                     

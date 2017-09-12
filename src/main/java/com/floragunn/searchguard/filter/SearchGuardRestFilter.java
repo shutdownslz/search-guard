@@ -66,6 +66,7 @@ public class SearchGuardRestFilter {
             
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                threadContext.putTransient("_sg_origin", "REST");
                 if(!checkAndAuthenticateRequest(request, channel, client))
                 {
                     original.handleRequest(request, channel, client);
