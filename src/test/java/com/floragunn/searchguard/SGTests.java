@@ -24,8 +24,10 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.List;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpStatus;
@@ -76,6 +78,7 @@ import com.floragunn.searchguard.configuration.PrivilegesInterceptorImpl;
 import com.floragunn.searchguard.http.HTTPClientCertAuthenticator;
 import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.google.common.base.Joiner;
 
 public class SGTests extends AbstractUnitTest {
 
@@ -629,6 +632,21 @@ public class SGTests extends AbstractUnitTest {
         Assert.assertEquals(HttpStatus.SC_OK, res.getStatusCode());
         Assert.assertTrue(res.getBody().contains("\"total\" : 3"));
         Assert.assertTrue(res.getBody().contains("\"batches\" : 1"));
+        
+        List<String> indices = new ArrayList<>();
+        for(int i=0; i<50;i++) {
+            final String index = "long_index_name_with_a_really_long_name_"+i;
+            indices.add(index);
+            res = executePutRequest(index+"/doc/"+i, "{\"content\":"+i+"}", new BasicHeader("Authorization", "Basic "+encodeBasicHeader("nagilum", "nagilum")));
+            Assert.assertEquals(res.getBody(), HttpStatus.SC_CREATED, res.getStatusCode());
+        }
+        
+        //long uri
+        //https://github.com/floragunncom/search-guard/issues/394
+        res = executeGetRequest(Joiner.on(',').join(indices)+",searchguard/_stats/store,docs", new BasicHeader("Authorization", "Basic "+encodeBasicHeader("nagilum", "nagilum")));
+        System.out.println(res.getBody());
+        System.out.println(res.getStatusReason());
+        Assert.assertEquals(HttpStatus.SC_OK, res.getStatusCode());
     }
     
     
