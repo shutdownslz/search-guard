@@ -36,9 +36,11 @@ if [ -f /usr/share/elasticsearch/bin/elasticsearch ]; then
     echo "This script maybe require your root password for 'sudo' privileges"
 fi
 
-if ! [ -x "$(command -v $SUDO_CMD)" ]; then
-   echo "Unable to locate 'sudo' command. Quit."
-   exit 1
+if [ $SUDO_CMD ]; then
+    if ! [ -x "$(command -v $SUDO_CMD)" ]; then
+        echo "Unable to locate 'sudo' command. Quit."
+        exit 1
+    fi
 fi
 
 if $SUDO_CMD test -f "$ES_CONF_FILE"; then
