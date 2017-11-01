@@ -92,6 +92,7 @@ import com.google.common.collect.Sets;
 
 public class PrivilegesEvaluator {
 
+    private static final Set<String> NO_INDICES_SET = Sets.newHashSet("\\",";",",","/","|");
     private static final Set<String> NULL_SET = Sets.newHashSet((String)null);
     private final Set<String> DLSFLS = ImmutableSet.of("_dls_", "_fls_");
     protected final Logger log = LogManager.getLogger(this.getClass());
@@ -1130,9 +1131,9 @@ public class PrivilegesEvaluator {
 
         //System.out.println("--------> "+request.getClass().getName());
         
-        final Set<String> indices = new HashSet<String>();
-        final Set<String> types = new HashSet<String>();
-
+        Set<String> indices = new HashSet<String>();
+        Set<String> types = new HashSet<String>();
+        
         if (request instanceof CompositeIndicesRequest) {
             
             //System.out.println("    -----> is CompositeIndicesRequest");
@@ -1186,8 +1187,7 @@ public class PrivilegesEvaluator {
                     indices.addAll(t.v1());
                     types.addAll(t.v2());
                 }
-                
-                
+
             } else if(request.getClass().getName().equals("org.elasticsearch.index.reindex.ReindexRequest")) {
                                 
                 try {
@@ -1206,6 +1206,13 @@ public class PrivilegesEvaluator {
                 }
 
             } else if(request.getClass().getName().equals("org.elasticsearch.percolator.MultiPercolateRequest")) {
+//=======
+//            } else if(request instanceof ReindexRequest) {
+//                ReindexRequest reindexRequest = (ReindexRequest) request;
+//                Tuple<Set<String>, Set<String>> t = resolveIndicesRequest(user, action, reindexRequest.getDestination(), metaData);
+//                indices.addAll(t.v1());
+//                types.addAll(t.v2());
+//>>>>>>> 9a0da0b... Fix CCS local index handling (SG-681)
                 
                 try {
                     final List<Object> requests = (List<Object>) request.getClass().getMethod("requests").invoke(request);
@@ -1227,9 +1234,25 @@ public class PrivilegesEvaluator {
             }
 
         } else {
+//<<<<<<< HEAD
+//            final Tuple<Set<String>, Set<String>> t = resolve(user, action, (IndicesRequest) request, metaData);
+//            indices.addAll(t.v1());
+//            types.addAll(t.v2());
+//=======
+            //ccs goes here
             final Tuple<Set<String>, Set<String>> t = resolve(user, action, (IndicesRequest) request, metaData);
-            indices.addAll(t.v1());
-            types.addAll(t.v2());
+            indices = t.v1();
+            types = t.v2();
+        }
+        
+        if(log.isDebugEnabled()) {
+            log.debug("pre final indices: {}", indices);
+            log.debug("pre final types: {}", types);
+        }
+        
+        if(indices == NO_INDICES_SET) {
+            return new Tuple<Set<String>, Set<String>>(Collections.emptySet(), Collections.unmodifiableSet(types));
+//>>>>>>> 9a0da0b... Fix CCS local index handling (SG-681)
         }
         
         //for PutIndexTemplateRequest the index does not exists yet typically
@@ -1338,16 +1361,20 @@ public class PrivilegesEvaluator {
                 IndicesRequest.Replaceable searchRequest = (IndicesRequest.Replaceable) request;
                 final Map<String, OriginalIndices> remoteClusterIndices = SearchGuardPlugin.GuiceHolder.getRemoteClusterService()
                         .groupIndices(searchRequest.indicesOptions(),searchRequest.indices(), idx -> resolver.hasIndexOrAlias(idx, clusterService.state()));
-                
+                                
                 if (remoteClusterIndices.size() > 1) {
                     // check permissions?
 
                     final OriginalIndices originalLocalIndices = remoteClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
                     localIndices = originalLocalIndices.indices();
-
-                    if (log.isTraceEnabled()) {
-                        log.trace("remoteClusterIndices keys" + remoteClusterIndices.keySet() + "//remoteClusterIndices "
+                    
+                    if (log.isDebugEnabled()) {
+                        log.debug("remoteClusterIndices keys" + remoteClusterIndices.keySet() + "//remoteClusterIndices "
                                 + remoteClusterIndices);
+                    }
+                    
+                    if(localIndices.length == 0) {
+                        return new Tuple<Set<String>, Set<String>>(NO_INDICES_SET, requestTypes);
                     }
                 }
             }
