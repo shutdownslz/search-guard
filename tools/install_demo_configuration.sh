@@ -125,11 +125,15 @@ echo "" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
 echo "cluster.name: searchguard_demo" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 echo "network.host: 0.0.0.0" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
 echo "discovery.zen.minimum_master_nodes: 1" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
-echo "xpack.security.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
-echo "xpack.monitoring.enabled: true" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
-echo "xpack.ml.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
-echo "xpack.graph.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
-echo "xpack.watcher.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+echo 'node.max_local_storage_nodes: 3' | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+
+if [ -d "$ES_PLUGINS_DIR/x-pack" ];then
+	echo "xpack.security.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+	echo "xpack.monitoring.enabled: true" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+	echo "xpack.ml.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+	echo "xpack.graph.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+	echo "xpack.watcher.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+fi
 echo "######## End Search Guard Demo Configuration ########" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 
 $SUDO_CMD chmod +x "$ES_PLUGINS_DIR/search-guard-5/tools/sgadmin.sh"
