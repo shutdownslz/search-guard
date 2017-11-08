@@ -221,7 +221,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
                     authDomains.add(new AuthDomain(authenticationBackend, httpAuthenticator,
                             ads.getAsBoolean("http_authenticator.challenge", true), ads.getAsInt("order", 0)));
                 } catch (final Exception e) {
-                    log.error("Unable to initialize auth domain {} due to {}", e, ad, e.toString());
+                    log.error("Unable to initialize auth domain {} due to {}", ad, e.toString(), e);
                 }
 
             }
