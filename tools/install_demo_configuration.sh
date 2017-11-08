@@ -16,7 +16,16 @@ if [ "$1" != "-y" ]; then
 fi
 
 set -e
-BASE_DIR="$DIR/../../../"
+BASE_DIR="$DIR/../../.."
+if [ -d "$BASE_DIR" ]; then
+	CUR="$(pwd)"
+	cd "$BASE_DIR"
+	BASE_DIR="$(pwd)"
+	cd "$CUR"
+	echo "Basedir: $BASE_DIR"
+else
+    echo "DEBUG: basedir does not exist"
+fi
 ES_CONF_FILE="$BASE_DIR/config/elasticsearch.yml"
 ES_BIN_DIR="$BASE_DIR/bin"
 ES_PLUGINS_DIR="$BASE_DIR/plugins"
@@ -37,7 +46,7 @@ if [ -f /usr/share/elasticsearch/bin/elasticsearch ]; then
     ES_PLUGINS_DIR="/usr/share/elasticsearch/plugins"
     ES_LIB_PATH="/usr/share/elasticsearch/lib"
 
-    if [ -x "$(command -v $SUDO_CMD)" ]; then
+    if [ -x "$(command -v sudo)" ]; then
         SUDO_CMD="sudo"
         echo "This script maybe require your root password for 'sudo' privileges"
     fi
@@ -88,9 +97,13 @@ ES_VERSION=$(echo $ES_VERSION | sed 's/.*elasticsearch-\(.*\)\.jar/\1/')
 SG_VERSION=("$ES_PLUGINS_DIR/search-guard-5/search-guard-5-*.jar")
 SG_VERSION=$(echo $SG_VERSION | sed 's/.*search-guard-5-\(.*\)\.jar/\1/')
 
-echo "Elasticsearch install type: $ES_INSTALL_TYPE"
+OS=$(sb_release -ds 2>/dev/null || cat /etc/*release 2>/dev/null | head -n1 || uname -om)
+echo "Elasticsearch install type: $ES_INSTALL_TYPE on $OS"
 echo "Elasticsearch config dir: $ES_CONF_DIR"
 echo "Elasticsearch config file: $ES_CONF_FILE"
+echo "Elasticsearch bin dir: $ES_BIN_DIR"
+echo "Elasticsearch plugins dir: $ES_PLUGINS_DIR"
+echo "Elasticsearch lib dir: $ES_LIB_PATH"
 echo "Detected Elasticsearch Version: $ES_VERSION"
 echo "Detected Search Guard Version: $SG_VERSION"
 
@@ -122,9 +135,25 @@ echo "searchguard.ssl.http.truststore_filepath: truststore.jks" | $SUDO_CMD tee 
 echo "searchguard.authcz.admin_dn:" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 echo "  - CN=kirk,OU=client,O=client,L=test, C=de" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 echo "" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
-echo "cluster.name: searchguard_demo" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
-echo "network.host: 0.0.0.0" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
-echo "discovery.zen.minimum_master_nodes: 1" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+
+if $SUDO_CMD grep --quiet -i "cluster.name" $ES_CONF_FILE; then
+	: #already present
+else
+    echo "cluster.name: searchguard_demo" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
+fi
+
+if $SUDO_CMD grep --quiet -i "network.host" $ES_CONF_FILE; then
+	: #already present
+else
+    echo "network.host: 0.0.0.0" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+fi
+
+if $SUDO_CMD grep --quiet -i "discovery.zen.minimum_master_nodes" $ES_CONF_FILE; then
+	: #already present
+else
+    echo "discovery.zen.minimum_master_nodes: 1" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+fi
+
 echo 'node.max_local_storage_nodes: 3' | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
 
 if [ -d "$ES_PLUGINS_DIR/x-pack" ];then
@@ -144,7 +173,7 @@ echo "### Success"
 echo "### Execute this script now on all your nodes and then start all nodes"
 echo "### After the whole cluster is up execute: "
 echo "#!/bin/bash" | $SUDO_CMD tee sgadmin_demo.sh > /dev/null 
-echo $SUDO_CMD "$ES_PLUGINS_DIR/search-guard-5/tools/sgadmin.sh" -cd "$ES_PLUGINS_DIR/search-guard-5/sgconfig" -cn searchguard_demo -ks "$ES_CONF_DIR/kirk.jks" -ts "$ES_CONF_DIR/truststore.jks" -nhnv | $SUDO_CMD tee -a sgadmin_demo.sh > /dev/null
+echo $SUDO_CMD "$ES_PLUGINS_DIR/search-guard-5/tools/sgadmin.sh" -cd "$ES_PLUGINS_DIR/search-guard-5/sgconfig" -icl -ks "$ES_CONF_DIR/kirk.jks" -ts "$ES_CONF_DIR/truststore.jks" -nhnv | $SUDO_CMD tee -a sgadmin_demo.sh > /dev/null
 $SUDO_CMD chmod +x sgadmin_demo.sh
 $SUDO_CMD cat sgadmin_demo.sh | tail -1
 echo "### or run ./sgadmin_demo.sh"
