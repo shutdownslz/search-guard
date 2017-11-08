@@ -114,7 +114,6 @@ import com.floragunn.searchguard.ssl.ExternalSearchGuardKeyStore;
 import com.floragunn.searchguard.ssl.SearchGuardKeyStore;
 import com.floragunn.searchguard.ssl.http.netty.ValidatingDispatcher;
 import com.floragunn.searchguard.ssl.rest.SearchGuardSSLInfoAction;
-import com.floragunn.searchguard.ssl.transport.DefaultPrincipalExtractor;
 import com.floragunn.searchguard.ssl.transport.PrincipalExtractor;
 import com.floragunn.searchguard.ssl.transport.SearchGuardSSLNettyTransport;
 import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
@@ -527,17 +526,6 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
         
         
         adminDns = new AdminDNs(settings);      
-        final PrincipalExtractor pe = new DefaultPrincipalExtractor();        
-        cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, threadPool, localClient, clusterService);        
-        final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);     
-        final XFFResolver xffResolver = new XFFResolver(threadPool);
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, xffResolver);   
-        final BackendRegistry backendRegistry = new BackendRegistry(settings, adminDns, xffResolver, iab, auditLog, threadPool);
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
-        final ActionGroupHolder ah = new ActionGroupHolder(cr);      
-        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor);    
-        final SearchGuardFilter sgf = new SearchGuardFilter(settings, evaluator, adminDns, dlsFlsValve, auditLog, threadPool);     
-        sgi = new SearchGuardInterceptor(settings, threadPool, backendRegistry, auditLog, pe, interClusterRequestEvaluator, cs);
         
         final String principalExtractorClass = settings.get(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_PRINCIPAL_EXTRACTOR_CLASS, null);
 
@@ -552,11 +540,22 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
                 log.error("Unable to load '{}' due to {}", e, principalExtractorClass, e.toString());
                 throw new ElasticsearchException(e);
             }
-        }
+        }     
         
+        
+        cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, threadPool, localClient, clusterService);        
+        final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);     
+        final XFFResolver xffResolver = new XFFResolver(threadPool);
+        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, xffResolver);   
+        final BackendRegistry backendRegistry = new BackendRegistry(settings, adminDns, xffResolver, iab, auditLog, threadPool);
+        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
+        final ActionGroupHolder ah = new ActionGroupHolder(cr);      
+        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor);    
+        final SearchGuardFilter sgf = new SearchGuardFilter(settings, evaluator, adminDns, dlsFlsValve, auditLog, threadPool);     
+        sgi = new SearchGuardInterceptor(settings, threadPool, backendRegistry, auditLog, principalExtractor, interClusterRequestEvaluator, cs);
+        
+   
         components.add(principalExtractor);
-        
-        
         components.add(adminDns);
         //components.add(auditLog);
         components.add(cr);
@@ -568,7 +567,7 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
         components.add(sgf);
         components.add(sgi);
 
-        sgRestHandler = new SearchGuardRestFilter(backendRegistry, auditLog, threadPool, pe, settings);
+        sgRestHandler = new SearchGuardRestFilter(backendRegistry, auditLog, threadPool, principalExtractor, settings);
         
         return components;
         
