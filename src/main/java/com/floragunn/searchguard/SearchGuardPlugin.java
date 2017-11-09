@@ -37,9 +37,11 @@ import java.util.function.UnaryOperator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -68,6 +70,7 @@ import org.elasticsearch.http.HttpServerTransport.Dispatcher;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -75,7 +78,10 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.ScrollContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -124,6 +130,7 @@ import com.floragunn.searchguard.support.ReflectionHelper;
 import com.floragunn.searchguard.transport.DefaultInterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.InterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.SearchGuardInterceptor;
+import com.floragunn.searchguard.user.User;
 import com.google.common.collect.Lists;
 
 public final class SearchGuardPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
@@ -346,6 +353,44 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
                 } else {
                     indexModule.setSearcherWrapper(indexService -> new SearchGuardIndexSearcherWrapper(indexService, settings));
                 }
+                
+                indexModule.addSearchOperationListener(new SearchOperationListener() {
+
+                    @Override
+                    public void onNewScrollContext(SearchContext context) {
+                        
+                        final ScrollContext scrollContext = context.scrollContext();
+                        
+                        if(scrollContext != null) {
+                            scrollContext.putInContext("_sg_scroll_auth", threadPool.getThreadContext()
+                                    .getTransient(ConfigConstants.SG_USER));
+                        }
+                    }
+
+                    @Override
+                    public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
+                        
+                        final ScrollContext scrollContext = context.scrollContext();
+                        if(scrollContext != null) {
+                            final Object _user = scrollContext.getFromContext("_sg_scroll_auth");
+                            if(_user != null && (_user instanceof User)) {
+                                final User scrollUser = (User) _user;
+                                final User currentUser = threadPool.getThreadContext()
+                                        .getTransient(ConfigConstants.SG_USER);
+                                if(!scrollUser.equals(currentUser)) {
+                                    auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
+                                    log.error("Wrong user {} in scroll context, expected {}", scrollUser, currentUser);
+                                    throw new ElasticsearchSecurityException("Wrong user in scroll context", RestStatus.FORBIDDEN);
+                                }
+                            } else {
+                                auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
+                                throw new ElasticsearchSecurityException("No user in scroll context", RestStatus.FORBIDDEN);
+                            }
+                        }
+                    }
+                });
+                
+                
             }
         }
     }

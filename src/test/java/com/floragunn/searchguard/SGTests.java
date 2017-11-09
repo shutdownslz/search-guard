@@ -76,6 +76,7 @@ import com.floragunn.searchguard.action.configupdate.ConfigUpdateRequest;
 import com.floragunn.searchguard.action.configupdate.ConfigUpdateResponse;
 import com.floragunn.searchguard.configuration.PrivilegesInterceptorImpl;
 import com.floragunn.searchguard.http.HTTPClientCertAuthenticator;
+import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.google.common.base.Joiner;
@@ -1508,12 +1509,17 @@ public class SGTests extends AbstractUnitTest {
                 ctx.close();
             }
 
-            //TODO fails (but this could be ok?)
             ctx = tc.threadPool().getThreadContext().stashContext();
             try {
                 tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "worf");
-                SearchResponse scrollRes = tc.prepareSearchScroll(scrollId).get();
-            } finally {
+                tc.prepareSearchScroll(scrollId).get();
+                Assert.fail();
+            } catch (Exception e) {
+                Throwable root = ExceptionUtils.getRootCause(e);
+                e.printStackTrace();
+                Assert.assertTrue(root.getMessage().contains("Wrong user in scroll context"));
+            }
+            finally {
                 ctx.close();
             }
             
@@ -1584,17 +1590,15 @@ public class SGTests extends AbstractUnitTest {
             
             ctx = tc.threadPool().getThreadContext().stashContext();
             try {
-                tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "worf");
+                tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "nagilum");
                 SearchResponse scrollRes = tc.prepareSearchScroll(searchRes.getScrollId()).get(); 
                 Assert.assertNotNull(scrollRes);
                 Assert.assertEquals(0, scrollRes.getFailedShards());
                 Assert.assertEquals(1, scrollRes.getHits().getTotalHits());
-                //System.out.println(scrollRes.getHits().getHits().length); //0 ??
-                //TODO scrollRes.getScrollId() is null
-                //Assert.assertNotNull(scrollRes.getScrollId());
             } finally {
                 ctx.close();
             }
+
 
             System.out.println("------- TRC end ---------");
         }
