@@ -384,6 +384,7 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
                                 }
                             } else {
                                 auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
+                                log.error("No user found in scroll context");
                                 throw new ElasticsearchSecurityException("No user in scroll context", RestStatus.FORBIDDEN);
                             }
                         }
