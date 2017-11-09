@@ -40,16 +40,19 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RealtimeRequest;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequest.Item;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -57,6 +60,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -297,11 +301,27 @@ public class PrivilegesEvaluator {
         }
     }
 
-    public boolean evaluate(final User user, String action, final ActionRequest request) {
+    public static class PrivEvalResponse {
+        boolean allowed = false;
+        Set<String> missingPrivileges = new HashSet<String>();
+        
+        public boolean isAllowed() {
+            return allowed;
+        }
+        public Set<String> getMissingPrivileges() {
+            return new HashSet<String>(missingPrivileges);
+        }
+        
+    }
+    
+    public PrivEvalResponse evaluate(final User user, String action, final ActionRequest request) {
            
         if (!isInitialized()) {
             throw new ElasticsearchSecurityException("Search Guard is not initialized.");
         }
+        
+        final PrivEvalResponse presponse = new PrivEvalResponse();
+        presponse.missingPrivileges.add(action);
         
         final Settings config = getConfigSettings();
         final Settings roles = getRolesSettings();
@@ -312,7 +332,7 @@ public class PrivilegesEvaluator {
         final TransportAddress caller = Objects.requireNonNull((TransportAddress) this.threadContext.getTransient(ConfigConstants.SG_REMOTE_ADDRESS));
         
         if (log.isDebugEnabled()) {
-            log.debug("evaluate permissions for {}", user);
+            log.debug("### evaluate permissions for {} on {}", user, clusterService.localNode().getName());
             log.debug("requested {} from {}", action, caller);
         }
         
@@ -321,7 +341,7 @@ public class PrivilegesEvaluator {
                 return evaluateSnapshotRestore(user, action, request, caller);
             } else {
                 log.warn(action + " is not allowed for a regular user");
-                return false;
+                return presponse;
             }
         }
         
@@ -359,14 +379,14 @@ public class PrivilegesEvaluator {
                 && WildcardMatcher.matchAny(deniedActionPatterns, action)) {
             auditLog.logSgIndexAttempt(request, action);
             log.warn(action + " for '{}' index is not allowed for a regular user", searchguardIndex);
-            return false;
+            return presponse;
         }
 
         if (requestedResolvedIndices.contains("_all")
                 && WildcardMatcher.matchAny(deniedActionPatterns, action)) {
             auditLog.logSgIndexAttempt(request, action);
             log.warn(action + " for '_all' indices is not allowed for a regular user");
-            return false;
+            return presponse;
         }
         
         if(requestedResolvedIndices.contains(searchguardIndex) || requestedResolvedIndices.contains("_all")) {
@@ -398,11 +418,11 @@ public class PrivilegesEvaluator {
     
             if (replaceResult == Boolean.TRUE) {
                 auditLog.logMissingPrivileges(action, request);
-                return false;
+                return presponse;
             }
             
             if (replaceResult == Boolean.FALSE) {
-                return true;
+                return presponse;
             }
         }
         
@@ -412,6 +432,35 @@ public class PrivilegesEvaluator {
         final Map<String,Set<String>> flsFields = new HashMap<String, Set<String>>();
 
         final Map<String, Set<IndexType>> leftovers = new HashMap<String, Set<IndexType>>();
+        
+      //--- check inner bulk requests
+        final Set<String> additionalPermissionsRequired = new HashSet<>();
+        
+        if (request instanceof BulkShardRequest) {
+            BulkShardRequest bsr = (BulkShardRequest) request;
+            for (BulkItemRequest bir : bsr.items()) {
+                switch (bir.request().opType()) {
+                case CREATE:
+                    additionalPermissionsRequired.add(IndexAction.NAME);
+                    break;
+                case INDEX:
+                    additionalPermissionsRequired.add(IndexAction.NAME);
+                    break;
+                case DELETE:
+                    additionalPermissionsRequired.add(DeleteAction.NAME);
+                    break;
+                case UPDATE:
+                    additionalPermissionsRequired.add(UpdateAction.NAME);
+                    break;
+                }
+            }
+        }
+        
+        presponse.missingPrivileges.addAll(additionalPermissionsRequired);
+
+        if(log.isDebugEnabled() && !additionalPermissionsRequired.isEmpty()) {
+            log.debug("Additional permissions required: "+additionalPermissionsRequired);
+        }
 
         for (final Iterator<String> iterator = sgRoles.iterator(); iterator.hasNext();) {
             final String sgRole = (String) iterator.next();
@@ -459,7 +508,8 @@ public class PrivilegesEvaluator {
                     if (log.isDebugEnabled()) {
                         log.debug("  found a match for '{}' and {}, skip other roles", sgRole, action);
                     }
-                    return true;
+                    presponse.allowed = true;
+                    return presponse;
                 } else {
                     //check other roles #108
                     if (log.isDebugEnabled()) {
@@ -575,20 +625,28 @@ public class PrivilegesEvaluator {
                     }
                     
                 }
+                
+                String[] action0 = null;
+                
+                if(!additionalPermissionsRequired.isEmpty()) {
+                    action0 = additionalPermissionsRequired.toArray(new String[0]);
+                } else {
+                    action0 = new String[] {action};
+                }
 
                 if (WildcardMatcher.containsWildcard(permittedAliasesIndex)) {
                     if (log.isDebugEnabled()) {
                         log.debug("  Try wildcard match for {}", permittedAliasesIndex);
                     }
 
-                    handleIndicesWithWildcard(action, permittedAliasesIndex, permittedAliasesIndices, requestedResolvedIndexTypes, _requestedResolvedIndexTypes, requestedResolvedIndices);
+                    handleIndicesWithWildcard(action0, permittedAliasesIndex, permittedAliasesIndices, requestedResolvedIndexTypes, _requestedResolvedIndexTypes, requestedResolvedIndices);
 
                 } else {
                     if (log.isDebugEnabled()) {
                         log.debug("  Resolve and match {}", permittedAliasesIndex);
                     }
 
-                    handleIndicesWithoutWildcard(action, permittedAliasesIndex, permittedAliasesIndices, requestedResolvedIndexTypes, _requestedResolvedIndexTypes);
+                    handleIndicesWithoutWildcard(action0, permittedAliasesIndex, permittedAliasesIndices, requestedResolvedIndexTypes, _requestedResolvedIndexTypes);
                 }
 
                 if (log.isDebugEnabled()) {
@@ -673,9 +731,18 @@ public class PrivilegesEvaluator {
             leftovers.put(sgRole, _requestedResolvedIndexTypes);
             
         } // end sg role loop
-
+        
         if (!allowAction && log.isInfoEnabled()) {
-            log.info("No {}-level perm match for {} {} [Action [{}]] [RolesChecked {}]", clusterLevelPermissionRequired?"cluster":"index" , user, requestedResolvedIndexTypes, action, sgRoles);
+            
+            String[] action0;
+            
+            if(!additionalPermissionsRequired.isEmpty()) {
+                action0 = additionalPermissionsRequired.toArray(new String[0]);
+            } else {
+                action0 = new String[] {action};
+            }
+            
+            log.info("No {}-level perm match for {} {} [Action [{}]] [RolesChecked {}]", clusterLevelPermissionRequired?"cluster":"index" , user, requestedResolvedIndexTypes, action0, sgRoles);
             log.info("No permissions for {}", leftovers);
         }
 
@@ -704,18 +771,25 @@ public class PrivilegesEvaluator {
         if(!allowAction 
                 && privilegesInterceptor.getClass() != PrivilegesInterceptor.class
                 && leftovers.size() > 0) {
-            return privilegesInterceptor.replaceAllowedIndices(request, action, user, config, leftovers);
+            boolean interceptorAllow = privilegesInterceptor.replaceAllowedIndices(request, action, user, config, leftovers);
+            presponse.allowed=interceptorAllow;
+            return presponse;
         }
         
-        return allowAction;
+        presponse.allowed=allowAction;
+        return presponse;
     }
 
     
     //---- end evaluate()
     
-    private boolean evaluateSnapshotRestore(final User user, String action, final ActionRequest request, final TransportAddress caller) {
+    private PrivEvalResponse evaluateSnapshotRestore(final User user, String action, final ActionRequest request, final TransportAddress caller) {
+        
+        final PrivEvalResponse presponse = new PrivEvalResponse();
+        presponse.missingPrivileges.add(action);
+        
         if (!(request instanceof RestoreSnapshotRequest)) {
-            return false;
+            return presponse;
         }
 
         final RestoreSnapshotRequest restoreRequest = (RestoreSnapshotRequest) request;
@@ -724,7 +798,7 @@ public class PrivilegesEvaluator {
         if (restoreRequest.includeGlobalState()) {
             auditLog.logSgIndexAttempt(request, action);
             log.warn(action + " with 'include_global_state' enabled is not allowed");
-            return false;
+            return presponse;
         }
 
         // Start resolve for RestoreSnapshotRequest
@@ -747,7 +821,7 @@ public class PrivilegesEvaluator {
 
         if (snapshotInfo == null) {
             log.warn(action + " for repository '" + restoreRequest.repository() + "', snapshot '" + restoreRequest.snapshot() + "' not found");
-            return false;
+            return presponse;
         }
 
         final List<String> requestedResolvedIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), restoreRequest.indices(), restoreRequest.indicesOptions());
@@ -761,7 +835,7 @@ public class PrivilegesEvaluator {
         if (requestedResolvedIndices.contains(searchguardIndex) || requestedResolvedIndices.contains("_all")) {
             auditLog.logSgIndexAttempt(request, action);
             log.warn(action + " for '{}' as source index is not allowed", searchguardIndex);
-            return false;
+            return presponse;
         }
 
         // Check if the renamed destination indices contain the searchguard index
@@ -769,7 +843,7 @@ public class PrivilegesEvaluator {
         if (renamedTargetIndices.contains(searchguardIndex) || requestedResolvedIndices.contains("_all")) {
             auditLog.logSgIndexAttempt(request, action);
             log.warn(action + " for '{}' as target index is not allowed", searchguardIndex);
-            return false;
+            return presponse;
         }
 
         // Check if the user has the required role to perform the snapshot restore operation
@@ -856,7 +930,8 @@ public class PrivilegesEvaluator {
             auditLog.logMissingPrivileges(action, request);
             log.info("No perm match for {} [Action [{}]] [RolesChecked {}]", user, action, sgRoles);
         }
-        return allowedActionSnapshotRestore;
+        presponse.allowed = allowedActionSnapshotRestore;
+        return presponse;
     }
 
     private List<String> renamedIndices(final RestoreSnapshotRequest request, final List<String> filteredIndices) {
@@ -949,7 +1024,7 @@ public class PrivilegesEvaluator {
     }
 
 
-    private void handleIndicesWithWildcard(final String action, final String permittedAliasesIndex,
+    private void handleIndicesWithWildcard(final String[] action0, final String permittedAliasesIndex,
             final Map<String, Settings> permittedAliasesIndices, final Set<IndexType> requestedResolvedIndexTypes, final Set<IndexType> _requestedResolvedIndexTypes, final Set<String> requestedResolvedIndices0) {
         
         List<String> wi = null;
@@ -970,9 +1045,9 @@ public class PrivilegesEvaluator {
                 
                 final Set<String> resolvedActions = resolveActions(permittedAliasesIndices.get(permittedAliasesIndex).getAsArray(type));
 
-                if (WildcardMatcher.matchAny(resolvedActions.toArray(new String[0]), action)) {
+                if (WildcardMatcher.matchAll(resolvedActions.toArray(new String[0]), action0)) {
                     if (log.isDebugEnabled()) {
-                        log.debug("    match requested action {} against {}/{}: {}", action, permittedAliasesIndex, type, resolvedActions);
+                        log.debug("    match requested action {} against {}/{}: {}", action0, permittedAliasesIndex, type, resolvedActions);
                     }
 
                     for(String it: wi) {
@@ -996,7 +1071,7 @@ public class PrivilegesEvaluator {
         }
     }
 
-    private void handleIndicesWithoutWildcard(final String action, final String permittedAliasesIndex,
+    private void handleIndicesWithoutWildcard(final String[] action0, final String permittedAliasesIndex,
             final Map<String, Settings> permittedAliasesIndices, final Set<IndexType> requestedResolvedIndexTypes, final Set<IndexType> _requestedResolvedIndexTypes) {
 
         final Set<String> resolvedPermittedAliasesIndex = new HashSet<String>();
@@ -1004,7 +1079,7 @@ public class PrivilegesEvaluator {
         if(!resolver.hasIndexOrAlias(permittedAliasesIndex, clusterService.state())) {
             
             if(log.isDebugEnabled()) {
-                log.debug("no permittedAliasesIndex '{}' found for  '{}'", permittedAliasesIndex,  action);
+                log.debug("no permittedAliasesIndex '{}' found for  '{}'", permittedAliasesIndex,  action0);
                 
                 
                 for(String pai: permittedAliasesIndices.keySet()) {
@@ -1039,9 +1114,9 @@ public class PrivilegesEvaluator {
             
             final Set<String> resolvedActions = resolveActions(permittedAliasesIndices.get(permittedAliasesIndex).getAsArray(type));
 
-            if (WildcardMatcher.matchAny(resolvedActions.toArray(new String[0]), action)) {
+            if (WildcardMatcher.matchAll(resolvedActions.toArray(new String[0]), action0)) {
                 if (log.isDebugEnabled()) {
-                    log.debug("    match requested action {} against {}/{}: {}", action, permittedAliasesIndex, type, resolvedActions);
+                    log.debug("    match requested action {} against {}/{}: {}", action0, permittedAliasesIndex, type, resolvedActions);
                 }
 
                 for(String resolvedPermittedIndex: resolvedPermittedAliasesIndex) {

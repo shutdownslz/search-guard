@@ -53,6 +53,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -1384,7 +1385,7 @@ public class SGTests extends AbstractUnitTest {
                 }
                 Assert.fail();
             } catch (ElasticsearchSecurityException e) {
-               Assert.assertEquals("no permissions for indices:data/read/get", e.getMessage());
+                Assert.assertTrue(e.getMessage().startsWith("no permissions for [indices:data/read/get]"));
             }
             
             System.out.println("------- 11 ---------");
@@ -1395,7 +1396,7 @@ public class SGTests extends AbstractUnitTest {
                 gr = tc.prepareGet("vulcan", "secrets", "s1").get();
                 Assert.fail();
             } catch (ElasticsearchSecurityException e) {
-               Assert.assertEquals("no permissions for indices:data/read/get", e.getMessage());
+                Assert.assertTrue(e.getMessage().startsWith("no permissions for [indices:data/read/get]"));
             } finally {
                 ctx.close();
             }
@@ -1539,7 +1540,7 @@ public class SGTests extends AbstractUnitTest {
                 gr = tc.prepareGet("vulcan", "secrets", "s1").get();
                 Assert.fail();
             } catch (ElasticsearchSecurityException e) {
-               Assert.assertEquals("no permissions for indices:data/read/get", e.getMessage());
+               Assert.assertTrue(e.getMessage().startsWith("no permissions for [indices:data/read/get]"));
                Assert.assertTrue(ok);
             } finally {
                 ctx.close();
@@ -1577,22 +1578,28 @@ public class SGTests extends AbstractUnitTest {
                 ctx.close();
             }
             
+            System.out.println("------- 17---------");
+            
             ctx = tc.threadPool().getThreadContext().stashContext();
             SearchResponse searchRes = null;
             try {
                 tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "nagilum");
                 searchRes = tc.prepareSearch("starfleet").setTypes("ships").setScroll(TimeValue.timeValueMinutes(5)).get();
+                Assert.assertEquals(0, searchRes.getFailedShards());
             } finally {
                 ctx.close();
             }
             
             Assert.assertNotNull(searchRes.getScrollId());
             
+            System.out.println("------- 18---------");
+            
             ctx = tc.threadPool().getThreadContext().stashContext();
             try {
                 tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "nagilum");
                 SearchResponse scrollRes = tc.prepareSearchScroll(searchRes.getScrollId()).get(); 
                 Assert.assertNotNull(scrollRes);
+                System.out.println(Strings.toString(scrollRes));
                 Assert.assertEquals(0, scrollRes.getFailedShards());
                 Assert.assertEquals(1, scrollRes.getHits().getTotalHits());
             } finally {
@@ -2340,7 +2347,7 @@ public class SGTests extends AbstractUnitTest {
         Assert.assertEquals(200, resc.getStatusCode());
         Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"_index\":\"klingonempire\""));
         Assert.assertTrue(resc.getBody(), resc.getBody().contains("hits"));
-        Assert.assertTrue(resc.getBody(), resc.getBody().contains("no permissions for indices:data/read/search"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("no permissions for [indices:data/read/search]"));
         
     }
     
