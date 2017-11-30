@@ -351,3 +351,7 @@ sg_twitter:
     'twitter':
       '*':
         - '*'
+
+sg_dummy:
+  cluster:
+    - 'cluster:monitor/health'
