@@ -36,6 +36,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -1416,7 +1417,7 @@ public class SGTests extends AbstractUnitTest {
                 gr = tc.prepareGet("vulcan", "secrets", "s1").get();
                 Assert.fail();
             } catch (ElasticsearchSecurityException e) {
-               Assert.assertTrue(e.getCause().getMessage().contains("password does not match"));
+               Assert.assertTrue(e.getMessage().contains("Cannot authenticate"));
             } finally {
                 ctx.close();
             }
@@ -1476,7 +1477,7 @@ public class SGTests extends AbstractUnitTest {
             Assert.assertTrue(gr.isSourceEmpty());
             
             */
-            System.out.println("------- 12 ---------");
+            System.out.println("------- 12 a ---------");
 
             ctx = tc.threadPool().getThreadContext().stashContext();
             try {
@@ -3017,6 +3018,104 @@ public class SGTests extends AbstractUnitTest {
         Assert.assertTrue(res.getBody().contains("logstash-new-20"));
         Assert.assertTrue(res.getBody().contains("logstash-cnew-20"));
         Assert.assertFalse(res.getBody().contains("<"));
+    }
+    
+    @Test
+    public void testTransportClientDoubleAuth() throws Exception {
+
+        final Settings settings = Settings.builder().put("searchguard.ssl.transport.enabled", true)
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_HTTP_ENABLE_OPENSSL_IF_AVAILABLE, allowOpenSSL)
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLE_OPENSSL_IF_AVAILABLE, allowOpenSSL)
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_ALIAS, "node-0")
+                .put("searchguard.ssl.transport.keystore_filepath", getAbsoluteFilePathFromClassPath("node-0-keystore.jks"))
+                .put("searchguard.ssl.transport.truststore_filepath", getAbsoluteFilePathFromClassPath("truststore.jks"))
+                .put("searchguard.ssl.transport.enforce_hostname_verification", false)
+                .put("searchguard.ssl.transport.resolve_hostname", false)
+                .build();
+        
+        final Settings esSettings = Settings.builder().put(settings)
+                .putArray("searchguard.authcz.admin_dn", "CN=kirk,OU=client,O=client,l=tEst, C=De")
+                .build();
+        
+        startES(esSettings);
+
+        Settings tcSettings = Settings.builder().put("cluster.name", clustername)
+                .put(settings)
+                .put("searchguard.ssl.transport.keystore_filepath", getAbsoluteFilePathFromClassPath("kirk-keystore.jks"))
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_ALIAS,"kirk")
+                .put("path.home", ".").build();
+
+        try (TransportClient tc = new TransportClientImpl(tcSettings, asCollection(Netty4Plugin.class, SearchGuardPlugin.class))) {
+            
+            log.debug("Start transport client to init");
+            
+            tc.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(nodeHost, nodePort)));
+            Assert.assertEquals(3, tc.admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet().getNodes().size());
+
+            tc.admin().indices().create(new CreateIndexRequest("searchguard")).actionGet();
+            
+            System.out.println("------- Begin INIT ---------");
+                        
+            tc.index(new IndexRequest("searchguard").type("config").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("config", readYamlContent("sg_config_dummy.yml"))).actionGet();
+            tc.index(new IndexRequest("searchguard").type("internalusers").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0").source("internalusers", readYamlContent("sg_internal_users.yml"))).actionGet();
+            tc.index(new IndexRequest("searchguard").type("roles").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("roles", readYamlContent("sg_roles.yml"))).actionGet();
+            tc.index(new IndexRequest("searchguard").type("rolesmapping").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0").source("rolesmapping", readYamlContent("sg_roles_mapping.yml"))).actionGet();
+            tc.index(new IndexRequest("searchguard").type("actiongroups").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0").source("actiongroups", readYamlContent("sg_action_groups.yml"))).actionGet();
+            
+            tc.index(new IndexRequest("starfleet").type("ships").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":1}", XContentType.JSON)).actionGet();
+            
+            ConfigUpdateResponse cur = tc.execute(ConfigUpdateAction.INSTANCE, new ConfigUpdateRequest(new String[]{"config","roles","rolesmapping","internalusers","actiongroups"})).actionGet();
+            Assert.assertEquals(3, cur.getNodes().size());
+        
+        }
+        
+        System.out.println("------- INIT complete ---------");
+        
+        tcSettings = Settings.builder().put("cluster.name", clustername)
+                .put(settings)
+                .put("searchguard.ssl.transport.keystore_filepath", getAbsoluteFilePathFromClassPath("spock-keystore.jks"))
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_ALIAS,"spock")
+                .put("path.home", ".").build();
+              
+        try (TransportClient tc = new TransportClientImpl(tcSettings, asCollection(Netty4Plugin.class, SearchGuardPlugin.class))) {
+            tc.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(nodeHost, nodePort)));
+            
+            
+            System.out.println("------- Start 1 ---------");
+            StoredContext ctx = tc.threadPool().getThreadContext().stashContext();
+            try {
+                tc.threadPool().getThreadContext().putHeader("Authorization", "basic "+encodeBasicHeader("dummy", "dummy"));
+                ClusterHealthResponse res = tc.admin().cluster().health(new ClusterHealthRequest()).actionGet();
+                Assert.assertNotNull(res);
+                Assert.assertEquals(3 , res.getNumberOfNodes());
+            } finally {
+                ctx.close();
+            }
+            
+            System.out.println("------- Start 2 ---------");
+            ctx = tc.threadPool().getThreadContext().stashContext();
+            try {
+                tc.threadPool().getThreadContext().putHeader("Authorization", "basic "+encodeBasicHeader("nouser", "nouser"));
+                ClusterHealthResponse res = tc.admin().cluster().health(new ClusterHealthRequest()).actionGet();
+                Assert.assertNotNull(res);
+                Assert.assertEquals(3 , res.getNumberOfNodes());
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
+            }
+            finally {
+                ctx.close();
+            }
+            
+            System.out.println("------- Start 3 ---------");
+            ctx = tc.threadPool().getThreadContext().stashContext();
+            try {
+                ClusterHealthResponse res = tc.admin().cluster().health(new ClusterHealthRequest()).actionGet();
+                Assert.assertNotNull(res);
+                Assert.assertEquals(3 , res.getNumberOfNodes());
+            } finally {
+                ctx.close();
+            }
+        }
     }
 
 
