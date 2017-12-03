@@ -336,9 +336,6 @@ public class BackendRegistry implements ConfigurationChangeListener {
          
                 
             if(authenticatedUser == null) {
-                /*if(log.isDebugEnabled()) {
-                    log.debug("Cannot authenticate user (or add roles) with ad {} due to user is null, try next", authDomain.getOrder());
-                }*/
                 continue;
             }
             
@@ -350,8 +347,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
                 auditLog.logFailedLogin(authenticatedUser.getName(), request);
                 return null;
             }
-            
-             //authenticatedUser.addRoles(ac.getBackendRoles());
+
             if(log.isDebugEnabled()) {
                 log.debug("User '{}' is authenticated", authenticatedUser);
             }
