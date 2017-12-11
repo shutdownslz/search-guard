@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -304,6 +305,8 @@ public class PrivilegesEvaluator {
     public static class PrivEvalResponse {
         boolean allowed = false;
         Set<String> missingPrivileges = new HashSet<String>();
+        Map<String,Set<String>> allowedFlsFields;
+        Map<String,Set<String>> queries; 
         
         public boolean isAllowed() {
             return allowed;
@@ -312,6 +315,13 @@ public class PrivilegesEvaluator {
             return new HashSet<String>(missingPrivileges);
         }
         
+        public Map<String,Set<String>> getAllowedFlsFields() {
+            return allowedFlsFields;
+        }
+        
+        public Map<String,Set<String>> getQueries() {
+            return queries;
+        }
     }
     
     public PrivEvalResponse evaluate(final User user, String action, final ActionRequest request) {
@@ -756,6 +766,17 @@ public class PrivilegesEvaluator {
             } else {
                 this.threadContext.putHeader(ConfigConstants.SG_DLS_QUERY, Base64Helper.serializeObject((Serializable) dlsQueries));
             }
+            
+            presponse.queries = new HashMap<>(dlsQueries);
+            
+            if (!requestedResolvedIndices.isEmpty()) {
+                for (Iterator<Entry<String, Set<String>>> it = presponse.queries.entrySet().iterator(); it.hasNext();) {
+                    Entry<String, Set<String>> entry = it.next();
+                    if (!WildcardMatcher.matchAny(entry.getKey(), requestedResolvedIndices, false)) {
+                        it.remove();
+                    }
+                }
+            }
         }
         
         if(!flsFields.isEmpty()) {
@@ -766,6 +787,16 @@ public class PrivilegesEvaluator {
                 }
             } else {
                 this.threadContext.putHeader(ConfigConstants.SG_FLS_FIELDS, Base64Helper.serializeObject((Serializable)flsFields));
+            }
+            
+            presponse.allowedFlsFields = new HashMap<>(flsFields);
+            if (!requestedResolvedIndices.isEmpty()) {
+                for (Iterator<Entry<String, Set<String>>> it = presponse.allowedFlsFields.entrySet().iterator(); it.hasNext();) {
+                    Entry<String, Set<String>> entry = it.next();
+                    if (!WildcardMatcher.matchAny(entry.getKey(), requestedResolvedIndices, false)) {
+                        it.remove();
+                    }
+                }
             }
         }
         

@@ -75,9 +75,9 @@ public class SearchGuardFilter implements ActionFilter {
         
         if(user == null && HeaderHelper.isDirectRequest(threadContext)) {
 
-            if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-                return;
-            }
+            //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
+            //    return;
+            //}
             
             chain.proceed(task, action, request, listener);
             return;
@@ -95,9 +95,9 @@ public class SearchGuardFilter implements ActionFilter {
                 auditLog.logAuthenticatedRequest(request, action);
             }
 
-            if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-                return;
-            }
+            //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
+            //    return;
+            //}
             
             chain.proceed(task, action, request, listener);
             return;
@@ -141,7 +141,7 @@ public class SearchGuardFilter implements ActionFilter {
         
         if (pres.isAllowed()) {
             auditLog.logAuthenticatedRequest(request, action);
-            if(!dlsFlsValve.invoke(request, listener, threadContext)) {
+            if(!dlsFlsValve.invoke(request, listener, pres.getAllowedFlsFields(), pres.getQueries())) {
                 return;
             }
             chain.proceed(task, action, request, listener);
