@@ -165,7 +165,7 @@ sg_monitor:
         - INDICES_ALL
     '?kibana*':
       '*':
-        - READ
+        - INDICES_ALL
     '*':
       '*':
         - indices:data/read/field_caps
@@ -181,7 +181,7 @@ sg_alerting:
   indices:
     '?kibana*':
       '*':
-        - READ
+        - INDICES_ALL
     '?watches*':
       '*':
         - INDICES_ALL
