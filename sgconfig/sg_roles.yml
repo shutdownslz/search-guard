@@ -89,6 +89,7 @@ sg_readall:
 sg_kibana:
   cluster:
     - CLUSTER_COMPOSITE_OPS_RO
+    - indices:data/read/scroll*
   indices:
     '*':
       '*':
