@@ -92,12 +92,18 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
             
             //bypass non-netty requests
             if(transportChannel.getChannelType().equals("local") || transportChannel.getChannelType().equals("direct")) {
-                String userHeader = getThreadContext().getHeader(ConfigConstants.SG_USER_HEADER);
+                final String userHeader = getThreadContext().getHeader(ConfigConstants.SG_USER_HEADER);
                 
                 if(!Strings.isNullOrEmpty(userHeader)) {
-                    getThreadContext().putTransient(ConfigConstants.SG_USER+"copy", Objects.requireNonNull((User) Base64Helper.deserializeObject(userHeader)));  
+                    getThreadContext().putTransient(ConfigConstants.SG_USER, Objects.requireNonNull((User) Base64Helper.deserializeObject(userHeader)));  
                 }
                 
+                final String originalRemoteAddress = getThreadContext().getHeader(ConfigConstants.SG_REMOTE_ADDRESS_HEADER);          
+                
+                if(!Strings.isNullOrEmpty(originalRemoteAddress)) {
+                    getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, new InetSocketTransportAddress((InetSocketAddress) Base64Helper.deserializeObject(originalRemoteAddress)));
+                }
+         
                 super.messageReceivedDecorate(request, handler, transportChannel, task);
                 return;
             }
