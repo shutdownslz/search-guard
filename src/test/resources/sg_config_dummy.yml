@@ -1,0 +1,20 @@
+searchguard:
+  dynamic:
+    http:
+      xff:
+        enabled: false
+    authc:
+      authentication_domain_proxy:
+        enabled: true
+        order: 1
+        challenge: false
+        http_authenticator:
+        authentication_backend:
+          type: com.floragunn.searchguard.DummyAuthenticationBackend
+      authentication_domain_basic_internal:
+        enabled: true
+        order: 0
+        http_authenticator:
+          type: basic
+        authentication_backend:
+          type: intern

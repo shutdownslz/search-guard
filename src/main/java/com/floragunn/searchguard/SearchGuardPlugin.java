@@ -37,9 +37,11 @@ import java.util.function.UnaryOperator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -68,6 +70,7 @@ import org.elasticsearch.http.HttpServerTransport.Dispatcher;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -75,9 +78,13 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.internal.ScrollContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
 import org.elasticsearch.transport.TransportChannel;
@@ -87,6 +94,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import com.floragunn.searchguard.action.configupdate.ConfigUpdateAction;
@@ -114,7 +122,6 @@ import com.floragunn.searchguard.ssl.ExternalSearchGuardKeyStore;
 import com.floragunn.searchguard.ssl.SearchGuardKeyStore;
 import com.floragunn.searchguard.ssl.http.netty.ValidatingDispatcher;
 import com.floragunn.searchguard.ssl.rest.SearchGuardSSLInfoAction;
-import com.floragunn.searchguard.ssl.transport.DefaultPrincipalExtractor;
 import com.floragunn.searchguard.ssl.transport.PrincipalExtractor;
 import com.floragunn.searchguard.ssl.transport.SearchGuardSSLNettyTransport;
 import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
@@ -123,6 +130,7 @@ import com.floragunn.searchguard.support.ReflectionHelper;
 import com.floragunn.searchguard.transport.DefaultInterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.InterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.SearchGuardInterceptor;
+import com.floragunn.searchguard.user.User;
 import com.google.common.collect.Lists;
 
 public final class SearchGuardPlugin extends Plugin implements ActionPlugin, NetworkPlugin {
@@ -345,6 +353,45 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
                 } else {
                     indexModule.setSearcherWrapper(indexService -> new SearchGuardIndexSearcherWrapper(indexService, settings));
                 }
+                
+                indexModule.addSearchOperationListener(new SearchOperationListener() {
+
+                    @Override
+                    public void onNewScrollContext(SearchContext context) {
+                        
+                        final ScrollContext scrollContext = context.scrollContext();
+                        
+                        if(scrollContext != null) {
+                            scrollContext.putInContext("_sg_scroll_auth", threadPool.getThreadContext()
+                                    .getTransient(ConfigConstants.SG_USER));
+                        }
+                    }
+
+                    @Override
+                    public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
+                        
+                        final ScrollContext scrollContext = context.scrollContext();
+                        if(scrollContext != null) {
+                            final Object _user = scrollContext.getFromContext("_sg_scroll_auth");
+                            if(_user != null && (_user instanceof User)) {
+                                final User scrollUser = (User) _user;
+                                final User currentUser = threadPool.getThreadContext()
+                                        .getTransient(ConfigConstants.SG_USER);
+                                if(!scrollUser.equals(currentUser)) {
+                                    auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
+                                    log.error("Wrong user {} in scroll context, expected {}", scrollUser, currentUser);
+                                    throw new ElasticsearchSecurityException("Wrong user in scroll context", RestStatus.FORBIDDEN);
+                                }
+                            } else {
+                                auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
+                                log.error("No user found in scroll context");
+                                throw new ElasticsearchSecurityException("No user in scroll context", RestStatus.FORBIDDEN);
+                            }
+                        }
+                    }
+                });
+                
+                
             }
         }
     }
@@ -527,17 +574,6 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
         
         
         adminDns = new AdminDNs(settings);      
-        final PrincipalExtractor pe = new DefaultPrincipalExtractor();        
-        cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, threadPool, localClient, clusterService);        
-        final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);     
-        final XFFResolver xffResolver = new XFFResolver(threadPool);
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, xffResolver);   
-        final BackendRegistry backendRegistry = new BackendRegistry(settings, adminDns, xffResolver, iab, auditLog, threadPool);
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
-        final ActionGroupHolder ah = new ActionGroupHolder(cr);      
-        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor);    
-        final SearchGuardFilter sgf = new SearchGuardFilter(settings, evaluator, adminDns, dlsFlsValve, auditLog, threadPool);     
-        sgi = new SearchGuardInterceptor(settings, threadPool, backendRegistry, auditLog, pe, interClusterRequestEvaluator, cs);
         
         final String principalExtractorClass = settings.get(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_PRINCIPAL_EXTRACTOR_CLASS, null);
 
@@ -552,11 +588,22 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
                 log.error("Unable to load '{}' due to {}", e, principalExtractorClass, e.toString());
                 throw new ElasticsearchException(e);
             }
-        }
+        }     
         
+        
+        cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, threadPool, localClient, clusterService);        
+        final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);     
+        final XFFResolver xffResolver = new XFFResolver(threadPool);
+        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, xffResolver);   
+        final BackendRegistry backendRegistry = new BackendRegistry(settings, adminDns, xffResolver, iab, auditLog, threadPool);
+        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
+        final ActionGroupHolder ah = new ActionGroupHolder(cr);      
+        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor);    
+        final SearchGuardFilter sgf = new SearchGuardFilter(settings, evaluator, adminDns, dlsFlsValve, auditLog, threadPool);     
+        sgi = new SearchGuardInterceptor(settings, threadPool, backendRegistry, auditLog, principalExtractor, interClusterRequestEvaluator, cs);
+        
+   
         components.add(principalExtractor);
-        
-        
         components.add(adminDns);
         //components.add(auditLog);
         components.add(cr);
@@ -568,7 +615,7 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
         components.add(sgf);
         components.add(sgi);
 
-        sgRestHandler = new SearchGuardRestFilter(backendRegistry, auditLog, threadPool, pe, settings);
+        sgRestHandler = new SearchGuardRestFilter(backendRegistry, auditLog, threadPool, principalExtractor, settings);
         
         return components;
         
@@ -717,21 +764,28 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
         }
         
         final List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
-        services.add(RepositoriesServiceHolder.class);
+        services.add(GuiceHolder.class);
         return services;
     }
     
-    public static class RepositoriesServiceHolder implements LifecycleComponent {
+    public static class GuiceHolder implements LifecycleComponent {
 
         private static RepositoriesService repositoriesService;
+        private static RemoteClusterService remoteClusterService;
         
         @Inject
-        public RepositoriesServiceHolder(final RepositoriesService repositoriesService) {
-            RepositoriesServiceHolder.repositoriesService = repositoriesService;
+        public GuiceHolder(final RepositoriesService repositoriesService, 
+                final TransportService remoteClusterService) {
+            GuiceHolder.repositoriesService = repositoriesService;
+            GuiceHolder.remoteClusterService = remoteClusterService.getRemoteClusterService();
         }
 
         public static RepositoriesService getRepositoriesService() {
             return repositoriesService;
+        }
+        
+        public static RemoteClusterService getRemoteClusterService() {
+            return remoteClusterService;
         }
 
         @Override
