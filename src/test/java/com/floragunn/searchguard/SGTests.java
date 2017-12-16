@@ -24,8 +24,11 @@ import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.List;
+import java.util.TreeSet;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpStatus;
@@ -34,6 +37,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
@@ -51,6 +55,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -74,8 +79,10 @@ import com.floragunn.searchguard.action.configupdate.ConfigUpdateRequest;
 import com.floragunn.searchguard.action.configupdate.ConfigUpdateResponse;
 import com.floragunn.searchguard.configuration.PrivilegesInterceptorImpl;
 import com.floragunn.searchguard.http.HTTPClientCertAuthenticator;
+import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.google.common.base.Joiner;
 
 public class SGTests extends AbstractUnitTest {
 
@@ -629,6 +636,21 @@ public class SGTests extends AbstractUnitTest {
         Assert.assertEquals(HttpStatus.SC_OK, res.getStatusCode());
         Assert.assertTrue(res.getBody().contains("\"total\" : 3"));
         Assert.assertTrue(res.getBody().contains("\"batches\" : 1"));
+        
+        List<String> indices = new ArrayList<>();
+        for(int i=0; i<50;i++) {
+            final String index = "long_index_name_with_a_really_long_name_"+i;
+            indices.add(index);
+            res = executePutRequest(index+"/doc/"+i, "{\"content\":"+i+"}", new BasicHeader("Authorization", "Basic "+encodeBasicHeader("nagilum", "nagilum")));
+            Assert.assertEquals(res.getBody(), HttpStatus.SC_CREATED, res.getStatusCode());
+        }
+        
+        //long uri
+        //https://github.com/floragunncom/search-guard/issues/394
+        res = executeGetRequest(Joiner.on(',').join(indices)+",searchguard/_stats/store,docs", new BasicHeader("Authorization", "Basic "+encodeBasicHeader("nagilum", "nagilum")));
+        System.out.println(res.getBody());
+        System.out.println(res.getStatusReason());
+        Assert.assertEquals(HttpStatus.SC_OK, res.getStatusCode());
     }
     
     
@@ -1365,7 +1387,7 @@ public class SGTests extends AbstractUnitTest {
                 }
                 Assert.fail();
             } catch (ElasticsearchSecurityException e) {
-               Assert.assertEquals("no permissions for indices:data/read/get", e.getMessage());
+                Assert.assertTrue(e.getMessage().startsWith("no permissions for [indices:data/read/get]"));
             }
             
             System.out.println("------- 11 ---------");
@@ -1376,7 +1398,7 @@ public class SGTests extends AbstractUnitTest {
                 gr = tc.prepareGet("vulcan", "secrets", "s1").get();
                 Assert.fail();
             } catch (ElasticsearchSecurityException e) {
-               Assert.assertEquals("no permissions for indices:data/read/get", e.getMessage());
+                Assert.assertTrue(e.getMessage().startsWith("no permissions for [indices:data/read/get]"));
             } finally {
                 ctx.close();
             }
@@ -1396,7 +1418,7 @@ public class SGTests extends AbstractUnitTest {
                 gr = tc.prepareGet("vulcan", "secrets", "s1").get();
                 Assert.fail();
             } catch (ElasticsearchSecurityException e) {
-               Assert.assertTrue(e.getCause().getMessage().contains("password does not match"));
+               Assert.assertTrue(e.getMessage().contains("Cannot authenticate"));
             } finally {
                 ctx.close();
             }
@@ -1456,7 +1478,7 @@ public class SGTests extends AbstractUnitTest {
             Assert.assertTrue(gr.isSourceEmpty());
             
             */
-            System.out.println("------- 12 ---------");
+            System.out.println("------- 12 a ---------");
 
             ctx = tc.threadPool().getThreadContext().stashContext();
             try {
@@ -1490,12 +1512,17 @@ public class SGTests extends AbstractUnitTest {
                 ctx.close();
             }
 
-            //TODO fails (but this could be ok?)
             ctx = tc.threadPool().getThreadContext().stashContext();
             try {
                 tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "worf");
-                SearchResponse scrollRes = tc.prepareSearchScroll(scrollId).get();
-            } finally {
+                tc.prepareSearchScroll(scrollId).get();
+                Assert.fail();
+            } catch (Exception e) {
+                Throwable root = ExceptionUtils.getRootCause(e);
+                e.printStackTrace();
+                Assert.assertTrue(root.getMessage().contains("Wrong user in scroll context"));
+            }
+            finally {
                 ctx.close();
             }
             
@@ -1515,7 +1542,7 @@ public class SGTests extends AbstractUnitTest {
                 gr = tc.prepareGet("vulcan", "secrets", "s1").get();
                 Assert.fail();
             } catch (ElasticsearchSecurityException e) {
-               Assert.assertEquals("no permissions for indices:data/read/get", e.getMessage());
+               Assert.assertTrue(e.getMessage().startsWith("no permissions for [indices:data/read/get]"));
                Assert.assertTrue(ok);
             } finally {
                 ctx.close();
@@ -1553,30 +1580,34 @@ public class SGTests extends AbstractUnitTest {
                 ctx.close();
             }
             
+            System.out.println("------- 17---------");
+            
             ctx = tc.threadPool().getThreadContext().stashContext();
             SearchResponse searchRes = null;
             try {
                 tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "nagilum");
                 searchRes = tc.prepareSearch("starfleet").setTypes("ships").setScroll(TimeValue.timeValueMinutes(5)).get();
+                Assert.assertEquals(0, searchRes.getFailedShards());
             } finally {
                 ctx.close();
             }
             
             Assert.assertNotNull(searchRes.getScrollId());
             
+            System.out.println("------- 18---------");
+            
             ctx = tc.threadPool().getThreadContext().stashContext();
             try {
-                tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "worf");
+                tc.threadPool().getThreadContext().putHeader("sg_impersonate_as", "nagilum");
                 SearchResponse scrollRes = tc.prepareSearchScroll(searchRes.getScrollId()).get(); 
                 Assert.assertNotNull(scrollRes);
+                System.out.println(Strings.toString(scrollRes));
                 Assert.assertEquals(0, scrollRes.getFailedShards());
                 Assert.assertEquals(1, scrollRes.getHits().getTotalHits());
-                //System.out.println(scrollRes.getHits().getHits().length); //0 ??
-                //TODO scrollRes.getScrollId() is null
-                //Assert.assertNotNull(scrollRes.getScrollId());
             } finally {
                 ctx.close();
             }
+
 
             System.out.println("------- TRC end ---------");
         }
@@ -2318,7 +2349,7 @@ public class SGTests extends AbstractUnitTest {
         Assert.assertEquals(200, resc.getStatusCode());
         Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"_index\":\"klingonempire\""));
         Assert.assertTrue(resc.getBody(), resc.getBody().contains("hits"));
-        Assert.assertTrue(resc.getBody(), resc.getBody().contains("no permissions for indices:data/read/search"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("no permissions for [indices:data/read/search]"));
         
     }
     
@@ -2525,16 +2556,21 @@ public class SGTests extends AbstractUnitTest {
     public void testDnParsingCertAuth() throws Exception {
         Settings settings = Settings.builder()
                 .put("username_attribute", "cn")
+                .put("roles_attribute", "l")
                 .build();
         HTTPClientCertAuthenticator auth = new HTTPClientCertAuthenticator(settings);
+        Assert.assertEquals("abc", auth.extractCredentials(null, newThreadContext("cn=abc,cn=xxx,l=ert,st=zui,c=qwe")).getUsername());
         Assert.assertEquals("abc", auth.extractCredentials(null, newThreadContext("cn=abc,l=ert,st=zui,c=qwe")).getUsername());
         Assert.assertEquals("abc", auth.extractCredentials(null, newThreadContext("CN=abc,L=ert,st=zui,c=qwe")).getUsername());     
         Assert.assertEquals("abc", auth.extractCredentials(null, newThreadContext("l=ert,cn=abc,st=zui,c=qwe")).getUsername());
-        Assert.assertEquals("abc", auth.extractCredentials(null, newThreadContext("L=ert,CN=abc,c,st=zui,c=qwe")).getUsername());
+        Assert.assertNull(auth.extractCredentials(null, newThreadContext("L=ert,CN=abc,c,st=zui,c=qwe")));
         //Assert.assertEquals("ab,c", auth.extractCredentials(newSSLRestRequest("L=ert,CN=ab\\,c,c,st=zui,c=qwe"),threadContext).getUsername());
         Assert.assertEquals("abc", auth.extractCredentials(null, newThreadContext("l=ert,st=zui,c=qwe,cn=abc")).getUsername());
         Assert.assertEquals("abc", auth.extractCredentials(null, newThreadContext("L=ert,st=zui,c=qwe,CN=abc")).getUsername()); 
         Assert.assertEquals("L=ert,st=zui,c=qwe", auth.extractCredentials(null, newThreadContext("L=ert,st=zui,c=qwe")).getUsername()); 
+        Assert.assertArrayEquals(new String[] {"ert"}, auth.extractCredentials(null, newThreadContext("cn=abc,l=ert,st=zui,c=qwe")).getBackendRoles().toArray(new String[0]));
+        Assert.assertArrayEquals(new String[] {"bleh", "ert"}, new TreeSet<>(auth.extractCredentials(null, newThreadContext("cn=abc,l=ert,L=bleh,st=zui,c=qwe")).getBackendRoles()).toArray(new String[0]));
+
         
         settings = Settings.builder()
                 .build();
@@ -2988,6 +3024,104 @@ public class SGTests extends AbstractUnitTest {
         Assert.assertTrue(res.getBody().contains("logstash-new-20"));
         Assert.assertTrue(res.getBody().contains("logstash-cnew-20"));
         Assert.assertFalse(res.getBody().contains("<"));
+    }
+    
+    @Test
+    public void testTransportClientDoubleAuth() throws Exception {
+
+        final Settings settings = Settings.builder().put("searchguard.ssl.transport.enabled", true)
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_HTTP_ENABLE_OPENSSL_IF_AVAILABLE, allowOpenSSL)
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLE_OPENSSL_IF_AVAILABLE, allowOpenSSL)
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_ALIAS, "node-0")
+                .put("searchguard.ssl.transport.keystore_filepath", getAbsoluteFilePathFromClassPath("node-0-keystore.jks"))
+                .put("searchguard.ssl.transport.truststore_filepath", getAbsoluteFilePathFromClassPath("truststore.jks"))
+                .put("searchguard.ssl.transport.enforce_hostname_verification", false)
+                .put("searchguard.ssl.transport.resolve_hostname", false)
+                .build();
+        
+        final Settings esSettings = Settings.builder().put(settings)
+                .putArray("searchguard.authcz.admin_dn", "CN=kirk,OU=client,O=client,l=tEst, C=De")
+                .build();
+        
+        startES(esSettings);
+
+        Settings tcSettings = Settings.builder().put("cluster.name", clustername)
+                .put(settings)
+                .put("searchguard.ssl.transport.keystore_filepath", getAbsoluteFilePathFromClassPath("kirk-keystore.jks"))
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_ALIAS,"kirk")
+                .put("path.home", ".").build();
+
+        try (TransportClient tc = new TransportClientImpl(tcSettings, asCollection(Netty4Plugin.class, SearchGuardPlugin.class))) {
+            
+            log.debug("Start transport client to init");
+            
+            tc.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(nodeHost, nodePort)));
+            Assert.assertEquals(3, tc.admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet().getNodes().size());
+
+            tc.admin().indices().create(new CreateIndexRequest("searchguard")).actionGet();
+            
+            System.out.println("------- Begin INIT ---------");
+                        
+            tc.index(new IndexRequest("searchguard").type("config").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("config", readYamlContent("sg_config_dummy.yml"))).actionGet();
+            tc.index(new IndexRequest("searchguard").type("internalusers").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0").source("internalusers", readYamlContent("sg_internal_users.yml"))).actionGet();
+            tc.index(new IndexRequest("searchguard").type("roles").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("roles", readYamlContent("sg_roles.yml"))).actionGet();
+            tc.index(new IndexRequest("searchguard").type("rolesmapping").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0").source("rolesmapping", readYamlContent("sg_roles_mapping.yml"))).actionGet();
+            tc.index(new IndexRequest("searchguard").type("actiongroups").setRefreshPolicy(RefreshPolicy.IMMEDIATE).id("0").source("actiongroups", readYamlContent("sg_action_groups.yml"))).actionGet();
+            
+            tc.index(new IndexRequest("starfleet").type("ships").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":1}", XContentType.JSON)).actionGet();
+            
+            ConfigUpdateResponse cur = tc.execute(ConfigUpdateAction.INSTANCE, new ConfigUpdateRequest(new String[]{"config","roles","rolesmapping","internalusers","actiongroups"})).actionGet();
+            Assert.assertEquals(3, cur.getNodes().size());
+        
+        }
+        
+        System.out.println("------- INIT complete ---------");
+        
+        tcSettings = Settings.builder().put("cluster.name", clustername)
+                .put(settings)
+                .put("searchguard.ssl.transport.keystore_filepath", getAbsoluteFilePathFromClassPath("spock-keystore.jks"))
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_ALIAS,"spock")
+                .put("path.home", ".").build();
+              
+        try (TransportClient tc = new TransportClientImpl(tcSettings, asCollection(Netty4Plugin.class, SearchGuardPlugin.class))) {
+            tc.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(nodeHost, nodePort)));
+            
+            
+            System.out.println("------- Start 1 ---------");
+            StoredContext ctx = tc.threadPool().getThreadContext().stashContext();
+            try {
+                tc.threadPool().getThreadContext().putHeader("Authorization", "basic "+encodeBasicHeader("dummy", "dummy"));
+                ClusterHealthResponse res = tc.admin().cluster().health(new ClusterHealthRequest()).actionGet();
+                Assert.assertNotNull(res);
+                Assert.assertEquals(3 , res.getNumberOfNodes());
+            } finally {
+                ctx.close();
+            }
+            
+            System.out.println("------- Start 2 ---------");
+            ctx = tc.threadPool().getThreadContext().stashContext();
+            try {
+                tc.threadPool().getThreadContext().putHeader("Authorization", "basic "+encodeBasicHeader("nouser", "nouser"));
+                ClusterHealthResponse res = tc.admin().cluster().health(new ClusterHealthRequest()).actionGet();
+                Assert.assertNotNull(res);
+                Assert.assertEquals(3 , res.getNumberOfNodes());
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
+            }
+            finally {
+                ctx.close();
+            }
+            
+            System.out.println("------- Start 3 ---------");
+            ctx = tc.threadPool().getThreadContext().stashContext();
+            try {
+                ClusterHealthResponse res = tc.admin().cluster().health(new ClusterHealthRequest()).actionGet();
+                Assert.assertNotNull(res);
+                Assert.assertEquals(3 , res.getNumberOfNodes());
+            } finally {
+                ctx.close();
+            }
+        }
     }
 
 

@@ -18,6 +18,7 @@
 package com.floragunn.searchguard.support;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Stack;
 import java.util.regex.Pattern;
@@ -116,6 +117,17 @@ public class WildcardMatcher {
         for (int i = 0; i < pattern.length; i++) {
             final String string = pattern[i];
             if (match(string, candidate)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    
+    public static boolean matchAny(final String pattern, final Collection<String> candidates, boolean ignoreCase) {
+
+        for (String candidate: candidates) {
+            if (match(pattern, candidate, ignoreCase)) {
                 return true;
             }
         }

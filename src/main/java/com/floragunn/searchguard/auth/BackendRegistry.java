@@ -221,7 +221,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
                     authDomains.add(new AuthDomain(authenticationBackend, httpAuthenticator,
                             ads.getAsBoolean("http_authenticator.challenge", true), ads.getAsInt("order", 0)));
                 } catch (final Exception e) {
-                    log.error("Unable to initialize auth domain {} due to {}", e, ad, e.toString());
+                    log.error("Unable to initialize auth domain {} due to {}", ad, e.toString(), e);
                 }
 
             }
@@ -256,14 +256,15 @@ public class BackendRegistry implements ConfigurationChangeListener {
         if(log.isDebugEnabled() && creds != null) {
             log.debug("User {} submitted also basic credentials: {}", user.getName(), creds);
         }
-          
+        
+        //loop auth domains
         for (final Iterator<AuthDomain> iterator = new TreeSet<AuthDomain>(authDomains).iterator(); iterator.hasNext();) {
 
             final AuthDomain authDomain = (AuthDomain) iterator.next();
             User authenticatedUser = null;
 
             if(creds == null) {
-                
+                //auth with DN
                 if(log.isDebugEnabled()) {
                     log.debug("Transport User '{}' is in cache? {} (cache size: {})", user.getName(), userCacheTransport.getIfPresent(user.getName())!=null, userCacheTransport.size());
                 }
@@ -273,7 +274,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
                         @Override
                         public User call() throws Exception {
                             if (log.isDebugEnabled()) {
-                                log.debug(user.getName() + " not cached, return from backend directly");
+                                log.debug(user.getName() + " not cached, return from {} backend directly", authDomain.getBackend().getType());
                             }
 
                             if (authDomain.getBackend().exists(user)) {
@@ -294,11 +295,10 @@ public class BackendRegistry implements ConfigurationChangeListener {
                         }
                     });
                 } catch (Exception e) {
-                    //log.error("Unexpected exception {} ", e, e.toString());
-                    throw new ElasticsearchSecurityException(e.toString(), e);
+                    log.debug("Cannot authenticate {} with {}, try next", user.getName(), authDomain.getBackend().getType(), e);
                 }
             } else {
-                //auth
+                //auth with extra submitted credentials
                 
                 if (log.isDebugEnabled()) {
                     log.debug("Transport User '{}' is in cache? {} (cache size: {})", creds.getUsername(),
@@ -310,7 +310,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
                         @Override
                         public User call() throws Exception {
                             if (log.isDebugEnabled()) {
-                                log.debug(creds.getUsername() + " not cached, return from backend directly");
+                                log.debug(creds.getUsername() + " not cached, return from {} backend directly", authDomain.getBackend().getType());
                             }
 
                             // full authentication
@@ -330,45 +330,41 @@ public class BackendRegistry implements ConfigurationChangeListener {
                         }
                     });
                 } catch (Exception e) {
-                    //log.error("Unexpected exception {} ", e, e.toString());
-                    throw new ElasticsearchSecurityException(e.toString(), e);
-                } finally {
-                    creds.clearSecrets();
+                    log.debug("Cannot authenticate {} with {}, try next", creds.getUsername(), authDomain.getBackend().getType(), e);
                 }
-            }
-     
-            try {              
+            }  
+         
                 
-                if(authenticatedUser == null) {
-                    if(log.isDebugEnabled()) {
-                        log.debug("Cannot authenticate user (or add roles) with ad {} due to user is null, try next", authDomain.getOrder());
-                    }
-                    continue;
-                }
-                
-                if(AdminDNs.isAdmin(authenticatedUser.getName())) {
-                    log.error("Cannot authenticate user because admin user is not permitted to login");
-                    auditLog.logFailedLogin(authenticatedUser.getName(), request);
-                    return null;
-                }
-                
-                 //authenticatedUser.addRoles(ac.getBackendRoles());
-                if(log.isDebugEnabled()) {
-                    log.debug("User '{}' is authenticated", authenticatedUser);
-                }
-                return authenticatedUser;
-            } catch (final ElasticsearchSecurityException e) {
-                if(log.isDebugEnabled()) {
-                    log.debug("Cannot authenticate user (or add roles) with ad {} due to {}, try next", authDomain.getOrder(), e.toString());
-                }
+            if(authenticatedUser == null) {
                 continue;
             }
             
-        }//end for
+            if(AdminDNs.isAdmin(authenticatedUser.getName())) {
+                if(creds != null) {
+                    creds.clearSecrets();
+                }
+                log.error("Cannot authenticate user because admin user is not permitted to login");
+                auditLog.logFailedLogin(authenticatedUser.getName(), request);
+                return null;
+            }
+
+            if(log.isDebugEnabled()) {
+                log.debug("User '{}' is authenticated", authenticatedUser);
+            }
+            
+            if(creds != null) {
+                creds.clearSecrets();
+            }
+            
+            return authenticatedUser;
+
+            
+        }//end for loop auth domains
         
         if(creds == null) {
             auditLog.logFailedLogin(user.getName(), request);
         } else {
+            creds.clearSecrets();
             auditLog.logFailedLogin(creds.getUsername(), request);
         }
         

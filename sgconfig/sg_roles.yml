@@ -89,6 +89,7 @@ sg_readall:
 sg_kibana:
   cluster:
     - CLUSTER_COMPOSITE_OPS_RO
+    - indices:data/read/scroll*
   indices:
     '*':
       '*':
@@ -164,7 +165,7 @@ sg_monitor:
         - INDICES_ALL
     '?kibana*':
       '*':
-        - READ
+        - INDICES_ALL
     '*':
       '*':
         - indices:data/read/field_caps
@@ -180,7 +181,7 @@ sg_alerting:
   indices:
     '?kibana*':
       '*':
-        - READ
+        - INDICES_ALL
     '?watches*':
       '*':
         - INDICES_ALL

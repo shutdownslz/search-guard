@@ -36,6 +36,7 @@ import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.configuration.AdminDNs;
 import com.floragunn.searchguard.configuration.DlsFlsRequestValve;
 import com.floragunn.searchguard.configuration.PrivilegesEvaluator;
+import com.floragunn.searchguard.configuration.PrivilegesEvaluator.PrivEvalResponse;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HeaderHelper;
 import com.floragunn.searchguard.user.User;
@@ -68,20 +69,22 @@ public class SearchGuardFilter implements ActionFilter {
     @Override
     public void apply(Task task, final String action, final ActionRequest request, final ActionListener listener, final ActionFilterChain chain) {
         
+        try {
+        
         final User user = threadContext.getTransient(ConfigConstants.SG_USER);
         
         if(user == null && HeaderHelper.isDirectRequest(threadContext)) {
 
-            if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-                return;
-            }
+            //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
+            //    return;
+            //}
             
             chain.proceed(task, action, request, listener);
             return;
         }
 
         final boolean userIsAdmin = isUserAdmin(Objects.requireNonNull(user), adminDns);
-        final boolean interClusterRequest = HeaderHelper.isInterClusterRequest(threadContext);
+        final boolean interClusterRequest = !action.contains("[") && HeaderHelper.isInterClusterRequest(threadContext);
         final boolean conRequest = "true".equals(HeaderHelper.getSafeFromHeader(threadContext, ConfigConstants.SG_CONF_REQUEST_HEADER));
 
         if(userIsAdmin
@@ -92,9 +95,9 @@ public class SearchGuardFilter implements ActionFilter {
                 auditLog.logAuthenticatedRequest(request, action);
             }
 
-            if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-                return;
-            }
+            //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
+            //    return;
+            //}
             
             chain.proceed(task, action, request, listener);
             return;
@@ -134,17 +137,25 @@ public class SearchGuardFilter implements ActionFilter {
             log.trace("Evaluate permissions for user: {}", user.getName());
         }
 
-        if (eval.evaluate(user, action, request)) {
+        final PrivEvalResponse pres = eval.evaluate(user, action, request);
+        
+        if (pres.isAllowed()) {
             auditLog.logAuthenticatedRequest(request, action);
-            if(!dlsFlsValve.invoke(request, listener, threadContext)) {
+            if(!dlsFlsValve.invoke(request, listener, pres.getAllowedFlsFields(), pres.getQueries())) {
                 return;
             }
             chain.proceed(task, action, request, listener);
             return;
         } else {
             auditLog.logMissingPrivileges(action, request);
-            log.debug("no permissions for {}", action);
-            listener.onFailure(new ElasticsearchSecurityException("no permissions for " + action, RestStatus.FORBIDDEN));
+            log.debug("no permissions for {}", pres.getMissingPrivileges());
+            listener.onFailure(new ElasticsearchSecurityException("no permissions for " + pres.getMissingPrivileges()+" and "+user, RestStatus.FORBIDDEN));
+            return;
+        }
+        
+        } catch (Throwable e) {
+            log.error("Unexpected exception "+e, e);
+            listener.onFailure(new ElasticsearchSecurityException("Unexpected exception " + action, RestStatus.INTERNAL_SERVER_ERROR));
             return;
         }
         

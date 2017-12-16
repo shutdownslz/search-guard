@@ -122,3 +122,11 @@ sg_snapres:
 sg_logstash:
   users:
     - logstash
+
+sg_twitter:
+  users:
+    - twitter
+    
+sg_dummy:
+  users:
+    - dummy
