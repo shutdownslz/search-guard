@@ -69,6 +69,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -760,7 +761,7 @@ public class SearchGuardAdmin {
         try {
             sb.append("ClusterHealthRequest:"+System.lineSeparator());
             ClusterHealthResponse nir = tc.admin().cluster().health(new ClusterHealthRequest()).actionGet();
-            sb.append(XContentHelper.toString(nir));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -768,7 +769,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"NodesInfoResponse:"+System.lineSeparator());
             NodesInfoResponse nir = tc.admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet();
-            sb.append(XContentHelper.toString(nir));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -776,7 +777,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"NodesStatsRequest:"+System.lineSeparator());
             NodesStatsResponse nir = tc.admin().cluster().nodesStats(new NodesStatsRequest()).actionGet();
-            sb.append(XContentHelper.toString(nir));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -784,7 +785,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"PendingClusterTasksRequest:"+System.lineSeparator());
             PendingClusterTasksResponse nir = tc.admin().cluster().pendingClusterTasks(new PendingClusterTasksRequest()).actionGet();
-            sb.append(XContentHelper.toString(nir));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -792,7 +793,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"ClusterStateRequest:"+System.lineSeparator());
             ClusterStateResponse nir = tc.admin().cluster().state(new ClusterStateRequest()).actionGet();
-            sb.append(XContentHelper.toString(nir.getState()));
+            sb.append(Strings.toString(nir.getState()));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -800,7 +801,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"IndicesStatsRequest:"+System.lineSeparator());
             IndicesStatsResponse nir = tc.admin().indices().stats(new IndicesStatsRequest()).actionGet();
-            sb.append(XContentHelper.toString(nir));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }

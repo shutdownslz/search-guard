@@ -84,9 +84,9 @@ public class SearchGuardIndexSearcherWrapper extends IndexSearcherWrapper {
 
         User user = (User) threadContext.getTransient(ConfigConstants.SG_USER);
         
-        if(user == null) {
-            user = (User) threadContext.getTransient(ConfigConstants.SG_USER+"copy");
-        }
+        //if(user == null) {
+        //    user = (User) threadContext.getTransient(ConfigConstants.SG_USER+"copy");
+        //}
                 
         if (user != null && AdminDNs.isAdmin(user.getName())) { //TODO static hack
             return true;
