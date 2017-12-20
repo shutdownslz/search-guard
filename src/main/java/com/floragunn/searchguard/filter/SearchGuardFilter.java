@@ -73,12 +73,14 @@ public class SearchGuardFilter implements ActionFilter {
         
         final User user = threadContext.getTransient(ConfigConstants.SG_USER);
         
-        if(user == null && HeaderHelper.isDirectRequest(threadContext)) {
-
-            //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-            //    return;
-            //}
-            
+        if(user == null && HeaderHelper.isDirectRequest(threadContext)) {         
+            chain.proceed(task, action, request, listener);
+            return;
+        }
+        
+        if( (user == null || user.equals(User.SG_INTERNAL))
+                && HeaderHelper.isInterClusterRequest(threadContext)
+                && action.contains("[")) {
             chain.proceed(task, action, request, listener);
             return;
         }
@@ -94,11 +96,6 @@ public class SearchGuardFilter implements ActionFilter {
             if(userIsAdmin && !interClusterRequest && !conRequest) {
                 auditLog.logAuthenticatedRequest(request, action);
             }
-
-            //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-            //    return;
-            //}
-            
             chain.proceed(task, action, request, listener);
             return;
         }
