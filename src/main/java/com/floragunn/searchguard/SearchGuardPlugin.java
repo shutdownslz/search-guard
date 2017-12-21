@@ -126,6 +126,7 @@ import com.floragunn.searchguard.ssl.transport.PrincipalExtractor;
 import com.floragunn.searchguard.ssl.transport.SearchGuardSSLNettyTransport;
 import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.support.HeaderHelper;
 import com.floragunn.searchguard.support.ReflectionHelper;
 import com.floragunn.searchguard.transport.DefaultInterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.InterClusterRequestEvaluator;
@@ -346,53 +347,59 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
     public void onIndexModule(IndexModule indexModule) {
         //called for every index!
         
-        if(!disabled) {
-            if (!client) {
-                if(dlsFlsAvailable) {
-                    indexModule.setSearcherWrapper(indexService -> loadFlsDlsIndexSearcherWrapper(indexService));
-                } else {
-                    indexModule.setSearcherWrapper(indexService -> new SearchGuardIndexSearcherWrapper(indexService, settings));
-                }
-                
-                indexModule.addSearchOperationListener(new SearchOperationListener() {
-
-                    @Override
-                    public void onNewScrollContext(SearchContext context) {
-                        
-                        final ScrollContext scrollContext = context.scrollContext();
-                        
-                        if(scrollContext != null) {
-                            scrollContext.putInContext("_sg_scroll_auth", threadPool.getThreadContext()
-                                    .getTransient(ConfigConstants.SG_USER));
-                        }
-                    }
-
-                    @Override
-                    public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
-                        
-                        final ScrollContext scrollContext = context.scrollContext();
-                        if(scrollContext != null) {
-                            final Object _user = scrollContext.getFromContext("_sg_scroll_auth");
-                            if(_user != null && (_user instanceof User)) {
-                                final User scrollUser = (User) _user;
-                                final User currentUser = threadPool.getThreadContext()
-                                        .getTransient(ConfigConstants.SG_USER);
-                                if(!scrollUser.equals(currentUser)) {
-                                    auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
-                                    log.error("Wrong user {} in scroll context, expected {}", scrollUser, currentUser);
-                                    throw new ElasticsearchSecurityException("Wrong user in scroll context", RestStatus.FORBIDDEN);
-                                }
-                            } else {
-                                auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
-                                log.error("No user found in scroll context");
-                                throw new ElasticsearchSecurityException("No user in scroll context", RestStatus.FORBIDDEN);
-                            }
-                        }
-                    }
-                });
-                
-                
+        if (!disabled && !client) {
+            if (dlsFlsAvailable) {
+                indexModule.setSearcherWrapper(indexService -> loadFlsDlsIndexSearcherWrapper(indexService));
+            } else {
+                indexModule.setSearcherWrapper(indexService -> new SearchGuardIndexSearcherWrapper(indexService, settings));
             }
+        
+            indexModule.addSearchOperationListener(new SearchOperationListener() {
+
+                @Override
+                public void onNewScrollContext(SearchContext context) {
+
+                    final ScrollContext scrollContext = context.scrollContext();
+
+                    if (scrollContext != null) {
+
+                        final User user = threadPool.getThreadContext().getTransient(ConfigConstants.SG_USER);
+
+                        if ((user == null || user.equals(User.SG_INTERNAL)
+                                && (HeaderHelper.isDirectRequest(threadPool.getThreadContext()) || HeaderHelper
+                                        .isInterClusterRequest(threadPool.getThreadContext())))) {
+                            scrollContext.putInContext("_sg_scroll_auth_local", Boolean.TRUE);
+
+                        } else {
+                            scrollContext.putInContext("_sg_scroll_auth", user);
+                        }
+
+                    }
+                }
+
+                @Override
+                public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
+                    
+                    final ScrollContext scrollContext = context.scrollContext();
+                    if(scrollContext != null) {
+                        final Object _isLocal = scrollContext.getFromContext("_sg_scroll_auth_local");
+                        final Object _user = scrollContext.getFromContext("_sg_scroll_auth");
+                        if(_user != null && (_user instanceof User)) {
+                            final User scrollUser = (User) _user;
+                            final User currentUser = threadPool.getThreadContext()
+                                    .getTransient(ConfigConstants.SG_USER);
+                            if(!scrollUser.equals(currentUser)) {
+                                auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
+                                log.error("Wrong user {} in scroll context, expected {}", scrollUser, currentUser);
+                                throw new ElasticsearchSecurityException("Wrong user in scroll context", RestStatus.FORBIDDEN);
+                            }
+                        } else if(_isLocal != Boolean.TRUE) {
+                            auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest);
+                            throw new ElasticsearchSecurityException("No user in scroll context", RestStatus.FORBIDDEN);
+                        }
+                    }
+                }
+            });
         }
     }
     
