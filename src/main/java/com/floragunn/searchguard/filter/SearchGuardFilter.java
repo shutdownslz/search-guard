@@ -73,14 +73,8 @@ public class SearchGuardFilter implements ActionFilter {
         
         final User user = threadContext.getTransient(ConfigConstants.SG_USER);
         
-        if(user == null && HeaderHelper.isDirectRequest(threadContext)) {         
-            chain.proceed(task, action, request, listener);
-            return;
-        }
-        
-        if( (user == null || user.equals(User.SG_INTERNAL))
-                && HeaderHelper.isInterClusterRequest(threadContext)
-                && action.contains("[")) {
+        if((user == null || user.equals(User.SG_INTERNAL) 
+                && (HeaderHelper.isDirectRequest(threadContext) || HeaderHelper.isInterClusterRequest(threadContext)))) {         
             chain.proceed(task, action, request, listener);
             return;
         }
