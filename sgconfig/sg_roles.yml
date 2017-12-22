@@ -64,7 +64,7 @@ sg_all_access:
         - UNLIMITED
   tenants:
     adm_tenant: RW
-    test_tenant_ro: RW
+    test_tenant_ro: RO
 
 # Read all and monitor, but no write permissions 
 sg_readonly_and_monitor:
@@ -104,8 +104,15 @@ sg_kibana_server:
       - CLUSTER_MONITOR
       - CLUSTER_COMPOSITE_OPS
       - cluster:admin/xpack/monitoring*
+      - indices:admin/template*
   indices:
     '?kibana':
+      '*':
+        - INDICES_ALL
+    '?reporting*':
+      '*':
+        - INDICES_ALL
+    '?monitoring*':
       '*':
         - INDICES_ALL
 
