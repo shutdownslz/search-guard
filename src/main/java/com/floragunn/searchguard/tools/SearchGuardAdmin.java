@@ -791,14 +791,6 @@ public class SearchGuardAdmin {
         }
         
         try {
-            sb.append(System.lineSeparator()+"ClusterStateRequest:"+System.lineSeparator());
-            ClusterStateResponse nir = tc.admin().cluster().state(new ClusterStateRequest()).actionGet();
-            sb.append(Strings.toString(nir.getState()));
-        } catch (Exception e1) {
-            sb.append(ExceptionsHelper.stackTrace(e1));
-        }
-        
-        try {
             sb.append(System.lineSeparator()+"IndicesStatsRequest:"+System.lineSeparator());
             IndicesStatsResponse nir = tc.admin().indices().stats(new IndicesStatsRequest()).actionGet();
             sb.append(Strings.toString(nir));
