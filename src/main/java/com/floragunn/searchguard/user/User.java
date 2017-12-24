@@ -53,7 +53,7 @@ public class User implements Serializable, Writeable, CustomAttributesAware {
         super();
         name = in.readString();
         roles.addAll(in.readList(StreamInput::readString));
-        requestedTenant = in.readString();
+        requestedTenant = in.readOptionalString();
         attributes = in.readMap(StreamInput::readString, StreamInput::readString);
     }
     
@@ -198,7 +198,7 @@ public class User implements Serializable, Writeable, CustomAttributesAware {
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeStringList(new ArrayList<String>(roles));
-        out.writeString(requestedTenant);
+        out.writeOptionalString(requestedTenant);
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
     }
 

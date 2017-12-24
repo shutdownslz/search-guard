@@ -17,7 +17,6 @@
 
 package com.floragunn.searchguard.configuration;
 
-import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,8 +93,8 @@ import org.elasticsearch.transport.TransportRequest;
 
 import com.floragunn.searchguard.SearchGuardPlugin;
 import com.floragunn.searchguard.auditlog.AuditLog;
-import com.floragunn.searchguard.support.Base64Helper;
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.support.SerializationHelper;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.user.User;
 import com.google.common.collect.ArrayListMultimap;
@@ -130,11 +129,12 @@ public class PrivilegesEvaluator {
     private ConfigConstants.RolesMappingResolution rolesMappingResolution;
     
     private final ClusterInfoHolder clusterInfoHolder;
+    private final SerializationHelper serializationHelper;
     //private final boolean typeSecurityDisabled = false;
 
     public PrivilegesEvaluator(final ClusterService clusterService, final ThreadPool threadPool, final ConfigurationRepository configurationRepository, final ActionGroupHolder ah,
             final IndexNameExpressionResolver resolver, AuditLog auditLog, final Settings settings, final PrivilegesInterceptor privilegesInterceptor,
-            final ClusterInfoHolder clusterInfoHolder) {
+            final ClusterInfoHolder clusterInfoHolder, final SerializationHelper serializationHelper) {
 
         super();
         this.configurationRepository = configurationRepository;
@@ -167,6 +167,7 @@ public class PrivilegesEvaluator {
         
         sgDeniedActionPatterns = sgIndexdeniedActionPatternsList.toArray(new String[0]);
         this.clusterInfoHolder = clusterInfoHolder;
+        this.serializationHelper = serializationHelper;
         //this.typeSecurityDisabled = settings.getAsBoolean(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY, false);
         
     }
@@ -801,11 +802,11 @@ public class PrivilegesEvaluator {
         if(!dlsQueries.isEmpty()) {
             
             if(this.threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER) != null) {
-                if(!dlsQueries.equals((Map<String,Set<String>>) Base64Helper.deserializeObject(this.threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER)))) {
+                if(!dlsQueries.equals((Map<String,Set<String>>) serializationHelper.deserializeMap(this.threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER)))) {
                     throw new ElasticsearchSecurityException(ConfigConstants.SG_DLS_QUERY_HEADER+" does not match (SG 900D)");
                 }
             } else {
-                this.threadContext.putHeader(ConfigConstants.SG_DLS_QUERY_HEADER, Base64Helper.serializeObject((Serializable) dlsQueries));
+                this.threadContext.putHeader(ConfigConstants.SG_DLS_QUERY_HEADER, serializationHelper.serializeMap(dlsQueries));
                 if(log.isDebugEnabled()) {
                     log.debug("attach DLS info: {}", dlsQueries);
                 }
@@ -827,7 +828,7 @@ public class PrivilegesEvaluator {
         if(!flsFields.isEmpty()) {
             
             if(this.threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER) != null) {
-                if(!flsFields.equals((Map<String,Set<String>>) Base64Helper.deserializeObject(this.threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER)))) {
+                if(!flsFields.equals(serializationHelper.deserializeMap(this.threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER)))) {
                     throw new ElasticsearchSecurityException(ConfigConstants.SG_FLS_FIELDS_HEADER+" does not match (SG 901D)");
                 } else {
                     if(log.isDebugEnabled()) {
@@ -835,7 +836,7 @@ public class PrivilegesEvaluator {
                     }
                 }
             } else {
-                this.threadContext.putHeader(ConfigConstants.SG_FLS_FIELDS_HEADER, Base64Helper.serializeObject((Serializable) flsFields));
+                this.threadContext.putHeader(ConfigConstants.SG_FLS_FIELDS_HEADER, serializationHelper.serializeMap(flsFields));
                 if(log.isDebugEnabled()) {
                     log.debug("attach FLS info: {}", flsFields);
                 }

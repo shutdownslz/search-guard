@@ -17,6 +17,8 @@
 
 package com.floragunn.searchguard.configuration;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -29,6 +31,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
 
 public class ClusterInfoHolder implements ClusterStateListener {
@@ -37,6 +40,7 @@ public class ClusterInfoHolder implements ClusterStateListener {
     private volatile Boolean has5xNodes = null;
     private volatile Boolean has5xIndices = null;
     private volatile DiscoveryNodes nodes = null;
+    private volatile List<String> listOf5xIndices = null;
     
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
@@ -72,6 +76,10 @@ public class ClusterInfoHolder implements ClusterStateListener {
         return has5xIndices;
     }
     
+    public List<String> getListOf5xIndices() {
+        return listOf5xIndices;
+    }
+
     public Boolean hasNode(DiscoveryNode node) {
         if(nodes == null) {
             if(log.isDebugEnabled()) {
@@ -83,18 +91,21 @@ public class ClusterInfoHolder implements ClusterStateListener {
         return nodes.nodeExists(node)?Boolean.TRUE:Boolean.FALSE;
     }
 
-    private static boolean clusterHas5xNodes(ClusterState state) {
+    private boolean clusterHas5xNodes(ClusterState state) {
         return state.nodes().getMinNodeVersion().before(Version.V_6_0_0_alpha1);
     }
     
-    private static boolean clusterHas5xIndices(ClusterState state) {
-        final Iterator<IndexMetaData> indices = state.metaData().indices().valuesIt();
+    private boolean clusterHas5xIndices(ClusterState state) {
+        final ImmutableOpenMap<String, IndexMetaData> indicesMap = state.metaData().indices();
+        final Iterator<IndexMetaData> indices = indicesMap.valuesIt();
+        final List<String> _5xIndices = new ArrayList<>(indicesMap.size());
         for(;indices.hasNext();) {
             final IndexMetaData indexMetaData = indices.next();
             if(indexMetaData.getCreationVersion().before(Version.V_6_0_0_alpha1)) {
-                return true;
+                _5xIndices.add(indexMetaData.getIndex().getName());
             }
         }
-        return false;
+        listOf5xIndices = Collections.unmodifiableList(_5xIndices);
+        return !_5xIndices.isEmpty();
     }
 }

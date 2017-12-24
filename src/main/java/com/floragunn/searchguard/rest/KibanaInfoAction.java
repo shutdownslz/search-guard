@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import com.floragunn.searchguard.configuration.ClusterInfoHolder;
 import com.floragunn.searchguard.configuration.PrivilegesEvaluator;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.user.User;
@@ -42,11 +43,14 @@ public class KibanaInfoAction extends BaseRestHandler {
 
     private final PrivilegesEvaluator evaluator;
     private final ThreadContext threadContext;
+    private final ClusterInfoHolder clusterInfoHolder;
 
-    public KibanaInfoAction(final Settings settings, final RestController controller, final PrivilegesEvaluator evaluator, final ThreadPool threadPool) {
+    public KibanaInfoAction(final Settings settings, final RestController controller, 
+            final PrivilegesEvaluator evaluator, final ThreadPool threadPool, final ClusterInfoHolder clusterInfoHolder) {
         super(settings);
         this.threadContext = threadPool.getThreadContext();
         this.evaluator = evaluator;
+        this.clusterInfoHolder = clusterInfoHolder;
         controller.registerHandler(GET, "/_searchguard/kibanainfo", this);
         controller.registerHandler(POST, "/_searchguard/kibanainfo", this);       
     }
@@ -72,6 +76,9 @@ public class KibanaInfoAction extends BaseRestHandler {
                     builder.field("kibana_index", evaluator.kibanaIndex());
                     builder.field("kibana_server_user", evaluator.kibanaServerUsername());
                     builder.field("kibana_index_readonly", evaluator.kibanaIndexReadonly(user, remoteAddress));
+                    builder.field("5x_nodes_present", clusterInfoHolder.getHas5xNodes());
+                    builder.field("5x_indices_present", clusterInfoHolder.getHas5xIndices());
+                    builder.field("5x_indices", clusterInfoHolder.getListOf5xIndices());
                     builder.endObject();
 
                     response = new BytesRestResponse(RestStatus.OK, builder);

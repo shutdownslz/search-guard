@@ -17,7 +17,6 @@
 
 package com.floragunn.searchguard.transport;
 
-import java.net.InetSocketAddress;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.UUID;
@@ -45,9 +44,9 @@ import com.floragunn.searchguard.ssl.transport.PrincipalExtractor;
 import com.floragunn.searchguard.ssl.transport.SearchGuardSSLRequestHandler;
 import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.ssl.util.SSLRequestHelper;
-import com.floragunn.searchguard.support.Base64Helper;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HeaderHelper;
+import com.floragunn.searchguard.support.SerializationHelper;
 import com.floragunn.searchguard.user.User;
 import com.google.common.base.Strings;
 
@@ -58,6 +57,7 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
     private final AuditLog auditLog;
     private final InterClusterRequestEvaluator requestEvalProvider;
     private final ClusterService cs;
+    private final SerializationHelper serializationHelper;
     
     SearchGuardRequestHandler(String action, 
             final TransportRequestHandler<T> actualHandler, 
@@ -67,12 +67,14 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
             final PrincipalExtractor principalExtractor,
             final InterClusterRequestEvaluator requestEvalProvider,
             final ClusterService cs,
-            final SslExceptionHandler sslExceptionHandler) {
+            final SslExceptionHandler sslExceptionHandler,
+            final SerializationHelper serializationHelper) {
         super(action, actualHandler, threadPool, principalExtractor, sslExceptionHandler);
         this.backendRegistry = backendRegistry;
         this.auditLog = auditLog;
         this.requestEvalProvider = requestEvalProvider;
         this.cs = cs;
+        this.serializationHelper = serializationHelper;
     }
     
     @Override
@@ -105,13 +107,13 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
                 final String userHeader = getThreadContext().getHeader(ConfigConstants.SG_USER_HEADER);
                 
                 if(!Strings.isNullOrEmpty(userHeader)) {
-                    getThreadContext().putTransient(ConfigConstants.SG_USER, Objects.requireNonNull((User) Base64Helper.deserializeObject(userHeader)));  
+                    getThreadContext().putTransient(ConfigConstants.SG_USER, Objects.requireNonNull(serializationHelper.deserializeUser(userHeader)));  
                 }
                 
                 final String originalRemoteAddress = getThreadContext().getHeader(ConfigConstants.SG_REMOTE_ADDRESS_HEADER);          
                 
                 if(!Strings.isNullOrEmpty(originalRemoteAddress)) {
-                    getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, new TransportAddress((InetSocketAddress) Base64Helper.deserializeObject(originalRemoteAddress)));
+                    getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, serializationHelper.deserializeTransportAddress(originalRemoteAddress));
                 }
                        
                 if(actionTrace.isTraceEnabled()) {
@@ -163,13 +165,13 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
                         //user can be null when a node client wants connect
                         //getThreadContext().putTransient(ConfigConstants.SG_USER, User.SG_INTERNAL);               
                     } else {
-                        getThreadContext().putTransient(ConfigConstants.SG_USER, Objects.requireNonNull((User) Base64Helper.deserializeObject(userHeader)));
+                        getThreadContext().putTransient(ConfigConstants.SG_USER, Objects.requireNonNull(serializationHelper.deserializeUser(userHeader)));
                     }
                     
                     String originalRemoteAddress = getThreadContext().getHeader(ConfigConstants.SG_REMOTE_ADDRESS_HEADER);
                     
                     if(!Strings.isNullOrEmpty(originalRemoteAddress)) {
-                        getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, new TransportAddress((InetSocketAddress) Base64Helper.deserializeObject(originalRemoteAddress)));
+                        getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, serializationHelper.deserializeTransportAddress(originalRemoteAddress));
                     } else {
                         getThreadContext().putTransient(ConfigConstants.SG_REMOTE_ADDRESS, (TransportAddress)request.remoteAddress());
                     }

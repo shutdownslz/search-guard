@@ -98,7 +98,7 @@ public class ReflectionHelper {
 
 		try {
 			final Class<?> clazz = Class.forName("com.floragunn.searchguard.configuration.SearchGuardFlsDlsIndexSearcherWrapper");
-			final Constructor<?> ret = clazz.getConstructor(IndexService.class, Settings.class, AdminDNs.class);
+			final Constructor<?> ret = clazz.getConstructor(IndexService.class, Settings.class, AdminDNs.class, SerializationHelper.class);
 			addLoadedModule(clazz);
 			return ret;
 		} catch (final Throwable e) {
@@ -124,7 +124,7 @@ public class ReflectionHelper {
 	}
 
 	public static AuditLog instantiateAuditLog(final Settings settings, final Path configPath, final Client localClient, final ThreadPool threadPool,
-			final IndexNameExpressionResolver resolver, final ClusterService clusterService) {
+			final IndexNameExpressionResolver resolver, final ClusterService clusterService, final SerializationHelper serializationHelper) {
 
 		if (enterpriseModulesDisabled()) {
 			return new NullAuditLog();
@@ -133,8 +133,8 @@ public class ReflectionHelper {
 		try {
 			final Class<?> clazz = Class.forName("com.floragunn.searchguard.auditlog.impl.AuditLogImpl");
 			final AuditLog impl = (AuditLog) clazz
-					.getConstructor(Settings.class, Path.class, Client.class, ThreadPool.class, IndexNameExpressionResolver.class, ClusterService.class)
-					.newInstance(settings, configPath, localClient, threadPool, resolver, clusterService);
+					.getConstructor(Settings.class, Path.class, Client.class, ThreadPool.class, IndexNameExpressionResolver.class, ClusterService.class, SerializationHelper.class)
+					.newInstance(settings, configPath, localClient, threadPool, resolver, clusterService, serializationHelper);
 			addLoadedModule(clazz);
 			return impl;
 		} catch (final Throwable e) {

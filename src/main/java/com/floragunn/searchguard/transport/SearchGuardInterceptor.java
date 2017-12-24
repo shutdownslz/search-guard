@@ -43,8 +43,8 @@ import com.floragunn.searchguard.auth.BackendRegistry;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
 import com.floragunn.searchguard.ssl.SslExceptionHandler;
 import com.floragunn.searchguard.ssl.transport.PrincipalExtractor;
-import com.floragunn.searchguard.support.Base64Helper;
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.support.SerializationHelper;
 import com.floragunn.searchguard.user.User;
 import com.google.common.collect.Maps;
 
@@ -59,6 +59,7 @@ public class SearchGuardInterceptor {
     private final ClusterService cs;
     private final Settings settings;
     private final SslExceptionHandler sslExceptionHandler;
+    private final SerializationHelper serializationHelper;
 
     public SearchGuardInterceptor(final Settings settings, 
             final ThreadPool threadPool, final BackendRegistry backendRegistry, 
@@ -66,7 +67,8 @@ public class SearchGuardInterceptor {
             final InterClusterRequestEvaluator requestEvalProvider,
             final ClusterService cs,
             final SslExceptionHandler sslExceptionHandler,
-            final ClusterInfoHolder clusterInfoHolder) {
+            final ClusterInfoHolder clusterInfoHolder,
+            final SerializationHelper serializationHelper) {
         this.backendRegistry = backendRegistry;
         this.auditLog = auditLog;
         this.threadPool = threadPool;
@@ -75,12 +77,13 @@ public class SearchGuardInterceptor {
         this.cs = cs;
         this.settings = settings;
         this.sslExceptionHandler = sslExceptionHandler;
+        this.serializationHelper = serializationHelper;
     }
 
     public <T extends TransportRequest> SearchGuardRequestHandler<T> getHandler(String action, 
             TransportRequestHandler<T> actualHandler) {
         return new SearchGuardRequestHandler<T>(action, actualHandler, threadPool, backendRegistry, auditLog, 
-                principalExtractor, requestEvalProvider, cs, sslExceptionHandler);
+                principalExtractor, requestEvalProvider, cs, sslExceptionHandler, serializationHelper);
     }
 
     
@@ -139,7 +142,7 @@ public class SearchGuardInterceptor {
             String remoteAddressHeader = getThreadContext().getHeader(ConfigConstants.SG_REMOTE_ADDRESS_HEADER);
            
             if(remoteAddressHeader == null) {
-                getThreadContext().putHeader(ConfigConstants.SG_REMOTE_ADDRESS_HEADER, Base64Helper.serializeObject(((TransportAddress) remoteAdr).address()));
+                getThreadContext().putHeader(ConfigConstants.SG_REMOTE_ADDRESS_HEADER, serializationHelper.serializeTransportAddress(((TransportAddress) remoteAdr)));
             } /*else {
                 if(!((InetSocketAddress)Base64Helper.deserializeObject(remoteAddressHeader)).equals(((TransportAddress) remoteAdr).address())) {
                     throw new RuntimeException("remote address mismatch "+Base64Helper.deserializeObject(remoteAddressHeader)+"!="+((TransportAddress) remoteAdr).address());
@@ -151,7 +154,7 @@ public class SearchGuardInterceptor {
             String userHeader = getThreadContext().getHeader(ConfigConstants.SG_USER_HEADER);
             
             if(userHeader == null) {
-                getThreadContext().putHeader(ConfigConstants.SG_USER_HEADER, Base64Helper.serializeObject(origUser));
+                getThreadContext().putHeader(ConfigConstants.SG_USER_HEADER, serializationHelper.serializeUser(origUser));
             } /*else {
                 if(!((User)Base64Helper.deserializeObject(userHeader)).getName().equals(origUser.getName())) {
                     throw new RuntimeException("user mismatch "+Base64Helper.deserializeObject(userHeader)+"!="+origUser);

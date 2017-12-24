@@ -106,8 +106,8 @@ import com.floragunn.searchguard.action.licenseinfo.TransportLicenseInfoAction;
 import com.floragunn.searchguard.action.whoami.TransportWhoAmIAction;
 import com.floragunn.searchguard.action.whoami.WhoAmIAction;
 import com.floragunn.searchguard.auditlog.AuditLog;
-import com.floragunn.searchguard.auditlog.AuditLogSslExceptionHandler;
 import com.floragunn.searchguard.auditlog.AuditLog.Origin;
+import com.floragunn.searchguard.auditlog.AuditLogSslExceptionHandler;
 import com.floragunn.searchguard.auth.BackendRegistry;
 import com.floragunn.searchguard.auth.internal.InternalAuthenticationBackend;
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
@@ -136,6 +136,7 @@ import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HeaderHelper;
 import com.floragunn.searchguard.support.ModuleInfo;
 import com.floragunn.searchguard.support.ReflectionHelper;
+import com.floragunn.searchguard.support.SerializationHelper;
 import com.floragunn.searchguard.transport.DefaultInterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.InterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.SearchGuardInterceptor;
@@ -162,6 +163,8 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
     private final boolean enterpriseModulesEnabled;
     private final List<String> demoCertHashes = new ArrayList<String>(3);
     private SearchGuardFilter sgf;
+    private ClusterInfoHolder cih;
+    private SerializationHelper serializationHelper;
     
 
     @Override
@@ -387,7 +390,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
             handlers.addAll(super.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter, indexNameExpressionResolver, nodesInCluster));
 
             handlers.add(new SearchGuardInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool)));
-            handlers.add(new KibanaInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool)));
+            handlers.add(new KibanaInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool), Objects.requireNonNull(cih)));
             handlers.add(new SearchGuardLicenseAction(settings, restController));
             handlers.add(new SearchGuardHealthAction(settings, restController, Objects.requireNonNull(backendRegistry)));
 
@@ -428,7 +431,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
 
     private IndexSearcherWrapper loadFlsDlsIndexSearcherWrapper(final IndexService indexService) {
         try {
-            IndexSearcherWrapper flsdlsWrapper = (IndexSearcherWrapper) dlsFlsConstructor.newInstance(indexService, settings, Objects.requireNonNull(adminDns));
+            IndexSearcherWrapper flsdlsWrapper = (IndexSearcherWrapper) dlsFlsConstructor.newInstance(indexService, settings, Objects.requireNonNull(adminDns), Objects.requireNonNull(serializationHelper));
             if(log.isDebugEnabled()) {
                 log.debug("FLS/DLS enabled for index {}", indexService.index().getName());
             }
@@ -606,13 +609,15 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
             return components;
         }
         
-        final ClusterInfoHolder cih = new ClusterInfoHolder();
+        cih = new ClusterInfoHolder();
         this.cs.addListener(cih);
+        
+        serializationHelper = new SerializationHelper(cih);
         
         DlsFlsRequestValve dlsFlsValve = ReflectionHelper.instantiateDlsFlsValve();
         
         final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
-        auditLog = ReflectionHelper.instantiateAuditLog(settings, configPath, localClient, threadPool, resolver, clusterService);
+        auditLog = ReflectionHelper.instantiateAuditLog(settings, configPath, localClient, threadPool, resolver, clusterService, Objects.requireNonNull(serializationHelper));
         sslExceptionHandler = new AuditLogSslExceptionHandler(auditLog);
         
         final String DEFAULT_INTERCLUSTER_REQUEST_EVALUATOR_CLASS = DefaultInterClusterRequestEvaluator.class.getName();
@@ -637,7 +642,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
         backendRegistry = new BackendRegistry(settings, configPath, adminDns, xffResolver, iab, auditLog, threadPool);
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
         final ActionGroupHolder ah = new ActionGroupHolder(cr);      
-        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih);    
+        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih, serializationHelper);    
         sgf = new SearchGuardFilter(evaluator, adminDns, dlsFlsValve, auditLog, threadPool, cs);     
         
         
@@ -650,7 +655,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
         }
         
         sgi = new SearchGuardInterceptor(settings, threadPool, backendRegistry, auditLog, principalExtractor, 
-                interClusterRequestEvaluator, cs, Objects.requireNonNull(sslExceptionHandler), Objects.requireNonNull(cih));
+                interClusterRequestEvaluator, cs, Objects.requireNonNull(sslExceptionHandler), Objects.requireNonNull(cih), serializationHelper);
         components.add(principalExtractor);
         
         

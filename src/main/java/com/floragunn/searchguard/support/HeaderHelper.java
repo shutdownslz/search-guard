@@ -17,12 +17,9 @@
 
 package com.floragunn.searchguard.support;
 
-import java.io.Serializable;
 import java.util.Map;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-
-import com.google.common.base.Strings;
 
 public class HeaderHelper {
 
@@ -52,17 +49,6 @@ public class HeaderHelper {
 
         if (isInterClusterRequest(context) || isDirectRequest(context)) {
             return headerValue;
-        }
-
-        return null;
-    }
-
-    public static Serializable deserializeSafeFromHeader(final ThreadContext context, final String headerName) {
-
-        final String objectAsBase64 = getSafeFromHeader(context, headerName);
-
-        if (!Strings.isNullOrEmpty(objectAsBase64)) {
-            return Base64Helper.deserializeObject(objectAsBase64);
         }
 
         return null;
