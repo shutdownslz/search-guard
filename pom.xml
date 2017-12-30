@@ -14,7 +14,7 @@
   <parent>
     <groupId>com.floragunn</groupId>
     <artifactId>search-guard-parent</artifactId>
-    <version>6.1-beta7</version>
+    <version>6.20.0</version>
   </parent>
 
   <artifactId>search-guard-6</artifactId>
@@ -237,7 +237,7 @@
           <plugin>
             <groupId>com.floragunn</groupId>
             <artifactId>checksum-maven-plugin</artifactId>
-            <version>1.7</version>
+            <version>1.7.1</version>
               <executions>
                   <execution>
                       <goals>
