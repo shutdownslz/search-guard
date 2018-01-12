@@ -26,7 +26,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
+import org.elasticsearch.rest.RestRequest;
 
 import com.floragunn.searchguard.support.ConfigConstants;
 
@@ -137,7 +137,7 @@ class RemoteIpDetector {
         return trustedProxies.toString();
     }
 
-    String detect(final Netty4HttpRequest request, ThreadContext threadContext){
+    String detect(final RestRequest request, ThreadContext threadContext){
         final String originalRemoteAddr = ((InetSocketAddress)request.getRemoteAddress()).getAddress().getHostAddress();
         @SuppressWarnings("unused")
         final String originalProxiesHeader = request.header(proxiesHeader);
@@ -159,7 +159,7 @@ class RemoteIpDetector {
             final StringBuilder concatRemoteIpHeaderValue = new StringBuilder();
             
             //client1, proxy1, proxy2
-            final List<String> remoteIpHeaders = request.request().headers().getAll(remoteIpHeader); //X-Forwarded-For
+            final List<String> remoteIpHeaders = request.getAllHeaderValues(remoteIpHeader); //X-Forwarded-For
 
             if(remoteIpHeaders == null || remoteIpHeaders.isEmpty()) {
                 return originalRemoteAddr;
@@ -203,6 +203,7 @@ class RemoteIpDetector {
             
             if (remoteIp != null) {
 
+/**  HACK - Unable to find where this is used else where              
                 if (proxiesHeaderValue.size() == 0) {
                     request.request().headers().remove(proxiesHeader);
                 } else {
@@ -215,10 +216,10 @@ class RemoteIpDetector {
                     String commaDelimitedRemoteIpHeaderValue = listToCommaDelimitedString(newRemoteIpHeaderValue);
                     request.request().headers().set(remoteIpHeader,commaDelimitedRemoteIpHeaderValue);
                 }
-                
+   */             
                 if (log.isTraceEnabled()) {
                     final String originalRemoteHost = ((InetSocketAddress)request.getRemoteAddress()).getAddress().getHostName();
-                    log.trace("Incoming request " + request.request().uri() + " with originalRemoteAddr '" + originalRemoteAddr
+                    log.trace("Incoming request " + request.uri() + " with originalRemoteAddr '" + originalRemoteAddr
                               + "', originalRemoteHost='" + originalRemoteHost + "', will be seen as newRemoteAddr='" + remoteIp);
                 }
                 
@@ -233,7 +234,7 @@ class RemoteIpDetector {
             
         } else {
             if (log.isTraceEnabled()) {
-                log.trace("Skip RemoteIpDetector for request " + request.request().uri() + " with originalRemoteAddr '"
+                log.trace("Skip RemoteIpDetector for request " + request.uri() + " with originalRemoteAddr '"
                         + request.getRemoteAddress() + "' cause no internal proxy matches");
             }
         }

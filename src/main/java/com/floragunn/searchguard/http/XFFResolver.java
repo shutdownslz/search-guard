@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -51,9 +50,9 @@ public class XFFResolver implements ConfigurationChangeListener {
             log.trace("resolve {}", request.getRemoteAddress());
         }
         
-        if(enabled && request.getRemoteAddress() instanceof InetSocketAddress && request instanceof Netty4HttpRequest) {
+        if(enabled && request.getRemoteAddress() instanceof InetSocketAddress) {
 
-            final InetSocketAddress isa = new InetSocketAddress(detector.detect((Netty4HttpRequest) request, threadContext), ((InetSocketAddress)request.getRemoteAddress()).getPort());
+            final InetSocketAddress isa = new InetSocketAddress(detector.detect(request, threadContext), ((InetSocketAddress)request.getRemoteAddress()).getPort());
         
             if(isa.isUnresolved()) {           
                 throw new ElasticsearchSecurityException("Cannot resolve address "+isa.getHostString());
