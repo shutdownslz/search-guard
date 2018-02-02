@@ -164,7 +164,7 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
                     if(SSLRequestHelper.containsBadHeader(getThreadContext(), ConfigConstants.SG_CONFIG_PREFIX)) {
                         final ElasticsearchException exception = ExceptionUtils.createBadHeaderException();
                         auditLog.logBadHeaders(request);
-                        log.error("Error validating headers");
+                        log.error(exception);
                         transportChannel.sendResponse(exception);
                         return;
                     }
