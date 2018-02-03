@@ -369,7 +369,10 @@ public class SearchGuardAdmin {
                     if(kspass == null && promptForPassword) {
                         kspass = askForPasswordIfNecessary("Keystore", "kspass", SG_KS_PASS);
                     }
-                    settingsBuilder.put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_PASSWORD, kspass);
+                    
+                    if(kspass != null) {
+                        settingsBuilder.put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_PASSWORD, kspass);
+                    }
                 }
                 
                 if(ts != null) {
@@ -379,7 +382,10 @@ public class SearchGuardAdmin {
                     if(tspass == null && promptForPassword) {
                         tspass = askForPasswordIfNecessary("Truststore", "tspass", SG_TS_PASS);
                     }
-                    settingsBuilder.put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_TRUSTSTORE_PASSWORD, tspass);
+                    
+                    if(tspass != null) {
+                        settingsBuilder.put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_TRUSTSTORE_PASSWORD, tspass);
+                    }
                 }            
                 
                 if(cacert != null) {
@@ -396,7 +402,10 @@ public class SearchGuardAdmin {
                     if(keypass == null && promptForPassword) {
                         keypass = askForPasswordIfNecessary("Pemkey", "keypass", SG_KEYPASS);
                     }
-                    settingsBuilder.put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_PEMKEY_PASSWORD, keypass);
+                    
+                    if(keypass != null) {
+                        settingsBuilder.put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_PEMKEY_PASSWORD, keypass);
+                    }
                 }
 
 
@@ -856,7 +865,7 @@ public class SearchGuardAdmin {
         }
         
         if(line.hasOption("cd") && line.hasOption("r")) {
-            System.out.println("WARN: It makes no sense to specify -cd as well as -f");
+            System.out.println("WARN: It makes no sense to specify -cd as well as -r");
         }
         
         if(line.hasOption("cn") && line.hasOption("icl")) {
