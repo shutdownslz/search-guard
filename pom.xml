@@ -34,7 +34,7 @@
   </licenses>
 
   <properties>
-    <sgssl.version>6.1.1-25.1</sgssl.version>
+    <sgssl.version>6.1.1-25.2</sgssl.version>
     <elasticsearch.version>6.1.1</elasticsearch.version>
     <netty-native.version>2.0.5.Final</netty-native.version>
     <bc.version>1.58</bc.version>
@@ -70,6 +70,24 @@
       <groupId>org.elasticsearch.plugin</groupId>
       <artifactId>transport-netty4-client</artifactId>
       <version>${elasticsearch.version}</version>
+      <exclusions>
+        <exclusion>
+          <artifactId>jna</artifactId>
+          <groupId>org.elasticsearch</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>jts</artifactId>
+          <groupId>com.vividsolutions</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>log4j-api</artifactId>
+          <groupId>org.apache.logging.log4j</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>spatial4j</artifactId>
+          <groupId>org.locationtech.spatial4j</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <!-- Guava -->
@@ -268,7 +286,7 @@
           </plugin>
         </plugins>
       </build>
-     <dependencies>
+      <dependencies>
         <dependency>
           <groupId>com.floragunn</groupId>
           <artifactId>dlic-search-guard-rest-api</artifactId>
@@ -277,7 +295,7 @@
         <dependency>
           <groupId>com.floragunn</groupId>
           <artifactId>dlic-search-guard-module-dlsfls</artifactId>
-          <version>6.0-20.1</version>
+          <version>6.0-20.2</version>
         </dependency>
         <dependency>
           <groupId>com.floragunn</groupId>
@@ -302,7 +320,7 @@
         <dependency>
           <groupId>com.floragunn</groupId>
           <artifactId>dlic-search-guard-auth-http-jwt</artifactId>
-          <version>6.0-20.0</version>
+          <version>6.0-21.0</version>
         </dependency>
       </dependencies>
     </profile>
