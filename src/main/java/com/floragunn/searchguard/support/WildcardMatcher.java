@@ -222,6 +222,17 @@ public class WildcardMatcher {
         return false;
     }
     
+    public static boolean matchAny(final Collection<String> pattern, final String candidate, boolean ignoreCase) {
+
+        for (String string: pattern) {
+            if (match(string, candidate, ignoreCase)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+    
     /**
      * returns true if the candidate matches at least one pattern
      * 

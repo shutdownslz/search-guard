@@ -18,11 +18,17 @@ package com.floragunn.searchguard.transport;
 
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Collectors;
+
+import javax.naming.InvalidNameException;
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,40 +43,65 @@ public final class DefaultInterClusterRequestEvaluator implements InterClusterRe
 
     private final Logger log = LogManager.getLogger(this.getClass());
     private final String certOid;
-    private final List<String> nodesDn;
+    private final List<String> nodesDn = new ArrayList<String>();
+    private final List<LdapName> nodesDnAsLdapName = new ArrayList<>();
 
     public DefaultInterClusterRequestEvaluator(final Settings settings) {
         this.certOid = settings.get(ConfigConstants.SEARCHGUARD_CERT_OID, "1.2.3.4.5.5");
-        this.nodesDn = settings.getAsList(ConfigConstants.SEARCHGUARD_NODES_DN, Collections.emptyList());
+        final List<String> nodesDnTmp = settings.getAsList(ConfigConstants.SEARCHGUARD_NODES_DN, Collections.emptyList());
+        
+        for(final String nodeDn: nodesDnTmp) {
+            try {
+                final LdapName ln = new LdapName(nodeDn);
+                nodesDnAsLdapName.add(ln);
+                final List<Rdn> rdns = new ArrayList<>(ln.getRdns());
+                Collections.reverse(rdns);
+                nodesDn.add(String.join(",", rdns.stream().map(r->r.toString()).collect(Collectors.toList())));
+            } catch (InvalidNameException e) {
+                log.error("Unable to parse nodedn {}", nodeDn, e);
+            }
+        }
+        
+        if(log.isDebugEnabled()) {
+            log.debug("Normalized {}: {}",ConfigConstants.SEARCHGUARD_NODES_DN, nodesDn);
+        }
+    
     }
 
     @Override
     public boolean isInterClusterRequest(TransportRequest request, X509Certificate[] localCerts, X509Certificate[] peerCerts,
             final String principal) {
         
-        String[] principals = new String[2];
-        
-        if (principal != null && principal.length() > 0) {
-            principals[0] = principal;
-            principals[1] = principal.replace(" ","");
+        if(principal != null && principal.length() > 0) {
+            try {
+                final LdapName ln = new LdapName(principal);
+                final List<Rdn> rdns = new ArrayList<>(ln.getRdns());
+                Collections.reverse(rdns);
+                final String principalNoWs = String.join(",", rdns.stream().map(r->r.toString()).collect(Collectors.toList()));
+            
+                if (nodesDnAsLdapName.contains(ln) || WildcardMatcher.matchAny(nodesDn, principalNoWs, true)) {
+                    
+                    if (log.isTraceEnabled()) {
+                        log.trace("Treat certificate with principal {} as other node because of it matches one of {}",principalNoWs,
+                                nodesDn);
+                    }
+                    
+                    return true;
+                    
+                } else {
+                    if (log.isTraceEnabled()) {
+                        log.trace("Treat certificate with principal {} NOT as other node because we it does not matches one of {}", principalNoWs,
+                                nodesDn);
+                    }
+                }
+            
+            
+            } catch (InvalidNameException e) {
+                log.error("Unable to parse principal {}",principal);
+            }
         }
         
-        if (principals[0] != null && WildcardMatcher.matchAny(nodesDn, principals, true)) {
-            
-            if (log.isTraceEnabled()) {
-                log.trace("Treat certificate with principal {} as other node because of it matches one of {}", Arrays.toString(principals),
-                        nodesDn);
-            }
-            
-            return true;
-            
-        } else {
-            if (log.isTraceEnabled()) {
-                log.trace("Treat certificate with principal {} NOT as other node because we it does not matches one of {}", Arrays.toString(principals),
-                        nodesDn);
-            }
-        }
-
+        //check oid
         try {
             final Collection<List<?>> ianList = peerCerts[0].getSubjectAlternativeNames();
             if (ianList != null) {
