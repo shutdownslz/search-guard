@@ -77,7 +77,7 @@ public class SearchGuardRestFilter {
     private boolean checkAndAuthenticateRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
 
         if(HTTPHelper.containsBadHeader(request)) {
-            final ElasticsearchException exception = new ElasticsearchException("bad http header found");
+            final ElasticsearchException exception = ExceptionUtils.createBadHeaderException();
             auditLog.logBadHeaders(request);
             channel.sendResponse(new BytesRestResponse(channel, RestStatus.FORBIDDEN, exception));
             return true;
