@@ -355,3 +355,21 @@ sg_twitter:
 sg_dummy:
   cluster:
     - 'cluster:monitor/health'
+    
+sg_mindex1:
+  indices:
+    'mindex_1':
+      '*':
+        - indices:data/read/search
+        
+sg_mindex2:
+  indices:
+    'mindex_2':
+      '*':
+        - indices:data/read/search
+        
+sg_mindex3:
+  indices:
+    'mindex_3':
+      '*':
+        - indices:data/write*
