@@ -31,8 +31,10 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -192,6 +194,9 @@ public class SearchGuardAdmin {
         options.addOption(Option.builder("noopenssl").longOpt("no-openssl").desc("Do not use openssl even if available (default: use it if available)").build());
         options.addOption(Option.builder("prompt").longOpt("prompt-for-password").desc("Promp for password if not supplied").build());
 
+        options.addOption(Option.builder("er").longOpt("explicit-replicas").hasArg().argName("number of replicas or autoexpand expression").desc("Set explicit number of replicas for searchguard index").build());
+
+        
         //when adding new options also adjust validate(CommandLine line)
         
         String hostname = "localhost";
@@ -230,6 +235,7 @@ public class SearchGuardAdmin {
         String keypass = System.getenv(SG_KEYPASS);
         boolean useOpenSSLIfAvailable = true;
         final boolean promptForPassword;
+        String explicitReplicas = null;
         
         CommandLineParser parser = new DefaultParser();
         try {
@@ -307,6 +313,8 @@ public class SearchGuardAdmin {
             keypass = line.getOptionValue("keypass", keypass);
             
             useOpenSSLIfAvailable = !line.hasOption("noopenssl");
+            
+            explicitReplicas = line.getOptionValue("er", explicitReplicas);
             
         }
         catch( ParseException exp ) {
@@ -548,15 +556,27 @@ public class SearchGuardAdmin {
                
             if (!indexExists) {
                 System.out.print(index +" index does not exists, attempt to create it ... ");
+                
+                Map<String, Object> indexSettings = new HashMap<>();
+                indexSettings.put("index.number_of_shards", 1);
+                
+                if(explicitReplicas != null) {
+                    if(explicitReplicas.contains("-")) {
+                        indexSettings.put("index.auto_expand_replicas", explicitReplicas);
+                    } else {
+                        indexSettings.put("index.number_of_replicas", Integer.parseInt(explicitReplicas));
+                    }
+                } else {
+                    indexSettings.put("index.auto_expand_replicas", "0-all");
+                }
+
                 final boolean indexCreated = tc.admin().indices().create(new CreateIndexRequest(index)
-                .settings(
-                        "index.number_of_shards", 1, 
-                        "index.auto_expand_replicas", "0-all"
-                        ))
-                        .actionGet().isAcknowledged();
+                  .settings(indexSettings))
+                  .actionGet()
+                  .isAcknowledged();
 
                 if (indexCreated) {
-                    System.out.println("done (auto expand replicas is on)");
+                    System.out.println("done ("+(explicitReplicas!=null?explicitReplicas:"0-all")+" replicas)");
                 } else {
                     System.out.println("failed!");
                     System.out.println("FAIL: Unable to create the "+index+" index. See elasticsearch logs for more details");

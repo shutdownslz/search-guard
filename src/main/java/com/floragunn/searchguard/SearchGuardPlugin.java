@@ -30,12 +30,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
@@ -67,8 +70,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpServerTransport.Dispatcher;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -128,6 +133,7 @@ import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HeaderHelper;
 import com.floragunn.searchguard.support.ReflectionHelper;
+import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.transport.DefaultInterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.InterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.SearchGuardInterceptor;
@@ -350,6 +356,63 @@ public final class SearchGuardPlugin extends Plugin implements ActionPlugin, Net
         if (!disabled && !client) {
             if (dlsFlsAvailable) {
                 indexModule.setSearcherWrapper(indexService -> loadFlsDlsIndexSearcherWrapper(indexService));
+                indexModule.forceQueryCacheProvider((indexSettings,nodeCache)->new QueryCache() {
+
+                    @Override
+                    public Index index() {
+                        return indexSettings.getIndex();
+                    }
+
+                    @Override
+                    public void close() throws ElasticsearchException {
+                        clear("close");
+                    }
+
+                    @Override
+                    public void clear(String reason) {
+                        nodeCache.clearIndex(index().getName());
+                    }
+
+                    @Override
+                    public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+                        final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper.deserializeSafeFromHeader(threadPool.getThreadContext(),
+                                ConfigConstants.SG_FLS_FIELDS);
+                        
+                        if(evalMap(allowedFlsFields, index().getName()) != null) {
+                            return weight;
+                        } else {
+                            return nodeCache.doCache(weight, policy);
+                        }
+                        
+                    }
+                    
+                    private String evalMap(final Map<String,Set<String>> map, final String index) {
+
+                        if (map == null) {
+                            return null;
+                        }
+
+                        if (map.get(index) != null) {
+                            return index;
+                        } else if (map.get("*") != null) {
+                            return "*";
+                        }
+                        if (map.get("_all") != null) {
+                            return "_all";
+                        }
+
+                        //regex
+                        for(final String key: map.keySet()) {
+                            if(WildcardMatcher.containsWildcard(key) 
+                                    && WildcardMatcher.match(key, index)) {
+                                return key;
+                            }
+                        }
+
+                        return null;
+                    }
+
+                });
             } else {
                 indexModule.setSearcherWrapper(indexService -> new SearchGuardIndexSearcherWrapper(indexService, settings));
             }
