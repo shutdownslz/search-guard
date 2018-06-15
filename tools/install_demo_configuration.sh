@@ -1,11 +1,38 @@
 #!/bin/bash
 #install_demo_configuration.sh [-y]
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-echo "## Search Guard Demo Installer ##"
-echo "Warning: Do not use on production or public reachable systems"
+echo "Search Guard 5 Demo Installer"
+echo ""
+echo "You maybe need to adjust your virtual memory (vm.max_map_count)"
+echo "  See https://www.elastic.co/guide/en/elasticsearch/reference/current/vm-max-map-count.html"
+echo ""
+echo " ** Warning: Do not use on production or public reachable systems **"
 
-if [ "$1" != "-y" ]; then
-	read -r -p "Continue? [y/N] " response
+OPTIND=1
+assumeyes=0
+
+function show_help() {
+    echo "install_demo_configuration.sh [-y]"
+    echo "  -h show help"
+    echo "  -y confirm all installation dialogues automatically"
+}
+
+while getopts "h?yic" opt; do
+    case "$opt" in
+    h|\?)
+        show_help
+        exit 0
+        ;;
+    y)  assumeyes=1
+    esac
+done
+
+shift $((OPTIND-1))
+
+[ "$1" = "--" ] && shift
+
+if [ "$assumeyes" == 0 ]; then
+	read -r -p "Install demo certificates? [y/N] " response
 	case "$response" in
 	    [yY][eE][sS]|[yY]) 
 	        ;;
@@ -14,6 +41,7 @@ if [ "$1" != "-y" ]; then
 	        ;;
 	esac
 fi
+
 
 set -e
 BASE_DIR="$DIR/../../.."
@@ -31,7 +59,6 @@ ES_BIN_DIR="$BASE_DIR/bin"
 ES_PLUGINS_DIR="$BASE_DIR/plugins"
 ES_LIB_PATH="$BASE_DIR/lib"
 SUDO_CMD=""
-BASE_64_DECODE_CMD="base64 -d"
 ES_INSTALL_TYPE=".tar.gz"
 
 #Check if its a rpm/deb install
@@ -64,22 +91,22 @@ fi
 if $SUDO_CMD test -f "$ES_CONF_FILE"; then
     :
 else
-    echo "Unable to determine elasticsearch config directory. Quit."
+    echo "Unable to determine Elasticsearch config directory. Quit."
     exit -1
 fi
 
 if [ ! -d $ES_BIN_DIR ]; then
-	echo "Unable to determine elasticsearch bin directory. Quit."
+	echo "Unable to determine Elasticsearch bin directory. Quit."
 	exit -1
 fi
 
 if [ ! -d $ES_PLUGINS_DIR ]; then
-	echo "Unable to determine elasticsearch plugins directory. Quit."
+	echo "Unable to determine Elasticsearch plugins directory. Quit."
 	exit -1
 fi
 
 if [ ! -d $ES_LIB_PATH ]; then
-	echo "Unable to determine elasticsearch lib directory. Quit."
+	echo "Unable to determine Elasticsearch lib directory. Quit."
 	exit -1
 fi
 
@@ -112,53 +139,209 @@ if $SUDO_CMD grep --quiet -i searchguard $ES_CONF_FILE; then
   exit -1
 fi
 
-SG_ADMIN_KSEYSTORE_B64="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"
-SG_KEYSTORE_B64="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"
-SG_TRUSTSTORE_B64="/u3+7QAAAAIAAAABAAAAAgANcm9vdC1jYS1jaGFpbgAAAVR9hKmTAAVYLjUwOQAABAIwggP+MIIC5qADAgECAgEBMA0GCSqGSIb3DQEBBQUAMIGPMRMwEQYKCZImiZPyLGQBGRYDY29tMRcwFQYKCZImiZPyLGQBGRYHZXhhbXBsZTEZMBcGA1UECgwQRXhhbXBsZSBDb20gSW5jLjEhMB8GA1UECwwYRXhhbXBsZSBDb20gSW5jLiBSb290IENBMSEwHwYDVQQDDBhFeGFtcGxlIENvbSBJbmMuIFJvb3QgQ0EwHhcNMTYwNTA0MjA0NTI2WhcNMjYwNTA0MjA0NTI2WjCBjzETMBEGCgmSJomT8ixkARkWA2NvbTEXMBUGCgmSJomT8ixkARkWB2V4YW1wbGUxGTAXBgNVBAoMEEV4YW1wbGUgQ29tIEluYy4xITAfBgNVBAsMGEV4YW1wbGUgQ29tIEluYy4gUm9vdCBDQTEhMB8GA1UEAwwYRXhhbXBsZSBDb20gSW5jLiBSb290IENBMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApw0wsnX8sgACv9Jb6C4WxkfyzG1jUynHCMQ9s+9B9enRyE2qpSA3zvPrAuKMt5h+iP4/kGhzQGq9erRdkYv86Lc5sKZR0pSgVwrtQutrX0eCgjClSj1txXcQQe3EXDp7rsfA++1LuhFtJuxc8DiSMz3cnMSF50/VXbe8Zk7w/0C9+Lxd8L3KmXMCDnymGR/sr1cZfT5cGk6Pzxs+MKyDaLnJr2drU/ZX2F4MZxEuRAc7pc2t1CPMi84I0iOi41vvVUo5PHp56E5BmS1cbFGsej2qQ8oI6RK0rfQBGMrpgdyGsQJtT62UFDb8cbEBy5a6wLLCpMBf03WN19I/AFRncwIDAQABo2MwYTAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUUQOZoY3i0Tw5M0u/oKhvjGPTBLcwHwYDVR0jBBgwFoAUUQOZoY3i0Tw5M0u/oKhvjGPTBLcwDQYJKoZIhvcNAQEFBQADggEBADdJCbcDHPQd8hwUfaon+SRQMezvSDNRFY9sdCoVFNz6nWddPx+VxYOoASnuExVYLGrqt/42P0SPh4nhFa6aQXZTISdRH5iM+niBf+Thvj7M6wZAK+k/8snwSDWAjPpz8uKfW+7R12kZkwj6k9XKbsw2TGcpIzZPI5+PYA6uMPlIfNzcD1q+OtZh0c4XeOsX0nF+NfivObCHxKAnJJAqO0q5tL+bhtp+sntxwUItfFt6tbFSXcnhAxE1rHMtRrOo3CGctPD7/RmEeBbyFDkvTGF2upARGndHDpuEs4EvoC1qjGNpYcrZZ6mzrBngKN9lE/8AWWxwPqFaXba1Go63vGmOLKwWS4mSsOrNltzcBxs7eld1tA=="
+set +e
 
-if [ "$(uname)" == "Darwin" ]; then
-    BASE_64_DECODE_CMD="base64 -D"
-fi
+read -r -d '' SG_ADMIN_CERT << EOM
+-----BEGIN CERTIFICATE-----
+MIIEdzCCA1+gAwIBAgIGAWLrc1O4MA0GCSqGSIb3DQEBCwUAMIGPMRMwEQYKCZIm
+iZPyLGQBGRYDY29tMRcwFQYKCZImiZPyLGQBGRYHZXhhbXBsZTEZMBcGA1UECgwQ
+RXhhbXBsZSBDb20gSW5jLjEhMB8GA1UECwwYRXhhbXBsZSBDb20gSW5jLiBSb290
+IENBMSEwHwYDVQQDDBhFeGFtcGxlIENvbSBJbmMuIFJvb3QgQ0EwHhcNMTgwNDIy
+MDM0MzQ3WhcNMjgwNDE5MDM0MzQ3WjBNMQswCQYDVQQGEwJkZTENMAsGA1UEBwwE
+dGVzdDEPMA0GA1UECgwGY2xpZW50MQ8wDQYDVQQLDAZjbGllbnQxDTALBgNVBAMM
+BGtpcmswggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDCwgBOoO88uMM8
+dREJsk58Yt4Jn0zwQ2wUThbvy3ICDiEWhiAhUbg6dTggpS5vWWJto9bvaaqgMVoh
+ElfYHdTDncX3UQNBEP8tqzHON6BFEFSGgJRGLd6f5dri6rK32nCotYS61CFXBFxf
+WumXjSukjyrcTsdkR3C5QDo2oN7F883MOQqRENPzAtZi9s3jNX48u+/e3yvJzXsB
+GS9Qmsye6C71enbIujM4CVwDT/7a5jHuaUp6OuNCFbdRPnu/wLYwOS2/yOtzAqk7
+/PFnPCe7YOa10ShnV/jx2sAHhp7ZQBJgFkkgnIERz9Ws74Au+EbptWnsWuB+LqRL
+x5G02IzpAgMBAAGjggEYMIIBFDCBvAYDVR0jBIG0MIGxgBSSNQzgDx4rRfZNOfN7
+X6LmEpdAc6GBlaSBkjCBjzETMBEGCgmSJomT8ixkARkWA2NvbTEXMBUGCgmSJomT
+8ixkARkWB2V4YW1wbGUxGTAXBgNVBAoMEEV4YW1wbGUgQ29tIEluYy4xITAfBgNV
+BAsMGEV4YW1wbGUgQ29tIEluYy4gUm9vdCBDQTEhMB8GA1UEAwwYRXhhbXBsZSBD
+b20gSW5jLiBSb290IENBggEBMB0GA1UdDgQWBBRsdhuHn3MGDvZxOe22+1wliCJB
+mDAMBgNVHRMBAf8EAjAAMA4GA1UdDwEB/wQEAwIF4DAWBgNVHSUBAf8EDDAKBggr
+BgEFBQcDAjANBgkqhkiG9w0BAQsFAAOCAQEAkPrUTKKn+/6g0CjhTPBFeX8mKXhG
+zw5z9Oq+xnwefZwxV82E/tgFsPcwXcJIBg0f43BaVSygPiV7bXqWhxASwn73i24z
+lveIR4+z56bKIhP6c3twb8WWR9yDcLu2Iroin7dYEm3dfVUrhz/A90WHr6ddwmLL
+3gcFF2kBu3S3xqM5OmN/tqRXFmo+EvwrdJRiTh4Fsf0tX1ZT07rrGvBFYktK7Kma
+lqDl4UDCF1UWkiiFubc0Xw+DR6vNAa99E0oaphzvCmITU1wITNnYZTKzVzQ7vUCq
+kLmXOFLTcxTQpptxSo5xDD3aTpzWGCvjExCKpXQtsITUOYtZc02AGjjPOQ==
+-----END CERTIFICATE-----
+EOM
 
-echo "$SG_ADMIN_KSEYSTORE_B64" | $BASE_64_DECODE_CMD | $SUDO_CMD tee "$ES_CONF_DIR/kirk.jks" > /dev/null 
-echo "$SG_KEYSTORE_B64" | $BASE_64_DECODE_CMD | $SUDO_CMD tee "$ES_CONF_DIR/keystore.jks" > /dev/null
-echo "$SG_TRUSTSTORE_B64" | $BASE_64_DECODE_CMD | $SUDO_CMD tee "$ES_CONF_DIR/truststore.jks" > /dev/null
+read -r -d '' SG_ADMIN_CERT_KEY << EOM
+-----BEGIN PRIVATE KEY-----
+MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDCwgBOoO88uMM8
+dREJsk58Yt4Jn0zwQ2wUThbvy3ICDiEWhiAhUbg6dTggpS5vWWJto9bvaaqgMVoh
+ElfYHdTDncX3UQNBEP8tqzHON6BFEFSGgJRGLd6f5dri6rK32nCotYS61CFXBFxf
+WumXjSukjyrcTsdkR3C5QDo2oN7F883MOQqRENPzAtZi9s3jNX48u+/e3yvJzXsB
+GS9Qmsye6C71enbIujM4CVwDT/7a5jHuaUp6OuNCFbdRPnu/wLYwOS2/yOtzAqk7
+/PFnPCe7YOa10ShnV/jx2sAHhp7ZQBJgFkkgnIERz9Ws74Au+EbptWnsWuB+LqRL
+x5G02IzpAgMBAAECggEAEzwnMkeBbqqDgyRqFbO/PgMNvD7i0b/28V0dCtCPEVY6
+klzrg3RCERP5V9AN8VVkppYjPkCzZ2A4b0JpMUu7ncOmr7HCnoSCj2IfEyePSVg+
+4OHbbcBOAoDTHiI2myM/M9++8izNS34qGV4t6pfjaDyeQQ/5cBVWNBWnKjS34S5H
+rJWpAcDgxYk5/ah2Xs2aULZlXDMxbSikjrv+n4JIYTKFQo8ydzL8HQDBRmXAFLjC
+gNOSHf+5u1JdpY3uPIxK1ugVf8zPZ4/OEB23j56uu7c8+sZ+kZwfRWAQmMhFVG/y
+OXxoT5mOruBsAw29m2Ijtxg252/YzSTxiDqFziB/eQKBgQDjeVAdi55GW/bvhuqn
+xME/An8E3hI/FyaaITrMQJUBjiCUaStTEqUgQ6A7ZfY/VX6qafOX7sli1svihrXC
+uelmKrdve/CFEEqzX9JWWRiPiQ0VZD+EQRsJvX85Tw2UGvVUh6dO3UGPS0BhplMD
+jeVpyXgZ7Gy5we+DWjfwhYrCmwKBgQDbLmQhRy+IdVljObZmv3QtJ0cyxxZETWzU
+MKmgBFvcRw+KvNwO+Iy0CHEbDu06Uj63kzI2bK3QdINaSrjgr8iftXIQpBmcgMF+
+a1l5HtHlCp6RWd55nWQOEvn36IGN3cAaQkXuh4UYM7QfEJaAbzJhyJ+wXA3jWqUd
+8bDTIAZ0ywKBgFuZ44gyTAc7S2JDa0Up90O/ZpT4NFLRqMrSbNIJg7d/m2EIRNkM
+HhCzCthAg/wXGo3XYq+hCdnSc4ICCzmiEfoBY6LyPvXmjJ5VDOeWs0xBvVIK74T7
+jr7KX2wdiHNGs9pZUidw89CXVhK8nptEzcheyA1wZowbK68yamph7HHXAoGBAK3x
+7D9Iyl1mnDEWPT7f1Gh9UpDm1TIRrDvd/tBihTCVKK13YsFy2d+LD5Bk0TpGyUVR
+STlOGMdloFUJFh4jA3pUOpkgUr8Uo/sbYN+x6Ov3+I3sH5aupRhSURVA7YhUIz/z
+tqIt5R+m8Nzygi6dkQNvf+Qruk3jw0S3ahizwsvvAoGAL7do6dTLp832wFVxkEf4
+gg1M6DswfkgML5V/7GQ3MkIX/Hrmiu+qSuHhDGrp9inZdCDDYg5+uy1+2+RBMRZ3
+vDUUacvc4Fep05zp7NcjgU5y+/HWpuKVvLIlZAO1MBY4Xinqqii6RdxukIhxw7eT
+C6TPL5KAcV1R/XAihDhI18Y=
+-----END PRIVATE KEY-----
+EOM
+
+read -r -d '' NODE_CERT << EOM
+-----BEGIN CERTIFICATE-----
+MIIEyTCCA7GgAwIBAgIGAWLrc1O2MA0GCSqGSIb3DQEBCwUAMIGPMRMwEQYKCZIm
+iZPyLGQBGRYDY29tMRcwFQYKCZImiZPyLGQBGRYHZXhhbXBsZTEZMBcGA1UECgwQ
+RXhhbXBsZSBDb20gSW5jLjEhMB8GA1UECwwYRXhhbXBsZSBDb20gSW5jLiBSb290
+IENBMSEwHwYDVQQDDBhFeGFtcGxlIENvbSBJbmMuIFJvb3QgQ0EwHhcNMTgwNDIy
+MDM0MzQ3WhcNMjgwNDE5MDM0MzQ3WjBeMRIwEAYKCZImiZPyLGQBGRYCZGUxDTAL
+BgNVBAcMBHRlc3QxDTALBgNVBAoMBG5vZGUxDTALBgNVBAsMBG5vZGUxGzAZBgNV
+BAMMEm5vZGUtMC5leGFtcGxlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCC
+AQoCggEBAJa+f476vLB+AwK53biYByUwN+40D8jMIovGXm6wgT8+9Sbs899dDXgt
+9CE1Beo65oP1+JUz4c7UHMrCY3ePiDt4cidHVzEQ2g0YoVrQWv0RedS/yx/DKhs8
+Pw1O715oftP53p/2ijD5DifFv1eKfkhFH+lwny/vMSNxellpl6NxJTiJVnQ9HYOL
+gf2t971ITJHnAuuxUF48HcuNovW4rhtkXef8kaAN7cE3LU+A9T474ULNCKkEFPIl
+ZAKN3iJNFdVsxrTU+CUBHzk73Do1cCkEvJZ0ZFjp0Z3y8wLY/gqWGfGVyA9l2CUq
+eIZNf55PNPtGzOrvvONiui48vBKH1LsCAwEAAaOCAVkwggFVMIG8BgNVHSMEgbQw
+gbGAFJI1DOAPHitF9k0583tfouYSl0BzoYGVpIGSMIGPMRMwEQYKCZImiZPyLGQB
+GRYDY29tMRcwFQYKCZImiZPyLGQBGRYHZXhhbXBsZTEZMBcGA1UECgwQRXhhbXBs
+ZSBDb20gSW5jLjEhMB8GA1UECwwYRXhhbXBsZSBDb20gSW5jLiBSb290IENBMSEw
+HwYDVQQDDBhFeGFtcGxlIENvbSBJbmMuIFJvb3QgQ0GCAQEwHQYDVR0OBBYEFKyv
+78ZmFjVKM9g7pMConYH7FVBHMAwGA1UdEwEB/wQCMAAwDgYDVR0PAQH/BAQDAgXg
+MCAGA1UdJQEB/wQWMBQGCCsGAQUFBwMBBggrBgEFBQcDAjA1BgNVHREELjAsiAUq
+AwQFBYISbm9kZS0wLmV4YW1wbGUuY29tgglsb2NhbGhvc3SHBH8AAAEwDQYJKoZI
+hvcNAQELBQADggEBAIOKuyXsFfGv1hI/Lkpd/73QNqjqJdxQclX57GOMWNbOM5H0
+5/9AOIZ5JQsWULNKN77aHjLRr4owq2jGbpc/Z6kAd+eiatkcpnbtbGrhKpOtoEZy
+8KuslwkeixpzLDNISSbkeLpXz4xJI1ETMN/VG8ZZP1bjzlHziHHDu0JNZ6TnNzKr
+XzCGMCohFfem8vnKNnKUneMQMvXd3rzUaAgvtf7Hc2LTBlf4fZzZF1EkwdSXhaMA
+1lkfHiqOBxtgeDLxCHESZ2fqgVqsWX+t3qHQfivcPW6txtDyrFPRdJOGhiMGzT/t
+e/9kkAtQRgpTb3skYdIOOUOV0WGQ60kJlFhAzIs=
+-----END CERTIFICATE-----
+EOM
+
+read -r -d '' NODE_KEY << EOM
+-----BEGIN PRIVATE KEY-----
+MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCWvn+O+rywfgMC
+ud24mAclMDfuNA/IzCKLxl5usIE/PvUm7PPfXQ14LfQhNQXqOuaD9fiVM+HO1BzK
+wmN3j4g7eHInR1cxENoNGKFa0Fr9EXnUv8sfwyobPD8NTu9eaH7T+d6f9oow+Q4n
+xb9Xin5IRR/pcJ8v7zEjcXpZaZejcSU4iVZ0PR2Di4H9rfe9SEyR5wLrsVBePB3L
+jaL1uK4bZF3n/JGgDe3BNy1PgPU+O+FCzQipBBTyJWQCjd4iTRXVbMa01PglAR85
+O9w6NXApBLyWdGRY6dGd8vMC2P4KlhnxlcgPZdglKniGTX+eTzT7Rszq77zjYrou
+PLwSh9S7AgMBAAECggEABwiohxFoEIwws8XcdKqTWsbfNTw0qFfuHLuK2Htf7IWR
+htlzn66F3F+4jnwc5IsPCoVFriCXnsEC/usHHSMTZkL+gJqxlNaGdin6DXS/aiOQ
+nb69SaQfqNmsz4ApZyxVDqsQGkK0vAhDAtQVU45gyhp/nLLmmqP8lPzMirOEodmp
+U9bA8t/ttrzng7SVAER42f6IVpW0iTKTLyFii0WZbq+ObViyqib9hVFrI6NJuQS+
+IelcZB0KsSi6rqIjXg1XXyMiIUcSlhq+GfEa18AYgmsbPwMbExate7/8Ci7ZtCbh
+lx9bves2+eeqq5EMm3sMHyhdcg61yzd5UYXeZhwJkQKBgQDS9YqrAtztvLY2gMgv
+d+wOjb9awWxYbQTBjx33kf66W+pJ+2j8bI/XX2CpZ98w/oq8VhMqbr9j5b8MfsrF
+EoQvedA4joUo8sXd4j1mR2qKF4/KLmkgy6YYusNP2UrVSw7sh77bzce+YaVVoO/e
+0wIVTHuD/QZ6fG6MasOqcbl6hwKBgQC27cQruaHFEXR/16LrMVAX+HyEEv44KOCZ
+ij5OE4P7F0twb+okngG26+OJV3BtqXf0ULlXJ+YGwXCRf6zUZkld3NMy3bbKPgH6
+H/nf3BxqS2tudj7+DV52jKtisBghdvtlKs56oc9AAuwOs37DvhptBKUPdzDDqfys
+Qchv5JQdLQKBgERev+pcqy2Bk6xmYHrB6wdseS/4sByYeIoi0BuEfYH4eB4yFPx6
+UsQCbVl6CKPgWyZe3ydJbU37D8gE78KfFagtWoZ56j4zMF2RDUUwsB7BNCDamce/
+OL2bCeG/Erm98cBG3lxufOX+z47I8fTNfkdY2k8UmhzoZwurLm73HJ3RAoGBAKsp
+6yamuXF2FbYRhUXgjHsBbTD/vJO72/yO2CGiLRpi/5mjfkjo99269trp0C8sJSub
+5PBiSuADXFsoRgUv+HI1UAEGaCTwxFTQWrRWdtgW3d0sE2EQDVWL5kmfT9TwSeat
+mSoyAYR5t3tCBNkPJhbgA7pm4mASzHQ50VyxWs25AoGBAKPFx9X2oKhYQa+mW541
+bbqRuGFMoXIIcr/aeM3LayfLETi48o5NDr2NDP11j4yYuz26YLH0Dj8aKpWuehuH
+uB27n6j6qu0SVhQi6mMJBe1JrKbzhqMKQjYOoy8VsC2gdj5pCUP/kLQPW7zm9diX
+CiKTtKgPIeYdigor7V3AHcVT
+-----END PRIVATE KEY-----
+EOM
+
+read -r -d '' ROOT_CA << EOM
+-----BEGIN CERTIFICATE-----
+MIID/jCCAuagAwIBAgIBATANBgkqhkiG9w0BAQsFADCBjzETMBEGCgmSJomT8ixk
+ARkWA2NvbTEXMBUGCgmSJomT8ixkARkWB2V4YW1wbGUxGTAXBgNVBAoMEEV4YW1w
+bGUgQ29tIEluYy4xITAfBgNVBAsMGEV4YW1wbGUgQ29tIEluYy4gUm9vdCBDQTEh
+MB8GA1UEAwwYRXhhbXBsZSBDb20gSW5jLiBSb290IENBMB4XDTE4MDQyMjAzNDM0
+NloXDTI4MDQxOTAzNDM0NlowgY8xEzARBgoJkiaJk/IsZAEZFgNjb20xFzAVBgoJ
+kiaJk/IsZAEZFgdleGFtcGxlMRkwFwYDVQQKDBBFeGFtcGxlIENvbSBJbmMuMSEw
+HwYDVQQLDBhFeGFtcGxlIENvbSBJbmMuIFJvb3QgQ0ExITAfBgNVBAMMGEV4YW1w
+bGUgQ29tIEluYy4gUm9vdCBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoC
+ggEBAK/u+GARP5innhpXK0c0q7s1Su1VTEaIgmZr8VWI6S8amf5cU3ktV7WT9SuV
+TsAm2i2A5P+Ctw7iZkfnHWlsC3HhPUcd6mvzGZ4moxnamM7r+a9otRp3owYoGStX
+ylVTQusAjbq9do8CMV4hcBTepCd+0w0v4h6UlXU8xjhj1xeUIz4DKbRgf36q0rv4
+VIX46X72rMJSETKOSxuwLkov1ZOVbfSlPaygXIxqsHVlj1iMkYRbQmaTib6XWHKf
+MibDaqDejOhukkCjzpptGZOPFQ8002UtTTNv1TiaKxkjMQJNwz6jfZ53ws3fh1I0
+RWT6WfM4oeFRFnyFRmc4uYTUgAkCAwEAAaNjMGEwDwYDVR0TAQH/BAUwAwEB/zAf
+BgNVHSMEGDAWgBSSNQzgDx4rRfZNOfN7X6LmEpdAczAdBgNVHQ4EFgQUkjUM4A8e
+K0X2TTnze1+i5hKXQHMwDgYDVR0PAQH/BAQDAgGGMA0GCSqGSIb3DQEBCwUAA4IB
+AQBoQHvwsR34hGO2m8qVR9nQ5Klo5HYPyd6ySKNcT36OZ4AQfaCGsk+SecTi35QF
+RHL3g2qffED4tKR0RBNGQSgiLavmHGCh3YpDupKq2xhhEeS9oBmQzxanFwWFod4T
+nnsG2cCejyR9WXoRzHisw0KJWeuNlwjUdJY0xnn16srm1zL/M/f0PvCyh9HU1mF1
+ivnOSqbDD2Z7JSGyckgKad1Omsg/rr5XYtCeyJeXUPcmpeX6erWJJNTUh6yWC/hY
+G/dFC4xrJhfXwz6Z0ytUygJO32bJG4Np2iGAwvvgI9EfxzEv/KP+FGrJOvQJAq4/
+BU36ZAa80W/8TBnqZTkNnqZV
+-----END CERTIFICATE-----
+EOM
+
+set -e
+
+echo "$SG_ADMIN_CERT" | $SUDO_CMD tee "$ES_CONF_DIR/kirk.pem" > /dev/null
+echo "$NODE_CERT" | $SUDO_CMD tee "$ES_CONF_DIR/esnode.pem" > /dev/null 
+echo "$ROOT_CA" | $SUDO_CMD tee "$ES_CONF_DIR/root-ca.pem" > /dev/null
+echo "$NODE_KEY" | $SUDO_CMD tee "$ES_CONF_DIR/esnode-key.pem" > /dev/null
+echo "$SG_ADMIN_CERT_KEY" | $SUDO_CMD tee "$ES_CONF_DIR/kirk-key.pem" > /dev/null
 
 echo "" | $SUDO_CMD tee -a  $ES_CONF_FILE
 echo "######## Start Search Guard Demo Configuration ########" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
-echo "searchguard.ssl.transport.keystore_filepath: keystore.jks" | $SUDO_CMD tee -a  $ES_CONF_FILE > /dev/null 
-echo "searchguard.ssl.transport.truststore_filepath: truststore.jks" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
+echo "# WARNING: revise all the lines below before you go into production" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
+echo "searchguard.ssl.transport.pemcert_filepath: esnode.pem" | $SUDO_CMD tee -a  $ES_CONF_FILE > /dev/null 
+echo "searchguard.ssl.transport.pemkey_filepath: esnode-key.pem" | $SUDO_CMD tee -a  $ES_CONF_FILE > /dev/null 
+echo "searchguard.ssl.transport.pemtrustedcas_filepath: root-ca.pem" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 echo "searchguard.ssl.transport.enforce_hostname_verification: false" | $SUDO_CMD tee -a  $ES_CONF_FILE > /dev/null 
 echo "searchguard.ssl.http.enabled: true" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
-echo "searchguard.ssl.http.keystore_filepath: keystore.jks" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
-echo "searchguard.ssl.http.truststore_filepath: truststore.jks" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
+echo "searchguard.ssl.http.pemcert_filepath: esnode.pem" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+echo "searchguard.ssl.http.pemkey_filepath: esnode-key.pem" | $SUDO_CMD tee -a  $ES_CONF_FILE > /dev/null 
+echo "searchguard.ssl.http.pemtrustedcas_filepath: root-ca.pem" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 echo "searchguard.authcz.admin_dn:" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 echo "  - CN=kirk,OU=client,O=client,L=test, C=de" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 echo "" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 
-if $SUDO_CMD grep --quiet -i "cluster.name" $ES_CONF_FILE; then
+echo "cluster.routing.allocation.disk.threshold_enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+if $SUDO_CMD grep --quiet -i "^cluster.name" $ES_CONF_FILE; then
 	: #already present
 else
     echo "cluster.name: searchguard_demo" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 fi
 
-if $SUDO_CMD grep --quiet -i "network.host" $ES_CONF_FILE; then
+if $SUDO_CMD grep --quiet -i "^network.host" $ES_CONF_FILE; then
 	: #already present
 else
     echo "network.host: 0.0.0.0" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
 fi
 
-if $SUDO_CMD grep --quiet -i "discovery.zen.minimum_master_nodes" $ES_CONF_FILE; then
+if $SUDO_CMD grep --quiet -i "^discovery.zen.minimum_master_nodes" $ES_CONF_FILE; then
 	: #already present
 else
     echo "discovery.zen.minimum_master_nodes: 1" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
 fi
 
-echo 'node.max_local_storage_nodes: 3' | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+if $SUDO_CMD grep --quiet -i "^node.max_local_storage_nodes" $ES_CONF_FILE; then
+	: #already present
+else
+    echo 'node.max_local_storage_nodes: 3' | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
+fi
 
 if [ -d "$ES_PLUGINS_DIR/x-pack" ];then
 	echo "xpack.security.enabled: false" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null
 fi
+
 echo "######## End Search Guard Demo Configuration ########" | $SUDO_CMD tee -a $ES_CONF_FILE > /dev/null 
 
 $SUDO_CMD chmod +x "$ES_PLUGINS_DIR/search-guard-5/tools/sgadmin.sh"
@@ -167,11 +350,12 @@ ES_PLUGINS_DIR=`cd "$ES_PLUGINS_DIR" ; pwd`
 
 echo "### Success"
 echo "### Execute this script now on all your nodes and then start all nodes"
-echo "### After the whole cluster is up execute: "
+#Generate sgadmin_demo.sh
 echo "#!/bin/bash" | $SUDO_CMD tee sgadmin_demo.sh > /dev/null 
-echo $SUDO_CMD "$ES_PLUGINS_DIR/search-guard-5/tools/sgadmin.sh" -cd "$ES_PLUGINS_DIR/search-guard-5/sgconfig" -icl -ks "$ES_CONF_DIR/kirk.jks" -ts "$ES_CONF_DIR/truststore.jks" -nhnv | $SUDO_CMD tee -a sgadmin_demo.sh > /dev/null
+echo $SUDO_CMD "$ES_PLUGINS_DIR/search-guard-5/tools/sgadmin.sh" -cd "$ES_PLUGINS_DIR/search-guard-5/sgconfig" -icl -key "$ES_CONF_DIR/kirk-key.pem" -cert "$ES_CONF_DIR/kirk.pem" -cacert "$ES_CONF_DIR/root-ca.pem" -nhnv | $SUDO_CMD tee -a sgadmin_demo.sh > /dev/null
 $SUDO_CMD chmod +x sgadmin_demo.sh
+echo "### After the whole cluster is up execute: "
 $SUDO_CMD cat sgadmin_demo.sh | tail -1
 echo "### or run ./sgadmin_demo.sh"
-echo "### Then open https://localhost:9200 an login with admin/admin"
-echo "### (Just ignore the ssl certificate warning because we installed a self signed demo certificate)"
+echo "### To access your Search Guard secured cluster open https://<hostname>:<HTTP port> and log in with admin/admin."
+echo "### (Ignore the SSL certificate warning because we installed self-signed demo certificates)"
