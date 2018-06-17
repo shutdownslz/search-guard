@@ -177,10 +177,6 @@ public class SearchGuardInterceptor {
             this.innerHandler = innerHandler;
         }
 
-        public T newInstance() {
-            return innerHandler.newInstance();
-        }
-
         public void handleResponse(T response) {
             contextToRestore.restore();
             innerHandler.handleResponse(response);
@@ -193,6 +189,11 @@ public class SearchGuardInterceptor {
 
         public String executor() {
             return innerHandler.executor();
+        }
+
+        @Override
+        public T newInstance() {
+            return innerHandler.newInstance();
         }
     }
 
