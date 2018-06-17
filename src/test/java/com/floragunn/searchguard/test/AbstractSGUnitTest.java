@@ -22,10 +22,10 @@ import io.netty.handler.ssl.OpenSsl;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Objects;
-
-import javax.xml.bind.DatatypeConverter;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.http.Header;
 import org.apache.http.message.BasicHeader;
@@ -62,6 +62,8 @@ import com.floragunn.searchguard.test.helper.rest.RestHelper.HttpResponse;
 import com.floragunn.searchguard.test.helper.rules.SGTestWatcher;
 
 public abstract class AbstractSGUnitTest {
+    
+    protected static final AtomicLong num = new AtomicLong();
 
 	static {
 
@@ -95,8 +97,8 @@ public abstract class AbstractSGUnitTest {
 	public final TestWatcher testWatcher = new SGTestWatcher();
 
 	public static Header encodeBasicHeader(final String username, final String password) {
-		return new BasicHeader("Authorization", "Basic "+new String(DatatypeConverter.printBase64Binary(
-				(username + ":" + Objects.requireNonNull(password)).getBytes(StandardCharsets.UTF_8))));
+		return new BasicHeader("Authorization", "Basic "+Base64.getEncoder().encodeToString(
+				(username + ":" + Objects.requireNonNull(password)).getBytes(StandardCharsets.UTF_8)));
 	}
 	
 	protected static class TransportClientImpl extends TransportClient {
@@ -117,13 +119,16 @@ public abstract class AbstractSGUnitTest {
     
     
     protected TransportClient getInternalTransportClient(ClusterInfo info, Settings initTransportClientSettings) {
+        
+        final String prefix = getResourceFolder()==null?"":getResourceFolder()+"/";
+        
         Settings tcSettings = Settings.builder()
                 .put("cluster.name", info.clustername)
                 .put("searchguard.ssl.transport.truststore_filepath",
-                        FileHelper.getAbsoluteFilePathFromClassPath("truststore.jks"))
+                        FileHelper.getAbsoluteFilePathFromClassPath(prefix+"truststore.jks"))
                 .put("searchguard.ssl.transport.enforce_hostname_verification", false)
                 .put("searchguard.ssl.transport.keystore_filepath",
-                        FileHelper.getAbsoluteFilePathFromClassPath("kirk-keystore.jks"))
+                        FileHelper.getAbsoluteFilePathFromClassPath(prefix+"kirk-keystore.jks"))
                 .put(initTransportClientSettings)
                 .build();
         
@@ -133,13 +138,16 @@ public abstract class AbstractSGUnitTest {
     }
     
     protected TransportClient getUserTransportClient(ClusterInfo info, String keyStore, Settings initTransportClientSettings) {
+        
+        final String prefix = getResourceFolder()==null?"":getResourceFolder()+"/";
+        
         Settings tcSettings = Settings.builder()
                 .put("cluster.name", info.clustername)
                 .put("searchguard.ssl.transport.truststore_filepath",
-                        FileHelper.getAbsoluteFilePathFromClassPath("truststore.jks"))
+                        FileHelper.getAbsoluteFilePathFromClassPath(prefix+"truststore.jks"))
                 .put("searchguard.ssl.transport.enforce_hostname_verification", false)
                 .put("searchguard.ssl.transport.keystore_filepath",
-                        FileHelper.getAbsoluteFilePathFromClassPath(keyStore))
+                        FileHelper.getAbsoluteFilePathFromClassPath(prefix+keyStore))
                 .put(initTransportClientSettings)
                 .build();
         
@@ -156,9 +164,13 @@ public abstract class AbstractSGUnitTest {
             Assert.assertEquals(info.numNodes,
                     tc.admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet().getNodes().size());
 
-            tc.admin().indices().create(new CreateIndexRequest("searchguard")).actionGet();
+            try {
+                tc.admin().indices().create(new CreateIndexRequest("searchguard")).actionGet();
+            } catch (Exception e) {
+                //ignore
+            }
 
-            for(IndexRequest ir: sgconfig.getDynamicConfig()) {
+            for(IndexRequest ir: sgconfig.getDynamicConfig(getResourceFolder())) {
                 tc.index(ir).actionGet();
             }
 
@@ -184,6 +196,9 @@ public abstract class AbstractSGUnitTest {
     }
     
     protected Settings.Builder minimumSearchGuardSettingsBuilder(int node) {
+        
+        final String prefix = getResourceFolder()==null?"":getResourceFolder()+"/";
+        
         return Settings.builder()
                 //.put("searchguard.ssl.transport.enabled", true)
                  //.put("searchguard.no_default_init", true)
@@ -193,9 +208,9 @@ public abstract class AbstractSGUnitTest {
                 .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLE_OPENSSL_IF_AVAILABLE, allowOpenSSL)
                 .put("searchguard.ssl.transport.keystore_alias", "node-0")
                 .put("searchguard.ssl.transport.keystore_filepath",
-                        FileHelper.getAbsoluteFilePathFromClassPath("node-0-keystore.jks"))
+                        FileHelper.getAbsoluteFilePathFromClassPath(prefix+"node-0-keystore.jks"))
                 .put("searchguard.ssl.transport.truststore_filepath",
-                        FileHelper.getAbsoluteFilePathFromClassPath("truststore.jks"))
+                        FileHelper.getAbsoluteFilePathFromClassPath(prefix+"truststore.jks"))
                 .put("searchguard.ssl.transport.enforce_hostname_verification", false)
                 .putList("searchguard.authcz.admin_dn", "CN=kirk,OU=client,O=client,l=tEst, C=De");
                 //.put(other==null?Settings.EMPTY:other);
@@ -220,5 +235,9 @@ public abstract class AbstractSGUnitTest {
     
     protected final void assertNotContains(HttpResponse res, String pattern) {
         Assert.assertFalse(WildcardMatcher.match(pattern, res.getBody()));
+    }
+    
+    protected String getResourceFolder() {
+        return null;
     }
 }
