@@ -27,12 +27,16 @@ import com.floragunn.searchguard.test.helper.cluster.ClusterInfo;
 import com.floragunn.searchguard.test.helper.rest.RestHelper;
 
 public abstract class SingleClusterTest extends AbstractSGUnitTest {
-    
-    protected ClusterHelper clusterHelper = new ClusterHelper("unittest_cluster_1");
+        
+    protected ClusterHelper clusterHelper = new ClusterHelper("utest_n"+num.incrementAndGet()+"_f"+System.getProperty("forkno")+"_t"+System.nanoTime());
     protected ClusterInfo clusterInfo;
     
     protected void setup(Settings nodeOverride) throws Exception {    
         setup(Settings.EMPTY, new DynamicSgConfig(), nodeOverride, true);
+    }
+    
+    protected void setup(Settings nodeOverride, ClusterConfiguration clusterConfiguration) throws Exception {    
+        setup(Settings.EMPTY, new DynamicSgConfig(), nodeOverride, true, clusterConfiguration);
     }
     
     protected void setup() throws Exception {    
@@ -63,11 +67,11 @@ public abstract class SingleClusterTest extends AbstractSGUnitTest {
     }
     
     protected RestHelper restHelper() {
-        return new RestHelper(clusterInfo);
+        return new RestHelper(clusterInfo, getResourceFolder());
     }
     
     protected RestHelper nonSslRestHelper() {
-        return new RestHelper(clusterInfo, false, false);
+        return new RestHelper(clusterInfo, false, false, getResourceFolder());
     }
     
     protected TransportClient getInternalTransportClient() {
