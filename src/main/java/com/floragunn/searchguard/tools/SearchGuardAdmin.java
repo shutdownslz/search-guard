@@ -191,10 +191,15 @@ public class SearchGuardAdmin {
         options.addOption(Option.builder("key").hasArg().argName("file").desc("Path to the key of admin certificate").build());
         options.addOption(Option.builder("keypass").hasArg().argName("password").desc("Password of the key of admin certificate (optional)").build());
 
-        options.addOption(Option.builder("noopenssl").longOpt("no-openssl").desc("Do not use openssl even if available (default: use it if available)").build());
-        options.addOption(Option.builder("prompt").longOpt("prompt-for-password").desc("Promp for password if not supplied").build());
+        options.addOption(Option.builder("noopenssl").longOpt("no-openssl").desc("Do not use OpenSSL even if available (default: use it if available)").build());
 
-        options.addOption(Option.builder("er").longOpt("explicit-replicas").hasArg().argName("number of replicas or autoexpand expression").desc("Set explicit number of replicas for searchguard index").build());
+        options.addOption(Option.builder("si").longOpt("show-info").desc("Show system and license info").build());
+
+        options.addOption(Option.builder("w").longOpt("whoami").desc("Show information about the used admin certificate").build());
+
+        options.addOption(Option.builder("prompt").longOpt("prompt-for-password").desc("Prompt for password if not supplied").build());
+
+        options.addOption(Option.builder("er").longOpt("explicit-replicas").hasArg().argName("number of replicas").desc("Set explicit number of replicas or autoexpand expression for searchguard index").build());
 
         
         //when adding new options also adjust validate(CommandLine line)
