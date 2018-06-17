@@ -22,10 +22,10 @@ import io.netty.handler.ssl.OpenSsl;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Objects;
-
-import javax.xml.bind.DatatypeConverter;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.http.Header;
 import org.apache.http.message.BasicHeader;
@@ -62,6 +62,8 @@ import com.floragunn.searchguard.test.helper.rest.RestHelper.HttpResponse;
 import com.floragunn.searchguard.test.helper.rules.SGTestWatcher;
 
 public abstract class AbstractSGUnitTest {
+    
+    protected static final AtomicLong num = new AtomicLong();
 
 	static {
 
@@ -95,8 +97,8 @@ public abstract class AbstractSGUnitTest {
 	public final TestWatcher testWatcher = new SGTestWatcher();
 
 	public static Header encodeBasicHeader(final String username, final String password) {
-		return new BasicHeader("Authorization", "Basic "+new String(DatatypeConverter.printBase64Binary(
-				(username + ":" + Objects.requireNonNull(password)).getBytes(StandardCharsets.UTF_8))));
+		return new BasicHeader("Authorization", "Basic "+Base64.getEncoder().encodeToString(
+				(username + ":" + Objects.requireNonNull(password)).getBytes(StandardCharsets.UTF_8)));
 	}
 	
 	protected static class TransportClientImpl extends TransportClient {
@@ -162,7 +164,11 @@ public abstract class AbstractSGUnitTest {
             Assert.assertEquals(info.numNodes,
                     tc.admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet().getNodes().size());
 
-            tc.admin().indices().create(new CreateIndexRequest("searchguard")).actionGet();
+            try {
+                tc.admin().indices().create(new CreateIndexRequest("searchguard")).actionGet();
+            } catch (Exception e) {
+                //ignore
+            }
 
             for(IndexRequest ir: sgconfig.getDynamicConfig(getResourceFolder())) {
                 tc.index(ir).actionGet();

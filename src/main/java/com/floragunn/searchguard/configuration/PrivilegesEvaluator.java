@@ -43,8 +43,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -98,10 +100,7 @@ import com.floragunn.searchguard.support.Base64Helper;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.user.User;
-import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 
 public class PrivilegesEvaluator {
@@ -366,6 +365,10 @@ public class PrivilegesEvaluator {
         
         if(action.startsWith("cluster:admin/snapshot/restore")) {
             if (enableSnapshotRestorePrivilege) {
+                if(clusterInfoHolder.isLocalNodeElectedMaster() == Boolean.FALSE) {
+                    presponse.allowed = true;
+                    return presponse;
+                }
                 return evaluateSnapshotRestore(user, action, request, caller, task);
             } else {
                 log.warn(action + " is not allowed for a regular user");
@@ -501,6 +504,13 @@ public class PrivilegesEvaluator {
             }
         }
         
+        if (request instanceof CreateIndexRequest) {
+            CreateIndexRequest cir = (CreateIndexRequest) request;
+            if(cir.aliases() != null && !cir.aliases().isEmpty()) {
+                additionalPermissionsRequired.add(IndicesAliasesAction.NAME);
+            }
+        }
+        
         presponse.missingPrivileges.addAll(additionalPermissionsRequired);
         
         if(actionTrace.isTraceEnabled() && !additionalPermissionsRequired.isEmpty()) {
@@ -511,6 +521,7 @@ public class PrivilegesEvaluator {
             log.debug("Additional permissions required: "+additionalPermissionsRequired);
         }
         
+        final Set<IndexType> _requestedResolvedIndexTypesGlobal = new HashSet<IndexType>(requestedResolvedIndexTypes);
 
         for (final Iterator<String> iterator = sgRoles.iterator(); iterator.hasNext();) {
             final String sgRole = (String) iterator.next();
@@ -601,9 +612,6 @@ public class PrivilegesEvaluator {
             - READ
              */
             
-            final ListMultimap<String, String> resolvedRoleIndices = Multimaps.synchronizedListMultimap(ArrayListMultimap
-                    .<String, String> create());
-            
             final Set<IndexType> _requestedResolvedIndexTypes = new HashSet<IndexType>(requestedResolvedIndexTypes);
             //iterate over all beneath indices:
             permittedAliasesIndices:
@@ -688,22 +696,24 @@ public class PrivilegesEvaluator {
                     if (log.isDebugEnabled()) {
                         log.debug("  Try wildcard match for {}", permittedAliasesIndex);
                     }
-                    
-                    handleIndicesWithWildcard(action0, permittedAliasesIndex, permittedAliasesIndices, requestedResolvedIndexTypes, _requestedResolvedIndexTypes, requestedResolvedIndices);
+
+                    handleIndicesWithWildcard(action0, permittedAliasesIndex, permittedAliasesIndices, requestedResolvedIndexTypes, _requestedResolvedIndexTypes, _requestedResolvedIndexTypesGlobal, requestedResolvedIndices);
 
                 } else {
                     if (log.isDebugEnabled()) {
                         log.debug("  Resolve and match {}", permittedAliasesIndex);
                     }
 
-                    handleIndicesWithoutWildcard(action0, permittedAliasesIndex, permittedAliasesIndices, requestedResolvedIndexTypes, _requestedResolvedIndexTypes);
+                    handleIndicesWithoutWildcard(action0, permittedAliasesIndex, permittedAliasesIndices, requestedResolvedIndexTypes, _requestedResolvedIndexTypes, _requestedResolvedIndexTypesGlobal);
                 }
 
                 if (log.isDebugEnabled()) {
-                    log.debug("For index {} remaining requested indextype: {}", permittedAliasesIndex, _requestedResolvedIndexTypes);
+                    log.debug("For index {} remaining requested local indextype: {}", permittedAliasesIndex, _requestedResolvedIndexTypes);
+                    log.debug("For index {} remaining requested global indextype: {}", permittedAliasesIndex, _requestedResolvedIndexTypesGlobal);
+
                 }
                 
-                if (_requestedResolvedIndexTypes.isEmpty()) {
+                if (_requestedResolvedIndexTypes.isEmpty()) { //single role match
                     
                     //check filtered aliases
                     for(String requestAliasOrIndex: requestedResolvedIndices) {      
@@ -764,15 +774,10 @@ public class PrivilegesEvaluator {
                         log.debug("found a match for '{}.{}', evaluate other roles", sgRole, permittedAliasesIndex);
                     }
                 
-                    resolvedRoleIndices.put(sgRole, permittedAliasesIndex);
-                }
+                    allowAction = true;
+                } //end-if
                 
             }// end loop permittedAliasesIndices
-
-            
-            if (!resolvedRoleIndices.isEmpty()) {
-                allowAction = true;
-            }
             
             if(log.isDebugEnabled()) {
                 log.debug("Added to leftovers {}=>{}", sgRole, _requestedResolvedIndexTypes);
@@ -781,7 +786,11 @@ public class PrivilegesEvaluator {
             leftovers.put(sgRole, _requestedResolvedIndexTypes);
             
         } // end sg role loop
-
+                
+        if (!allowAction && config.getAsBoolean("searchguard.dynamic.multi_rolespan_enabled", false)) {
+            allowAction = _requestedResolvedIndexTypesGlobal.isEmpty();
+        }  
+        
         if (!allowAction && log.isInfoEnabled()) {
             
             String[] action0;
@@ -1064,17 +1073,44 @@ public class PrivilegesEvaluator {
                     sgRoles.add(roleMap);
                     continue;
                 }
-
-                if (caller != null &&  WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), caller.getAddress())) {
-                    sgRoles.add(roleMap);
-                    continue;
+                
+                if(caller != null && log.isTraceEnabled()) {
+                    log.trace("caller (getAddress()) is {}", caller.getAddress());
+                    log.trace("caller unresolved? {}", caller.address().isUnresolved());
+                    log.trace("caller inner? {}", caller.address().getAddress()==null?"<unresolved>":caller.address().getAddress().toString());
+                    log.trace("caller (getHostString()) is {}", caller.address().getHostString());
+                    log.trace("caller (getHostName(), dns) is {}", caller.address().getHostName()); //reverse lookup
                 }
-
-                if (caller != null && WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), caller.getAddress())) {
-                    sgRoles.add(roleMap);
-                    continue;
+                
+                if(caller != null) {
+                    //IPV4 or IPv6 (compressed and without scope identifiers)
+                    final String ipAddress = caller.getAddress();
+                    if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), ipAddress)) {
+                        sgRoles.add(roleMap);
+                        continue;
+                    }
+    
+                    final String hostResolverMode = getConfigSettings().get("searchguard.dynamic.hosts_resolver_mode","ip-only");
+                    
+                    if(caller.address() != null && (hostResolverMode.equalsIgnoreCase("ip-hostname") || hostResolverMode.equalsIgnoreCase("ip-hostname-lookup"))){
+                        final String hostName = caller.address().getHostString();
+        
+                        if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), hostName)) {
+                            sgRoles.add(roleMap);
+                            continue;
+                        }
+                    }
+                    
+                    if(caller.address() != null && hostResolverMode.equalsIgnoreCase("ip-hostname-lookup")){
+    
+                        final String resolvedHostName = caller.address().getHostName();
+             
+                        if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), resolvedHostName)) {
+                            sgRoles.add(roleMap);
+                            continue;
+                        }
+                    }
                 }
-
             }
         }
 
@@ -1118,10 +1154,29 @@ public class PrivilegesEvaluator {
 
 
     private void handleIndicesWithWildcard(final String[] action0, final String permittedAliasesIndex,
-            final Map<String, Settings> permittedAliasesIndices, final Set<IndexType> requestedResolvedIndexTypes, final Set<IndexType> _requestedResolvedIndexTypes, final Set<String> requestedResolvedIndices0) {
+            final Map<String, Settings> permittedAliasesIndices, final Set<IndexType> requestedResolvedIndexTypes, 
+            final Set<IndexType> _requestedResolvedIndexTypes, 
+            final Set<IndexType> _requestedResolvedIndexTypesGlobal, 
+            final Set<String> requestedResolvedIndices0) {
         
+        final List<String> permittedAliasesIndicesResolved = new ArrayList<String>();
+        permittedAliasesIndicesResolved.add(permittedAliasesIndex);
+        
+        if(WildcardMatcher.containsWildcard(permittedAliasesIndex)) {
+            final String[] aliasesForPermittedPattern = clusterService.state().getMetaData().getAliasAndIndexLookup()        
+            .entrySet().stream()
+            .filter(e->e.getValue().isAlias())
+            .filter(e->WildcardMatcher.match(permittedAliasesIndex, e.getKey()))
+            .map(e->e.getKey()).toArray(String[]::new);
+    
+            
+            if(aliasesForPermittedPattern != null && aliasesForPermittedPattern.length > 0) {
+                permittedAliasesIndicesResolved.addAll(Arrays.asList(resolver.concreteIndexNames(clusterService.state(), DEFAULT_INDICES_OPTIONS, aliasesForPermittedPattern)));
+            }
+        }
+
         List<String> wi = null;
-        if (!(wi = WildcardMatcher.getMatchAny(permittedAliasesIndex, requestedResolvedIndices0.toArray(new String[0]))).isEmpty()) {
+        if (!(wi = WildcardMatcher.getMatchAny(permittedAliasesIndicesResolved.toArray(new String[0]), requestedResolvedIndices0)).isEmpty()) {
 
             if (log.isDebugEnabled()) {
                 log.debug("  Wildcard match for {}: {}", permittedAliasesIndex, wi);
@@ -1143,8 +1198,10 @@ public class PrivilegesEvaluator {
                         log.debug("    match requested action {} against {}/{}: {}", action0, permittedAliasesIndex, type, resolvedActions);
                     }
 
-                    for(String it: wi) {
-                        boolean removed = wildcardRemoveFromSet(_requestedResolvedIndexTypes, new IndexType(it, type));
+                    for(String it: wi) {                        
+                        final IndexType itl = new IndexType(it, type);
+                        final boolean removed = wildcardRemoveFromSet(_requestedResolvedIndexTypes, itl);
+                        wildcardRemoveFromSet(_requestedResolvedIndexTypesGlobal, itl);
                         
                         if(removed) {
                             log.debug("    removed {}", it+type);
@@ -1165,7 +1222,9 @@ public class PrivilegesEvaluator {
     }
 
     private void handleIndicesWithoutWildcard(final String[] action0, final String permittedAliasesIndex,
-            final Map<String, Settings> permittedAliasesIndices, final Set<IndexType> requestedResolvedIndexTypes, final Set<IndexType> _requestedResolvedIndexTypes) {
+            final Map<String, Settings> permittedAliasesIndices, final Set<IndexType> requestedResolvedIndexTypes, 
+            final Set<IndexType> _requestedResolvedIndexTypes,
+            final Set<IndexType> _requestedResolvedIndexTypesGlobal) {
 
         final Set<String> resolvedPermittedAliasesIndex = new HashSet<String>();
         
@@ -1213,7 +1272,9 @@ public class PrivilegesEvaluator {
                 }
 
                 for(String resolvedPermittedIndex: resolvedPermittedAliasesIndex) {
-                    boolean removed = wildcardRemoveFromSet(_requestedResolvedIndexTypes, new IndexType(resolvedPermittedIndex, type));
+                    final IndexType itl = new IndexType(resolvedPermittedIndex, type);
+                    final boolean removed = wildcardRemoveFromSet(_requestedResolvedIndexTypes, itl);
+                    wildcardRemoveFromSet(_requestedResolvedIndexTypesGlobal, itl);
                     
                     if(removed) {
                         log.debug("    removed {}", resolvedPermittedIndex+type);
@@ -1675,6 +1736,9 @@ public class PrivilegesEvaluator {
     private static String replaceProperties(String orig, User user) {
         orig = orig.replace("${user.name}", user.getName()).replace("${user_name}", user.getName());
         for(Entry<String, String> entry: user.getCustomAttributesMap().entrySet()) {
+            if(entry == null || entry.getKey() == null || entry.getValue() == null) {
+                continue;
+            }
             orig = orig.replace("${"+entry.getKey()+"}", entry.getValue());
             orig = orig.replace("${"+entry.getKey().replace('.', '_')+"}", entry.getValue());
         }

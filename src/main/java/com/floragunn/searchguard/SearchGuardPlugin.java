@@ -41,7 +41,10 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.lucene.search.QueryCachingPolicy;
+import org.apache.lucene.search.Weight;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionRequest;
@@ -73,8 +76,10 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpServerTransport.Dispatcher;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -107,8 +112,8 @@ import com.floragunn.searchguard.action.licenseinfo.TransportLicenseInfoAction;
 import com.floragunn.searchguard.action.whoami.TransportWhoAmIAction;
 import com.floragunn.searchguard.action.whoami.WhoAmIAction;
 import com.floragunn.searchguard.auditlog.AuditLog;
-import com.floragunn.searchguard.auditlog.AuditLogSslExceptionHandler;
 import com.floragunn.searchguard.auditlog.AuditLog.Origin;
+import com.floragunn.searchguard.auditlog.AuditLogSslExceptionHandler;
 import com.floragunn.searchguard.auth.BackendRegistry;
 import com.floragunn.searchguard.auth.internal.InternalAuthenticationBackend;
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
@@ -137,6 +142,7 @@ import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HeaderHelper;
 import com.floragunn.searchguard.support.ModuleInfo;
 import com.floragunn.searchguard.support.ReflectionHelper;
+import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.transport.DefaultInterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.InterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.SearchGuardInterceptor;
@@ -201,6 +207,13 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
         demoCertHashes.add("c4af0297cc75546e1905bdfe3934a950161eee11173d979ce929f086fdf9794d");
         demoCertHashes.add("7a355f42c90e7543a267fbe3976c02f619036f5a34ce712995a22b342d83c3ce");
         demoCertHashes.add("a9b5eca1399ec8518081c0d4a21a34eec4589087ce64c04fb01a488f9ad8edc9");
+        
+        //new certs 04/2018
+        demoCertHashes.add("d14aefe70a592d7a29e14f3ff89c3d0070c99e87d21776aa07d333ee877e758f");
+        demoCertHashes.add("54a70016e0837a2b0c5658d1032d7ca32e432c62c55f01a2bf5adcb69a0a7ba9");
+        demoCertHashes.add("bdc141ab2272c779d0f242b79063152c49e1b06a2af05e0fd90d505f2b44d5f5");
+        demoCertHashes.add("3e839e2b059036a99ee4f742814995f2fb0ced7e9d68a47851f43a3c630b5324");
+        demoCertHashes.add("9b13661c073d864c28ad7b13eda67dcb6cbc2f04d116adc7c817c20b4c7ed361");
         
         final SecurityManager sm = System.getSecurityManager();
 
@@ -317,6 +330,11 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
         if(!Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) {
             return "";
         }
+        
+        if(!Files.isReadable(p)) {
+            log.debug("Unreadable file "+p+" found");
+            return "";
+        }
 
         try {
             MessageDigest digester = MessageDigest.getInstance("SHA256");
@@ -324,7 +342,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
             log.debug(hash +" :: "+p);
             return hash;
         } catch (Exception e) {
-            throw new ElasticsearchSecurityException("Unable to digest file", e);
+            throw new ElasticsearchSecurityException("Unable to digest file "+p, e);
         }
     }
     
@@ -446,6 +464,63 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
         if (!disabled && !client) {
             if (dlsFlsAvailable) {
                 indexModule.setSearcherWrapper(indexService -> loadFlsDlsIndexSearcherWrapper(indexService));
+                indexModule.forceQueryCacheProvider((indexSettings,nodeCache)->new QueryCache() {
+
+                    @Override
+                    public Index index() {
+                        return indexSettings.getIndex();
+                    }
+
+                    @Override
+                    public void close() throws ElasticsearchException {
+                        clear("close");
+                    }
+
+                    @Override
+                    public void clear(String reason) {
+                        nodeCache.clearIndex(index().getName());
+                    }
+
+                    @Override
+                    public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+                        final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper.deserializeSafeFromHeader(threadPool.getThreadContext(),
+                                ConfigConstants.SG_FLS_FIELDS_HEADER);
+                        
+                        if(evalMap(allowedFlsFields, index().getName()) != null) {
+                            return weight;
+                        } else {
+                            return nodeCache.doCache(weight, policy);
+                        }
+                        
+                    }
+                    
+                    private String evalMap(final Map<String,Set<String>> map, final String index) {
+
+                        if (map == null) {
+                            return null;
+                        }
+
+                        if (map.get(index) != null) {
+                            return index;
+                        } else if (map.get("*") != null) {
+                            return "*";
+                        }
+                        if (map.get("_all") != null) {
+                            return "_all";
+                        }
+
+                        //regex
+                        for(final String key: map.keySet()) {
+                            if(WildcardMatcher.containsWildcard(key) 
+                                    && WildcardMatcher.match(key, index)) {
+                                return key;
+                            }
+                        }
+
+                        return null;
+                    }
+
+                });
             } else {
                 indexModule.setSearcherWrapper(indexService -> new SearchGuardIndexSearcherWrapper(indexService, settings, Objects
                         .requireNonNull(adminDns)));
