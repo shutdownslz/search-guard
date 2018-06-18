@@ -20,8 +20,13 @@ package com.floragunn.searchguard.rest;
 import static org.elasticsearch.rest.RestRequest.Method.*;
 
 import java.io.IOException;
+import java.io.Serializable;
+import java.nio.charset.StandardCharsets;
 import java.security.cert.X509Certificate;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -36,11 +41,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.configuration.PrivilegesEvaluator;
+import com.floragunn.searchguard.support.Base64Helper;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.user.User;
 
 public class SearchGuardInfoAction extends BaseRestHandler {
 
+    private final Logger log = LogManager.getLogger(this.getClass());
     private final PrivilegesEvaluator evaluator;
     private final ThreadContext threadContext;
 
@@ -63,6 +70,9 @@ public class SearchGuardInfoAction extends BaseRestHandler {
                 
                 try {
 
+                    
+                    final boolean verbose = request.paramAsBoolean("verbose", false);
+                    
                     final X509Certificate[] certs = threadContext.getTransient(ConfigConstants.SG_SSL_PEER_CERTIFICATES);
                     final User user = (User)threadContext.getTransient(ConfigConstants.SG_USER);
                     final TransportAddress remoteAddress = (TransportAddress) threadContext.getTransient(ConfigConstants.SG_REMOTE_ADDRESS);
@@ -78,10 +88,23 @@ public class SearchGuardInfoAction extends BaseRestHandler {
                     builder.field("sg_tenants", evaluator.mapTenants(user, remoteAddress));
                     builder.field("principal", (String)threadContext.getTransient(ConfigConstants.SG_SSL_PRINCIPAL));
                     builder.field("peer_certificates", certs != null && certs.length > 0 ? certs.length + "" : "0");
+                    
+                    if(user != null && verbose) {
+                        try {
+                            builder.field("size_of_user", RamUsageEstimator.humanReadableUnits(Base64Helper.serializeObject(user).length()));
+                            builder.field("size_of_custom_attributes", RamUsageEstimator.humanReadableUnits(Base64Helper.serializeObject((Serializable) user.getCustomAttributesMap()).getBytes(StandardCharsets.UTF_8).length));
+                            builder.field("size_of_backendroles", RamUsageEstimator.humanReadableUnits(Base64Helper.serializeObject((Serializable)user.getRoles()).getBytes(StandardCharsets.UTF_8).length));
+                        } catch (Throwable e) {
+                            //ignore
+                        }
+                    }
+                    
+                    
                     builder.endObject();
 
                     response = new BytesRestResponse(RestStatus.OK, builder);
                 } catch (final Exception e1) {
+                    log.error(e1.toString(),e1);
                     builder = channel.newBuilder(); //NOSONAR
                     builder.startObject();
                     builder.field("error", e1.toString());
