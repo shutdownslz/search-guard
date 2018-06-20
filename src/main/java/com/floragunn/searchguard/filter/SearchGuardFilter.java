@@ -26,9 +26,9 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
@@ -45,8 +45,8 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -99,6 +99,14 @@ public class SearchGuardFilter implements ActionFilter {
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, final String action, Request request,
             ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
+        try (StoredContext ctx = threadContext.newStoredContext(true)){
+            apply0(task, action, request, listener, chain);
+        }
+    }
+    
+
+    private <Request extends ActionRequest, Response extends ActionResponse> void apply0(Task task, final String action, Request request,
+            ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
         
         try {
 
@@ -106,7 +114,9 @@ public class SearchGuardFilter implements ActionFilter {
                 threadContext.putTransient(ConfigConstants.SG_ORIGIN, Origin.LOCAL.toString());
             }
             
-            attachSoucrceFieldContext(request);
+            if(complianceConfig != null && complianceConfig.isEnabled()) {
+                attachSourceFieldContext(request);
+            }
 
             final User user = threadContext.getTransient(ConfigConstants.SG_USER);
             final boolean userIsAdmin = isUserAdmin(user, adminDns);
@@ -164,20 +174,27 @@ public class SearchGuardFilter implements ActionFilter {
                 return;
             }
             
-            boolean isImmutable;
             
-            if(request instanceof BulkShardRequest) {
-                for(BulkItemRequest bsr: ((BulkShardRequest) request).items()) {
-                    isImmutable = checkImmutableIndices(bsr.request(), listener);
+            if(complianceConfig != null && complianceConfig.isEnabled()) {
+            
+                boolean isImmutable = false;
+                
+                if(request instanceof BulkShardRequest) {
+                    for(BulkItemRequest bsr: ((BulkShardRequest) request).items()) {
+                        isImmutable = checkImmutableIndices(bsr.request(), listener);
+                        if(isImmutable) {
+                            break;
+                        }
+                    }
+                } else {
+                    isImmutable = checkImmutableIndices(request, listener);
                 }
-            }
+    
+                if(isImmutable) {
+                    return;
+                }
 
-            isImmutable = checkImmutableIndices(request, listener);
-            
-            if(isImmutable) {
-                return;
             }
-
 
             if(Origin.LOCAL.toString().equals(threadContext.getTransient(ConfigConstants.SG_ORIGIN))
                     && (interClusterRequest || HeaderHelper.isDirectRequest(threadContext))
@@ -268,20 +285,17 @@ public class SearchGuardFilter implements ActionFilter {
         return false;
     }
 
-    private void attachSoucrceFieldContext(ActionRequest request) {
-        if(request instanceof SearchRequest && SourceFieldsContext.isNeeded((SearchRequest) request)) {
+    private void attachSourceFieldContext(ActionRequest request) {
+        
+        if(request instanceof SearchRequest && SourceFieldsContext.isNeeded((SearchRequest) request)) {            
             if(threadContext.getHeader("_sg_source_field_context") == null) {
                 final String serializedSourceFieldContext = Base64Helper.serializeObject(new SourceFieldsContext((SearchRequest) request));
                 threadContext.putHeader("_sg_source_field_context", serializedSourceFieldContext);
-            } else {
-                log.error("_sg_source_field_context header already present for "+request.getClass());
             }
         } else if (request instanceof GetRequest && SourceFieldsContext.isNeeded((GetRequest) request)) {
             if(threadContext.getHeader("_sg_source_field_context") == null) {
                 final String serializedSourceFieldContext = Base64Helper.serializeObject(new SourceFieldsContext((GetRequest) request));
                 threadContext.putHeader("_sg_source_field_context", serializedSourceFieldContext);
-            } else {
-                log.error("_sg_source_field_context header already present for "+request.getClass());
             }
         }
     }
@@ -296,10 +310,22 @@ public class SearchGuardFilter implements ActionFilter {
                 || request instanceof DeleteIndexRequest
                 || request instanceof RestoreSnapshotRequest
                 || request instanceof CloseIndexRequest
-                || request instanceof ReindexRequest
+                || request instanceof IndicesAliasesRequest //TODO only remove index
                 ) {
+            
             if(complianceConfig != null && complianceConfig.isIndexImmutable(request)) {
                 //auditLog.log
+                
+                //check index for type = remove index
+                //IndicesAliasesRequest iar = (IndicesAliasesRequest) request;
+                //for(AliasActions aa: iar.getAliasActions()) {
+                //    if(aa.actionType() == Type.REMOVE_INDEX) {
+                        
+                //    }
+                //}
+                
+                
+                
                 listener.onFailure(new ElasticsearchSecurityException("Index is immutable", RestStatus.FORBIDDEN));
                 return true;
             }
