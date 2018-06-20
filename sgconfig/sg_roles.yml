@@ -78,10 +78,16 @@ sg_readall_and_monitor:
 sg_kibana_user:
   readonly: true
   cluster:
-    - MONITOR
+    - INDICES_MONITOR
     - CLUSTER_COMPOSITE_OPS
   indices:
     '?kibana':
+      '*':
+        - MANAGE
+        - INDEX
+        - READ
+        - DELETE
+    '?kibana-6':
       '*':
         - MANAGE
         - INDEX
@@ -101,6 +107,9 @@ sg_kibana_server:
       - indices:admin/template*
   indices:
     '?kibana':
+      '*':
+        - INDICES_ALL
+    '?kibana-6':
       '*':
         - INDICES_ALL
     '?reporting*':
