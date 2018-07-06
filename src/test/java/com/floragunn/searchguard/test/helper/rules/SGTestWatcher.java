@@ -40,7 +40,10 @@ public class SGTestWatcher extends TestWatcher{
 
   @Override
   protected void finished(final Description description) {
-      // System.out.println("-----------------------------------------------------------------------------------------");
+      final String methodName = description.getMethodName();
+      String className = description.getClassName();
+      className = className.substring(className.lastIndexOf('.') + 1);
+	  System.out.println("---------------- Finished JUnit-test: " + className + " " + methodName + " ----------------");
   }
 
 }
