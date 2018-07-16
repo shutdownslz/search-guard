@@ -553,7 +553,7 @@ public class PrivilegesEvaluator {
 
                 ) {
                 
-                final Set<String> resolvedActions = resolveActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
+                final Set<String> resolvedActions = resolveActions(sgRoleSettings.getAsArray(".cluster", new String[0]));
                 clusterLevelPermissionRequired = true;
                 
                 if (log.isDebugEnabled()) {
@@ -621,12 +621,12 @@ public class PrivilegesEvaluator {
                 final String indexPattern = permittedAliasesIndex;
                 
                 String dls = roles.get(resolvedRole+".indices."+indexPattern+"._dls_");
-                final List<String> fls = roles.getAsList(resolvedRole+".indices."+indexPattern+"._fls_");
+                final String[] fls = roles.getAsArray(resolvedRole+".indices."+indexPattern+"._fls_");
 
                 //only when dls and fls != null
                 String[] concreteIndices = new String[0];
                 
-                if((dls != null && dls.length() > 0) || (fls != null && fls.size() > 0)) {
+                if((dls != null && dls.length() > 0) || (fls != null && fls.length > 0)) {
                     concreteIndices = resolver.concreteIndexNames(clusterService.state(), DEFAULT_INDICES_OPTIONS,indexPattern);
                 }
                 
@@ -659,7 +659,7 @@ public class PrivilegesEvaluator {
                     
                 }
                 
-                if(fls != null && fls.size() > 0) {
+                if(fls != null && fls.length > 0) {
                     
                     if(flsFields.containsKey(indexPattern)) {
                         flsFields.get(indexPattern).addAll(Sets.newHashSet(fls));
@@ -972,7 +972,7 @@ public class PrivilegesEvaluator {
                 log.debug("---------- evaluate sg_role: {}", sgRole);
             }
 
-            final Set<String> resolvedActions = resolveActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
+            final Set<String> resolvedActions = resolveActions(sgRoleSettings.getAsArray(".cluster", new String[0]));
             if (log.isDebugEnabled()) {
                 log.debug("  resolved cluster actions:{}", resolvedActions);
             }
@@ -1059,17 +1059,17 @@ public class PrivilegesEvaluator {
             for (final String roleMap : rolesMapping.names()) {
                 final Settings roleMapSettings = rolesMapping.getByPrefix(roleMap);
                 
-                if (WildcardMatcher.allPatternsMatched(roleMapSettings.getAsList(".and_backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
+                if (WildcardMatcher.allPatternsMatched(roleMapSettings.getAsArray(".and_backendroles"), user.getRoles().toArray(new String[0]))) {
                     sgRoles.add(roleMap);
                     continue;
                 }
                 
-                if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
+                if (WildcardMatcher.matchAny(roleMapSettings.getAsArray(".backendroles"), user.getRoles().toArray(new String[0]))) {
                     sgRoles.add(roleMap);
                     continue;
                 }
 
-                if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".users"), user.getName())) {
+                if (WildcardMatcher.matchAny(roleMapSettings.getAsArray(".users"), user.getName())) {
                     sgRoles.add(roleMap);
                     continue;
                 }
@@ -1085,7 +1085,7 @@ public class PrivilegesEvaluator {
                 if(caller != null) {
                     //IPV4 or IPv6 (compressed and without scope identifiers)
                     final String ipAddress = caller.getAddress();
-                    if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), ipAddress)) {
+                    if (WildcardMatcher.matchAny(roleMapSettings.getAsArray(".hosts"), ipAddress)) {
                         sgRoles.add(roleMap);
                         continue;
                     }
@@ -1095,7 +1095,7 @@ public class PrivilegesEvaluator {
                     if(caller.address() != null && (hostResolverMode.equalsIgnoreCase("ip-hostname") || hostResolverMode.equalsIgnoreCase("ip-hostname-lookup"))){
                         final String hostName = caller.address().getHostString();
         
-                        if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), hostName)) {
+                        if (WildcardMatcher.matchAny(roleMapSettings.getAsArray(".hosts"), hostName)) {
                             sgRoles.add(roleMap);
                             continue;
                         }
@@ -1105,7 +1105,7 @@ public class PrivilegesEvaluator {
     
                         final String resolvedHostName = caller.address().getHostName();
              
-                        if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), resolvedHostName)) {
+                        if (WildcardMatcher.matchAny(roleMapSettings.getAsArray(".hosts"), resolvedHostName)) {
                             sgRoles.add(roleMap);
                             continue;
                         }
@@ -1191,7 +1191,7 @@ public class PrivilegesEvaluator {
 
             for (final String type : permittedTypes) {
                 
-                final Set<String> resolvedActions = resolveActions(permittedAliasesIndices.get(permittedAliasesIndex).getAsList(type));
+                final Set<String> resolvedActions = resolveActions(permittedAliasesIndices.get(permittedAliasesIndex).getAsArray(type));
 
                 if (WildcardMatcher.matchAll(resolvedActions.toArray(new String[0]), action0)) {
                     if (log.isDebugEnabled()) {
@@ -1264,7 +1264,7 @@ public class PrivilegesEvaluator {
 
         for (final String type : permittedTypes) {
             
-            final Set<String> resolvedActions = resolveActions(permittedAliasesIndices.get(permittedAliasesIndex).getAsList(type));
+            final Set<String> resolvedActions = resolveActions(permittedAliasesIndices.get(permittedAliasesIndex).getAsArray(type));
 
             if (WildcardMatcher.matchAll(resolvedActions.toArray(new String[0]), action0)) {
                 if (log.isDebugEnabled()) {
@@ -1297,7 +1297,7 @@ public class PrivilegesEvaluator {
             }
 
             // Get actions only for the catch all wildcard type '*'
-            final Set<String> resolvedActions = resolveActions(permittedAliasesIndices.get(permittedAliasesIndex).getAsList("*"));
+            final Set<String> resolvedActions = resolveActions(permittedAliasesIndices.get(permittedAliasesIndex).getAsArray("*"));
 
             if (log.isDebugEnabled()) {
                 log.debug("  matches for {}, will check now wildcard type '*'", permittedAliasesIndex);
@@ -1633,9 +1633,10 @@ public class PrivilegesEvaluator {
         return new Tuple<Set<String>, Set<String>>(indices, requestTypes);
     }
 
-    private Set<String> resolveActions(final List<String> actions) {
+    private Set<String> resolveActions(final String[] actions) {
         final Set<String> resolvedActions = new HashSet<String>();
-        for (String string: actions) {
+        for (int i = 0; i < actions.length; i++) {
+            final String string = actions[i];
             final Set<String> groups = ah.getGroupMembers(string);
             if (groups.isEmpty()) {
                 resolvedActions.add(string);
@@ -1720,8 +1721,8 @@ public class PrivilegesEvaluator {
             for(String indexPattern: permittedAliasesIndices.keySet()) {                
                 if(WildcardMatcher.match(indexPattern, kibanaIndex)) {
                     final Settings innerSettings = permittedAliasesIndices.get(indexPattern);
-                    final List<String> perms = innerSettings.getAsList("*");
-                    if(perms!= null && perms.size() > 0) {
+                    final String[] perms = innerSettings.getAsArray("*");
+                    if(perms!= null && perms.length > 0) {
                         if(WildcardMatcher.matchAny(resolveActions(perms).toArray(new String[0]), "indices:data/write/update")) {
                             return false;
                         }

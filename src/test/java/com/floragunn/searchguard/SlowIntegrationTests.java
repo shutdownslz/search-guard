@@ -63,7 +63,7 @@ public class SlowIntegrationTests extends SingleClusterTest {
                 .put("node.ingest", false)
                 .put("path.home", ".")
                 .put("discovery.initial_state_timeout","8s")
-                .putList("discovery.zen.ping.unicast.hosts", clusterInfo.nodeHost+":"+clusterInfo.nodePort)
+                .putArray("discovery.zen.ping.unicast.hosts", clusterInfo.nodeHost+":"+clusterInfo.nodePort)
                 .build();
     
         log.debug("Start node client");

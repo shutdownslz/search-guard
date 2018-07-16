@@ -575,10 +575,10 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
     }
     
     @Override
-    public List<ActionFilter> getActionFilters() {
-        List<ActionFilter> filters = new ArrayList<>(1);
+    public List<Class<? extends ActionFilter>> getActionFilters() {
+        List<Class<? extends ActionFilter>> filters = new ArrayList<>(1);
         if (!tribeNodeClient && !client && !disabled) {
-            filters.add(Objects.requireNonNull(sgf));
+            filters.add(SearchGuardFilter.class);
         }
         return filters;
     }
@@ -630,8 +630,8 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-            PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
-            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {        
+
         Map<String, Supplier<Transport>> transports = new HashMap<String, Supplier<Transport>>();
         if (transportSSLEnabled) {
             transports.put("com.floragunn.searchguard.ssl.http.netty.SearchGuardSSLNettyTransport", 
@@ -739,6 +739,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin {
         components.add(backendRegistry);
         components.add(ah);
         components.add(evaluator);
+        components.add(sgf);
         components.add(sgi);
 
         sgRestHandler = new SearchGuardRestFilter(backendRegistry, auditLog, threadPool, principalExtractor, settings, configPath);

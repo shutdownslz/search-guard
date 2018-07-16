@@ -61,7 +61,7 @@ public class SnapshotRestoreTests extends SingleClusterTest {
     public void testSnapshot() throws Exception {
     
         final Settings settings = Settings.builder()
-                .putList("path.repo", repositoryPath.getRoot().getAbsolutePath())
+                .putArray("path.repo", repositoryPath.getRoot().getAbsolutePath())
                 .put("searchguard.enable_snapshot_restore_privilege", true)
                 .put("searchguard.check_snapshot_restore_write_privileges", false)
                 .build();
@@ -115,7 +115,7 @@ public class SnapshotRestoreTests extends SingleClusterTest {
     public void testSnapshotCheckWritePrivileges() throws Exception {
     
         final Settings settings = Settings.builder()
-                .putList("path.repo", repositoryPath.getRoot().getAbsolutePath())
+                .putArray("path.repo", repositoryPath.getRoot().getAbsolutePath())
                 .put("searchguard.enable_snapshot_restore_privilege", true)
                 .put("searchguard.check_snapshot_restore_write_privileges", true)
                 .build();
@@ -182,7 +182,7 @@ public class SnapshotRestoreTests extends SingleClusterTest {
     public void testSnapshotRestore() throws Exception {
     
         final Settings settings = Settings.builder()
-                .putList("path.repo", repositoryPath.getRoot().getAbsolutePath())
+                .putArray("path.repo", repositoryPath.getRoot().getAbsolutePath())
                 .put("searchguard.enable_snapshot_restore_privilege", true)
                 .put("searchguard.check_snapshot_restore_write_privileges", true)
                 .build();

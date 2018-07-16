@@ -19,7 +19,6 @@ package com.floragunn.searchguard.configuration;
 
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import org.elasticsearch.common.settings.Settings;
@@ -49,12 +48,13 @@ public class ActionGroupHolder {
 
         final Set<String> ret = new HashSet<String>();
         // SG5 format, plain array
-        List<String> en = actionGroups.getAsList(entry);
-        if (en.isEmpty()) {
+        String[] en = actionGroups.getAsArray(entry);
+        if (en.length == 0) {
         	// try SG6 format including readonly and permissions key
-        	en = actionGroups.getAsList(entry +"." + ConfigConstants.CONFIGKEY_ACTION_GROUPS_PERMISSIONS);
+        	en = actionGroups.getAsArray(entry +"." + ConfigConstants.CONFIGKEY_ACTION_GROUPS_PERMISSIONS);
         }
-        for (String string: en) {
+        for (int i = 0; i < en.length; i++) {
+            final String string = en[i];
             if (actionGroups.names().contains(string)) {
                 ret.addAll(resolve(actionGroups,string));
             } else {

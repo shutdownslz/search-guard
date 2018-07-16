@@ -52,7 +52,7 @@ public class TransportClientIntegrationTests extends SingleClusterTest {
         public void testTransportClient() throws Exception {
         
         final Settings settings = Settings.builder()
-                .putList(ConfigConstants.SEARCHGUARD_AUTHCZ_IMPERSONATION_DN+".CN=spock,OU=client,O=client,L=Test,C=DE", "worf", "nagilum")
+                .putArray(ConfigConstants.SEARCHGUARD_AUTHCZ_IMPERSONATION_DN+".CN=spock,OU=client,O=client,L=Test,C=DE", "worf", "nagilum")
                 .put("discovery.initial_state_timeout","8s")
                 .build();
         setup(settings);
@@ -350,7 +350,7 @@ public class TransportClientIntegrationTests extends SingleClusterTest {
     public void testTransportClientImpersonation() throws Exception {
     
         final Settings settings = Settings.builder()
-                .putList("searchguard.authcz.impersonation_dn.CN=spock,OU=client,O=client,L=Test,C=DE", "worf", "nagilum")
+                .putArray("searchguard.authcz.impersonation_dn.CN=spock,OU=client,O=client,L=Test,C=DE", "worf", "nagilum")
                 .build();
 
         
@@ -381,7 +381,7 @@ public class TransportClientIntegrationTests extends SingleClusterTest {
     public void testTransportClientImpersonationWildcard() throws Exception {
     
         final Settings settings = Settings.builder()
-                .putList("searchguard.authcz.impersonation_dn.CN=spock,OU=client,O=client,L=Test,C=DE", "*")
+                .putArray("searchguard.authcz.impersonation_dn.CN=spock,OU=client,O=client,L=Test,C=DE", "*")
                 .build();
 
         

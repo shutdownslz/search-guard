@@ -179,9 +179,8 @@ public class SearchGuardInterceptor {
             this.innerHandler = innerHandler;
         }
 
-        @Override
-        public T read(StreamInput in) throws IOException {
-            return innerHandler.read(in);
+        public T newInstance() {
+            return innerHandler.newInstance();
         }
 
         public void handleResponse(T response) {

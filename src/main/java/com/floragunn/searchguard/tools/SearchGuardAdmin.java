@@ -78,11 +78,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.loader.JsonSettingsLoader;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -374,8 +376,8 @@ public class SearchGuardAdmin {
                 .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENFORCE_HOSTNAME_VERIFICATION_RESOLVE_HOST_NAME, !nrhn)
                 .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLED, true)
                 .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLE_OPENSSL_IF_AVAILABLE, useOpenSSLIfAvailable)
-                .putList(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLED_CIPHERS, enabledCiphers)
-                .putList(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLED_PROTOCOLS, enabledProtocols)
+                .putArray(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLED_CIPHERS, enabledCiphers)
+                .putArray(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLED_PROTOCOLS, enabledProtocols)
                 
                 .put("cluster.name", clustername)
                 .put("client.transport.ignore_cluster_name", icl)
@@ -854,7 +856,7 @@ public class SearchGuardAdmin {
         }
         
         //validate
-        Settings.builder().loadFromStream("dummy.json", new ByteArrayInputStream(BytesReference.toBytes(retVal)), true).build();
+        Settings.builder().put(new JsonSettingsLoader(true).load(XContentHelper.createParser(NamedXContentRegistry.EMPTY, retVal, XContentType.JSON))).build();
         return retVal;
     }
     
@@ -910,7 +912,7 @@ public class SearchGuardAdmin {
         try {
             sb.append("Who am i:"+System.lineSeparator());
             final WhoAmIResponse whoAmIRes = tc.execute(WhoAmIAction.INSTANCE, new WhoAmIRequest()).actionGet();
-            sb.append(Strings.toString(whoAmIRes,true, true));
+            sb.append(Strings.toString(whoAmIRes));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -918,7 +920,7 @@ public class SearchGuardAdmin {
         try {
             sb.append("License:"+System.lineSeparator());
             LicenseInfoResponse res = tc.execute(LicenseInfoAction.INSTANCE, new LicenseInfoRequest()).actionGet();
-            sb.append(Strings.toString(res,true, true));
+            sb.append(Strings.toString(res));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -927,7 +929,7 @@ public class SearchGuardAdmin {
         try {
             sb.append("ClusterHealthRequest:"+System.lineSeparator());
             ClusterHealthResponse nir = tc.admin().cluster().health(new ClusterHealthRequest()).actionGet();
-            sb.append(Strings.toString(nir,true, true));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -935,7 +937,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"NodesInfoResponse:"+System.lineSeparator());
             NodesInfoResponse nir = tc.admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet();
-            sb.append(Strings.toString(nir,true, true));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -943,7 +945,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"NodesStatsRequest:"+System.lineSeparator());
             NodesStatsResponse nir = tc.admin().cluster().nodesStats(new NodesStatsRequest()).actionGet();
-            sb.append(Strings.toString(nir,true, true));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -951,7 +953,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"PendingClusterTasksRequest:"+System.lineSeparator());
             PendingClusterTasksResponse nir = tc.admin().cluster().pendingClusterTasks(new PendingClusterTasksRequest()).actionGet();
-            sb.append(Strings.toString(nir,true, true));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }
@@ -959,7 +961,7 @@ public class SearchGuardAdmin {
         try {
             sb.append(System.lineSeparator()+"IndicesStatsRequest:"+System.lineSeparator());
             IndicesStatsResponse nir = tc.admin().indices().stats(new IndicesStatsRequest()).actionGet();
-            sb.append(Strings.toString(nir, true, true));
+            sb.append(Strings.toString(nir));
         } catch (Exception e1) {
             sb.append(ExceptionsHelper.stackTrace(e1));
         }

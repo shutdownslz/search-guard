@@ -61,7 +61,7 @@ public class RemoteReindexTests extends AbstractSGUnitTest{
     
     private Settings crossClusterNodeSettings(ClusterInfo remote) {
         Settings.Builder builder = Settings.builder()
-                .putList("reindex.remote.whitelist", remote.httpHost+":"+remote.httpPort);
+                .putArray("reindex.remote.whitelist", remote.httpHost+":"+remote.httpPort);
         return builder.build();
     }
     

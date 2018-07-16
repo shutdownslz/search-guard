@@ -38,6 +38,7 @@ import org.elasticsearch.action.get.MultiGetResponse.Failure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.loader.JsonSettingsLoader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -177,8 +178,8 @@ class ConfigurationLoader {
             }
             
             parser.nextToken();
-
-            return Settings.builder().loadFromStream("dummy.json", new ByteArrayInputStream(parser.binaryValue()), true).build();
+            
+            return Settings.builder().put(new JsonSettingsLoader(true).load(parser.binaryValue())).build();
         } catch (final IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {

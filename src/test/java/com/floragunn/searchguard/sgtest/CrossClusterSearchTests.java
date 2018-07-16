@@ -64,7 +64,7 @@ public class CrossClusterSearchTests extends AbstractSGUnitTest{
     
     private Settings crossClusterNodeSettings(ClusterInfo remote) {
         Settings.Builder builder = Settings.builder()
-                .putList("search.remote.cross_cluster_two.seeds", remote.nodeHost+":"+remote.nodePort);
+                .putArray("search.remote.cross_cluster_two.seeds", remote.nodeHost+":"+remote.nodePort);
         return builder.build();
     }
     

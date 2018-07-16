@@ -277,7 +277,7 @@ public final class ClusterHelper {
 				.put("discovery.zen.no_master_block", "all")
 				.put("discovery.zen.fd.ping_timeout", "5s")
 				.put("discovery.initial_state_timeout","8s")
-				.putList("discovery.zen.ping.unicast.hosts", tcpPorts.stream().map(s->"127.0.0.1:"+s).collect(Collectors.toList()))
+				.putArray("discovery.zen.ping.unicast.hosts", tcpPorts.stream().map(s->"127.0.0.1:"+s).collect(Collectors.toList()))
 				.put("transport.tcp.port", tcpPort)
 				.put("http.port", httpPort)
 				.put("http.enabled", true)
