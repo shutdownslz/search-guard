@@ -34,3 +34,4 @@ data/
 puppet/.vagrant
 test.sh
 .vagrant/
+rel.env
