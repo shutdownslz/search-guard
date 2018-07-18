@@ -34,9 +34,9 @@
   </licenses>
 
   <properties>
-    <sgssl.version>6.3-HEAD-SNAPSHOT</sgssl.version>
-    <enterprise-modules.version>6.3-HEAD-SNAPSHOT</enterprise-modules.version>
-    <elasticsearch.version>6.3.0</elasticsearch.version>
+    <sgssl.version>6.4-HEAD-SNAPSHOT</sgssl.version>
+    <enterprise-modules.version>6.4-HEAD-SNAPSHOT</enterprise-modules.version>
+    <elasticsearch.version>6.4.0-SNAPSHOT</elasticsearch.version>
     
     <!-- deps -->
     <netty-native.version>2.0.7.Final</netty-native.version>
