@@ -58,6 +58,7 @@ import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.auditlog.AuditLog.Origin;
 import com.floragunn.searchguard.compliance.ComplianceConfig;
 import com.floragunn.searchguard.configuration.AdminDNs;
+import com.floragunn.searchguard.configuration.CompatConfig;
 import com.floragunn.searchguard.configuration.DlsFlsRequestValve;
 import com.floragunn.searchguard.configuration.PrivilegesEvaluator;
 import com.floragunn.searchguard.configuration.PrivilegesEvaluator.PrivEvalResponse;
@@ -78,10 +79,11 @@ public class SearchGuardFilter implements ActionFilter {
     private final ThreadContext threadContext;
     private final ClusterService cs;
     private final ComplianceConfig complianceConfig;
+    private final CompatConfig compatConfig;
 
     public SearchGuardFilter(final PrivilegesEvaluator evalp, final AdminDNs adminDns,
             DlsFlsRequestValve dlsFlsValve, AuditLog auditLog, ThreadPool threadPool, ClusterService cs,
-            ComplianceConfig complianceConfig) {
+            ComplianceConfig complianceConfig, final CompatConfig compatConfig) {
         this.evalp = evalp;
         this.adminDns = adminDns;
         this.dlsFlsValve = dlsFlsValve;
@@ -89,6 +91,7 @@ public class SearchGuardFilter implements ActionFilter {
         this.threadContext = threadPool.getThreadContext();
         this.cs = cs;
         this.complianceConfig = complianceConfig;
+        this.compatConfig = compatConfig;
     }
 
     @Override
@@ -100,6 +103,7 @@ public class SearchGuardFilter implements ActionFilter {
     public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, final String action, Request request,
             ActionListener<Response> listener, ActionFilterChain<Request, Response> chain) {
         try (StoredContext ctx = threadContext.newStoredContext(true)){
+            org.apache.logging.log4j.ThreadContext.clearAll();
             apply0(task, action, request, listener, chain);
         }
     }
@@ -121,7 +125,7 @@ public class SearchGuardFilter implements ActionFilter {
             final User user = threadContext.getTransient(ConfigConstants.SG_USER);
             final boolean userIsAdmin = isUserAdmin(user, adminDns);
             final boolean interClusterRequest = HeaderHelper.isInterClusterRequest(threadContext);
-            //final boolean trustedClusterRequest = HeaderHelper.isTrustedClusterRequest(threadContext);
+            final boolean trustedClusterRequest = HeaderHelper.isTrustedClusterRequest(threadContext);
             final boolean confRequest = "true".equals(HeaderHelper.getSafeFromHeader(threadContext, ConfigConstants.SG_CONF_REQUEST_HEADER));
             final boolean passThroughRequest = action.equals(LicenseInfoAction.NAME)
                     || action.startsWith("indices:admin/seq_no")
@@ -131,6 +135,10 @@ public class SearchGuardFilter implements ActionFilter {
                     (interClusterRequest || HeaderHelper.isDirectRequest(threadContext))
                     && action.startsWith("internal:")
                     && !action.startsWith("internal:transport/proxy");
+
+            if (user != null) {
+                org.apache.logging.log4j.ThreadContext.put("user", user.getName());    
+            }
 
             if(actionTrace.isTraceEnabled()) {
 
@@ -167,9 +175,6 @@ public class SearchGuardFilter implements ActionFilter {
                     auditLog.logGrantedPrivileges(action, request, task);
                 }
 
-                //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-                //    return;
-                //}
                 chain.proceed(task, action, request, listener);
                 return;
             }
@@ -197,45 +202,23 @@ public class SearchGuardFilter implements ActionFilter {
             }
 
             if(Origin.LOCAL.toString().equals(threadContext.getTransient(ConfigConstants.SG_ORIGIN))
-                    && (interClusterRequest || HeaderHelper.isDirectRequest(threadContext))
-                    //&& request.remoteAddress() == null
-                    //&& !action.contains("[")
-                    ) {
+                    && (interClusterRequest || HeaderHelper.isDirectRequest(threadContext))) {
 
-                //"indices:monitor/*",
-                //"cluster:admin/reroute",
-                //"indices:admin/mapping/put"),
-
-                //~"internal:transport/proxy/*"
-
-                //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-                //     return;
-                //}
                 chain.proceed(task, action, request, listener);
                 return;
             }
 
             if(user == null) {
 
-                //"cluster:monitor/"
-                //"indices:monitor/stats"
-
                 if(action.startsWith("cluster:monitor/state")) {
-                    //if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-                    //    return;
-                    //}
                     chain.proceed(task, action, request, listener);
                     return;
                 }
 
-                /*
-                if(action.startsWith("cluster:monitor/") || action.startsWith("indices:monitor/stats")) {
-                    if(!dlsFlsValve.invoke(request, listener, threadContext)) {
-                        return;
-                    }
+                if((interClusterRequest || trustedClusterRequest || request.remoteAddress() == null) && !compatConfig.transportInterClusterAuthEnabled()) {
                     chain.proceed(task, action, request, listener);
                     return;
-                }*/
+                }
 
                 log.error("No user found for "+ action+" from "+request.remoteAddress()+" "+threadContext.getTransient(ConfigConstants.SG_ORIGIN)+" via "+threadContext.getTransient(ConfigConstants.SG_CHANNEL_TYPE)+" "+threadContext.getHeaders());
                 listener.onFailure(new ElasticsearchSecurityException("No user found for "+action, RestStatus.INTERNAL_SERVER_ERROR));
@@ -256,7 +239,11 @@ public class SearchGuardFilter implements ActionFilter {
             }
 
             final PrivEvalResponse pres = eval.evaluate(user, action, request, task);
-
+            
+            if (log.isDebugEnabled()) {
+                log.debug(pres);
+            }
+            
             if (pres.isAllowed()) {
                 auditLog.logGrantedPrivileges(action, request, task);
                 if(!dlsFlsValve.invoke(request, listener, pres.getAllowedFlsFields(), pres.getQueries())) {
