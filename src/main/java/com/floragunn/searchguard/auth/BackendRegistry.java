@@ -70,12 +70,12 @@ import com.google.common.cache.RemovalNotification;
 public class BackendRegistry implements ConfigurationChangeListener {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
-    private final Map<String, String> authImplMap = new HashMap<String, String>();
-    private final SortedSet<AuthDomain> restAuthDomains = new TreeSet<AuthDomain>();
-    private final Set<AuthorizationBackend> restAuthorizers = new HashSet<AuthorizationBackend>();
-    private final SortedSet<AuthDomain> transportAuthDomains = new TreeSet<AuthDomain>();
-    private final Set<AuthorizationBackend> transportAuthorizers = new HashSet<AuthorizationBackend>();
-    private final List<Destroyable> destroyableComponents = new LinkedList<Destroyable>();
+    private final Map<String, String> authImplMap = new HashMap<>();
+    private final SortedSet<AuthDomain> restAuthDomains = new TreeSet<>();
+    private final Set<AuthorizationBackend> restAuthorizers = new HashSet<>();
+    private final SortedSet<AuthDomain> transportAuthDomains = new TreeSet<>();
+    private final Set<AuthorizationBackend> transportAuthorizers = new HashSet<>();
+    private final List<Destroyable> destroyableComponents = new LinkedList<>();
     private volatile boolean initialized;
     private final AdminDNs adminDns;
     private final XFFResolver xffResolver;
@@ -198,10 +198,21 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
             if (httpEnabled || transportEnabled) {
                 try {
-                    final AuthorizationBackend authorizationBackend = newInstance(
-                            ads.get("authorization_backend.type", "noop"),"z",
-                            Settings.builder().put(esSettings).put(ads.getAsSettings("authorization_backend.config")).build(), configPath);
 
+                    final String authzBackendClazz = ads.get("authorization_backend.type", "noop");
+                    final AuthorizationBackend authorizationBackend;
+                    
+                    if(authzBackendClazz.equals(InternalAuthenticationBackend.class.getName()) //NOSONAR
+                            || authzBackendClazz.equals("internal")
+                            || authzBackendClazz.equals("intern")) {
+                        authorizationBackend = iab;
+                        ReflectionHelper.addLoadedModule(InternalAuthenticationBackend.class);
+                    } else {
+                        authorizationBackend = newInstance(
+                                authzBackendClazz,"z",
+                                Settings.builder().put(esSettings).put(ads.getAsSettings("authorization_backend.config")).build(), configPath);
+                    }
+                    
                     if (httpEnabled) {
                         restAuthorizers.add(authorizationBackend);
                     }
@@ -392,8 +403,8 @@ public class BackendRegistry implements ConfigurationChangeListener {
                 firstChallengingHttpAuthenticator = httpAuthenticator;
             }
 
-            if(log.isDebugEnabled()) {
-                log.debug("Try to extract auth creds from {} http authenticator", httpAuthenticator.getType());
+            if(log.isTraceEnabled()) {
+                log.trace("Try to extract auth creds from {} http authenticator", httpAuthenticator.getType());
             }
             final AuthCredentials ac;
             try {
@@ -414,21 +425,26 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
                 if(authDomain.isChallenge() && httpAuthenticator.reRequestAuthentication(channel, null)) {
                     auditLog.logFailedLogin("<NONE>", false, null, request);
+                    log.trace("No 'Authorization' header, send 401 and 'WWW-Authenticate Basic'");
                     return false;
                 } else {
                     //no reRequest possible
+                	log.trace("No 'Authorization' header, send 403");
                     continue;
                 }
-            } else if (!ac.isComplete()) {
-                //credentials found in request but we need another client challenge
-                if(httpAuthenticator.reRequestAuthentication(channel, ac)) {
-                    //auditLog.logFailedLogin(ac.getUsername()+" <incomplete>", request); --noauditlog
-                    return false;
-                } else {
-                    //no reRequest possible
-                    continue;
-                }
+            } else {
+                org.apache.logging.log4j.ThreadContext.put("user", ac.getUsername());
+                if (!ac.isComplete()) {
+                    //credentials found in request but we need another client challenge
+                    if(httpAuthenticator.reRequestAuthentication(channel, ac)) {
+                        //auditLog.logFailedLogin(ac.getUsername()+" <incomplete>", request); --noauditlog
+                        return false;
+                    } else {
+                        //no reRequest possible
+                        continue;
+                    }
 
+                }
             }
 
             //http completed       
