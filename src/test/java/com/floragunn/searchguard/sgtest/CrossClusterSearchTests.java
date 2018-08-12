@@ -175,7 +175,6 @@ public class CrossClusterSearchTests extends AbstractSGUnitTest{
         }
         
         HttpResponse ccs = null;
-                
         System.out.println("###################### query 1");
         ccs = new RestHelper(cl1Info, false, false, getResourceFolder()).executeGetRequest("cross_cluster_two:*/_search?pretty", encodeBasicHeader("twitter","nagilum"));
         System.out.println(ccs.getBody());
