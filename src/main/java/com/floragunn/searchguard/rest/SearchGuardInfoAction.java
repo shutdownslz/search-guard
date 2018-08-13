@@ -17,7 +17,8 @@
 
 package com.floragunn.searchguard.rest;
 
-import static org.elasticsearch.rest.RestRequest.Method.*;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -88,6 +89,7 @@ public class SearchGuardInfoAction extends BaseRestHandler {
                     builder.field("sg_tenants", evaluator.mapTenants(user, remoteAddress));
                     builder.field("principal", (String)threadContext.getTransient(ConfigConstants.SG_SSL_PRINCIPAL));
                     builder.field("peer_certificates", certs != null && certs.length > 0 ? certs.length + "" : "0");
+                    builder.field("sso_logout_url", (String)threadContext.getTransient(ConfigConstants.SSO_LOGOUT_URL));
                     
                     if(user != null && verbose) {
                         try {

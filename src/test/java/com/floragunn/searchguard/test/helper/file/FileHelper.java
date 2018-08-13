@@ -40,8 +40,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import com.floragunn.searchguard.SearchGuardPlugin;
-
 public class FileHelper {
 
 	protected final static Logger log = LogManager.getLogger(FileHelper.class);
