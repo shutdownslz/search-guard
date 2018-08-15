@@ -19,6 +19,7 @@ package com.floragunn.searchguard.configuration;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -74,7 +75,9 @@ import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.sgconf.ConfigModel;
+import com.floragunn.searchguard.sgconf.ConfigModel.SgRole;
 import com.floragunn.searchguard.sgconf.ConfigModel.SgRoles;
+import com.floragunn.searchguard.sgconf.ConfigModel.Tenant;
 import com.floragunn.searchguard.support.Base64Helper;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.SnapshotRestoreHelper;
@@ -82,7 +85,6 @@ import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.user.User;
 
 public class PrivilegesEvaluator {
-
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     protected final Logger actionTrace = LogManager.getLogger("sg_action_trace");
@@ -92,7 +94,8 @@ public class PrivilegesEvaluator {
     private final String[] sgDeniedActionPatterns;
     private final AuditLog auditLog;
     private ThreadContext threadContext;
-    //private final static IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.lenientExpandOpen();
+    // private final static IndicesOptions DEFAULT_INDICES_OPTIONS =
+    // IndicesOptions.lenientExpandOpen();
     private final ConfigurationRepository configurationRepository;
 
     private final String searchguardIndex;
@@ -103,24 +106,21 @@ public class PrivilegesEvaluator {
     private ConfigConstants.RolesMappingResolution rolesMappingResolution;
 
     private final ClusterInfoHolder clusterInfoHolder;
-    //private final boolean typeSecurityDisabled = false;
+    // private final boolean typeSecurityDisabled = false;
     private final ConfigModel configModel;
     private final IndexResolverReplacer irr;
-    
-    private static final String[] READ_ACTIONS = new String[]{
-            "indices:data/read/msearch",
-            "indices:data/read/mget",
-            "indices:data/read/get",
-            "indices:data/read/search",
-            "indices:data/read/field_caps*"
-            //"indices:admin/mappings/fields/get*"
-            };
-    
+
+    private static final String[] READ_ACTIONS = new String[] { "indices:data/read/msearch", "indices:data/read/mget",
+            "indices:data/read/get", "indices:data/read/search", "indices:data/read/field_caps*"
+            // "indices:admin/mappings/fields/get*"
+    };
+
     private static final QueryBuilder NONE_QUERY = new MatchNoneQueryBuilder();
 
-    public PrivilegesEvaluator(final ClusterService clusterService, final ThreadPool threadPool, final ConfigurationRepository configurationRepository, final ActionGroupHolder ah,
-            final IndexNameExpressionResolver resolver, AuditLog auditLog, final Settings settings, final PrivilegesInterceptor privilegesInterceptor,
-            final ClusterInfoHolder clusterInfoHolder) {
+    public PrivilegesEvaluator(final ClusterService clusterService, final ThreadPool threadPool,
+            final ConfigurationRepository configurationRepository, final ActionGroupHolder ah,
+            final IndexNameExpressionResolver resolver, AuditLog auditLog, final Settings settings,
+            final PrivilegesInterceptor privilegesInterceptor, final ClusterInfoHolder clusterInfoHolder) {
 
         super();
         this.configurationRepository = configurationRepository;
@@ -130,18 +130,23 @@ public class PrivilegesEvaluator {
         this.auditLog = auditLog;
 
         this.threadContext = threadPool.getThreadContext();
-        this.searchguardIndex = settings.get(ConfigConstants.SEARCHGUARD_CONFIG_INDEX_NAME, ConfigConstants.SG_DEFAULT_CONFIG_INDEX);
+        this.searchguardIndex = settings.get(ConfigConstants.SEARCHGUARD_CONFIG_INDEX_NAME,
+                ConfigConstants.SG_DEFAULT_CONFIG_INDEX);
         this.privilegesInterceptor = privilegesInterceptor;
-        this.enableSnapshotRestorePrivilege = settings.getAsBoolean(ConfigConstants.SEARCHGUARD_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE,
+        this.enableSnapshotRestorePrivilege = settings.getAsBoolean(
+                ConfigConstants.SEARCHGUARD_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE,
                 ConfigConstants.SG_DEFAULT_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE);
-        this.checkSnapshotRestoreWritePrivileges = settings.getAsBoolean(ConfigConstants.SEARCHGUARD_CHECK_SNAPSHOT_RESTORE_WRITE_PRIVILEGES,
+        this.checkSnapshotRestoreWritePrivileges = settings.getAsBoolean(
+                ConfigConstants.SEARCHGUARD_CHECK_SNAPSHOT_RESTORE_WRITE_PRIVILEGES,
                 ConfigConstants.SG_DEFAULT_CHECK_SNAPSHOT_RESTORE_WRITE_PRIVILEGES);
 
         try {
-            rolesMappingResolution = ConfigConstants.RolesMappingResolution.valueOf(settings.get(ConfigConstants.SEARCHGUARD_ROLES_MAPPING_RESOLUTION, ConfigConstants.RolesMappingResolution.MAPPING_ONLY.toString()).toUpperCase());
+            rolesMappingResolution = ConfigConstants.RolesMappingResolution
+                    .valueOf(settings.get(ConfigConstants.SEARCHGUARD_ROLES_MAPPING_RESOLUTION,
+                            ConfigConstants.RolesMappingResolution.MAPPING_ONLY.toString()).toUpperCase());
         } catch (Exception e) {
-            log.error("Cannot apply roles mapping resolution",e);
-            rolesMappingResolution =  ConfigConstants.RolesMappingResolution.MAPPING_ONLY;
+            log.error("Cannot apply roles mapping resolution", e);
+            rolesMappingResolution = ConfigConstants.RolesMappingResolution.MAPPING_ONLY;
         }
 
         final List<String> sgIndexdeniedActionPatternsList = new ArrayList<String>();
@@ -149,12 +154,14 @@ public class PrivilegesEvaluator {
         sgIndexdeniedActionPatternsList.add("indices:admin/close");
         sgIndexdeniedActionPatternsList.add("indices:admin/delete");
         sgIndexdeniedActionPatternsList.add("cluster:admin/snapshot/restore");
-        //deniedActionPatternsList.add("indices:admin/settings/update");
-        //deniedActionPatternsList.add("indices:admin/upgrade");
+        // deniedActionPatternsList.add("indices:admin/settings/update");
+        // deniedActionPatternsList.add("indices:admin/upgrade");
 
         sgDeniedActionPatterns = sgIndexdeniedActionPatternsList.toArray(new String[0]);
         this.clusterInfoHolder = clusterInfoHolder;
-        //this.typeSecurityDisabled = settings.getAsBoolean(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY, false);
+        // this.typeSecurityDisabled =
+        // settings.getAsBoolean(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY,
+        // false);
         configModel = new ConfigModel(ah, configurationRepository);
         irr = new IndexResolverReplacer(resolver, clusterService);
     }
@@ -171,12 +178,11 @@ public class PrivilegesEvaluator {
         return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_CONFIG, false);
     }
 
-    //TODO: optimize, recreate only if changed
+    // TODO: optimize, recreate only if changed
     private SgRoles getSgRoles(final User user, final TransportAddress caller) {
         Set<String> roles = mapSgRoles(user, caller);
         return configModel.load().filter(roles);
     }
-
 
     public boolean isInitialized() {
         return getRolesSettings() != null && getRolesMappingSettings() != null && getConfigSettings() != null;
@@ -185,30 +191,31 @@ public class PrivilegesEvaluator {
     public static class PrivEvalResponse {
         boolean allowed = false;
         Set<String> missingPrivileges = new HashSet<String>();
-        Map<String,Set<String>> allowedFlsFields;
-        Map<String,Set<String>> queries;
+        Map<String, Set<String>> allowedFlsFields;
+        Map<String, Set<String>> queries;
 
         public boolean isAllowed() {
             return allowed;
         }
+
         public Set<String> getMissingPrivileges() {
             return new HashSet<String>(missingPrivileges);
         }
 
-        public Map<String,Set<String>> getAllowedFlsFields() {
+        public Map<String, Set<String>> getAllowedFlsFields() {
             return allowedFlsFields;
         }
 
-        public Map<String,Set<String>> getQueries() {
+        public Map<String, Set<String>> getQueries() {
             return queries;
         }
+
         @Override
         public String toString() {
             return "PrivEvalResponse [allowed=" + allowed + ", missingPrivileges=" + missingPrivileges
                     + ", allowedFlsFields=" + allowedFlsFields + ", queries=" + queries + "]";
         }
-        
-        
+
     }
 
     public PrivEvalResponse evaluate(final User user, String action0, final ActionRequest request, Task task) {
@@ -217,62 +224,69 @@ public class PrivilegesEvaluator {
             throw new ElasticsearchSecurityException("Search Guard is not initialized.");
         }
 
-        if(action0.startsWith("internal:indices/admin/upgrade")) {
+        if (action0.startsWith("internal:indices/admin/upgrade")) {
             action0 = "indices:admin/upgrade";
         }
 
-        final TransportAddress caller = Objects.requireNonNull((TransportAddress) this.threadContext.getTransient(ConfigConstants.SG_REMOTE_ADDRESS));
+        final TransportAddress caller = Objects
+                .requireNonNull((TransportAddress) this.threadContext.getTransient(ConfigConstants.SG_REMOTE_ADDRESS));
         final SgRoles sgRoles = getSgRoles(user, caller);
 
         final PrivEvalResponse presponse = new PrivEvalResponse();
 
-
         if (log.isDebugEnabled()) {
             log.debug("### evaluate permissions for {} on {}", user, clusterService.localNode().getName());
-            log.debug("action: "+action0+" ("+request.getClass().getSimpleName()+")");
+            log.debug("action: " + action0 + " (" + request.getClass().getSimpleName() + ")");
         }
 
         final Resolved requestedResolved = irr.resolveRequest(request);
 
         if (log.isDebugEnabled()) {
-            log.debug("requestedResolved : {}", requestedResolved );
+            log.debug("requestedResolved : {}", requestedResolved);
         }
 
-        //maskedFields
+        // maskedFields
         final Map<String, Set<String>> maskedFieldsMap = sgRoles.getMaskedFields(user, resolver, clusterService);
-        
-        if(maskedFieldsMap != null && !maskedFieldsMap.isEmpty()) {
-            if(this.threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER) != null) {
-                if(!maskedFieldsMap.equals(Base64Helper.deserializeObject(this.threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER)))) {
-                    throw new ElasticsearchSecurityException(ConfigConstants.SG_MASKED_FIELD_HEADER+" does not match (SG 901D)");
+
+        if (maskedFieldsMap != null && !maskedFieldsMap.isEmpty()) {
+            if (this.threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER) != null) {
+                if (!maskedFieldsMap.equals(Base64Helper
+                        .deserializeObject(this.threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER)))) {
+                    throw new ElasticsearchSecurityException(
+                            ConfigConstants.SG_MASKED_FIELD_HEADER + " does not match (SG 901D)");
                 } else {
-                    if(log.isDebugEnabled()) {
-                        log.debug(ConfigConstants.SG_MASKED_FIELD_HEADER+" already set");
+                    if (log.isDebugEnabled()) {
+                        log.debug(ConfigConstants.SG_MASKED_FIELD_HEADER + " already set");
                     }
                 }
             } else {
-                this.threadContext.putHeader(ConfigConstants.SG_MASKED_FIELD_HEADER, Base64Helper.serializeObject((Serializable) maskedFieldsMap));
-                if(log.isDebugEnabled()) {
+                this.threadContext.putHeader(ConfigConstants.SG_MASKED_FIELD_HEADER,
+                        Base64Helper.serializeObject((Serializable) maskedFieldsMap));
+                if (log.isDebugEnabled()) {
                     log.debug("attach masked fields info: {}", maskedFieldsMap);
                 }
             }
         }
 
-        //attach dls/fls map if not already done
-        //TODO do this only if enterprise module are loaded
-        final Tuple<Map<String, Set<String>>, Map<String, Set<String>>> dlsFls = sgRoles.getDlsFls(user, resolver, clusterService);
-        final Map<String,Set<String>> dlsQueries = dlsFls.v1();
-        final Map<String,Set<String>> flsFields = dlsFls.v2();
+        // attach dls/fls map if not already done
+        // TODO do this only if enterprise module are loaded
+        final Tuple<Map<String, Set<String>>, Map<String, Set<String>>> dlsFls = sgRoles.getDlsFls(user, resolver,
+                clusterService);
+        final Map<String, Set<String>> dlsQueries = dlsFls.v1();
+        final Map<String, Set<String>> flsFields = dlsFls.v2();
 
-        if(!dlsQueries.isEmpty()) {
+        if (!dlsQueries.isEmpty()) {
 
-            if(this.threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER) != null) {
-                if(!dlsQueries.equals(Base64Helper.deserializeObject(this.threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER)))) {
-                    throw new ElasticsearchSecurityException(ConfigConstants.SG_DLS_QUERY_HEADER+" does not match (SG 900D)");
+            if (this.threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER) != null) {
+                if (!dlsQueries.equals(Base64Helper
+                        .deserializeObject(this.threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER)))) {
+                    throw new ElasticsearchSecurityException(
+                            ConfigConstants.SG_DLS_QUERY_HEADER + " does not match (SG 900D)");
                 }
             } else {
-                this.threadContext.putHeader(ConfigConstants.SG_DLS_QUERY_HEADER, Base64Helper.serializeObject((Serializable) dlsQueries));
-                if(log.isDebugEnabled()) {
+                this.threadContext.putHeader(ConfigConstants.SG_DLS_QUERY_HEADER,
+                        Base64Helper.serializeObject((Serializable) dlsQueries));
+                if (log.isDebugEnabled()) {
                     log.debug("attach DLS info: {}", dlsQueries);
                 }
             }
@@ -290,19 +304,22 @@ public class PrivilegesEvaluator {
 
         }
 
-        if(!flsFields.isEmpty()) {
+        if (!flsFields.isEmpty()) {
 
-            if(this.threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER) != null) {
-                if(!flsFields.equals(Base64Helper.deserializeObject(this.threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER)))) {
-                    throw new ElasticsearchSecurityException(ConfigConstants.SG_FLS_FIELDS_HEADER+" does not match (SG 901D)");
+            if (this.threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER) != null) {
+                if (!flsFields.equals(Base64Helper
+                        .deserializeObject(this.threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER)))) {
+                    throw new ElasticsearchSecurityException(
+                            ConfigConstants.SG_FLS_FIELDS_HEADER + " does not match (SG 901D)");
                 } else {
-                    if(log.isDebugEnabled()) {
-                        log.debug(ConfigConstants.SG_FLS_FIELDS_HEADER+" already set");
+                    if (log.isDebugEnabled()) {
+                        log.debug(ConfigConstants.SG_FLS_FIELDS_HEADER + " already set");
                     }
                 }
             } else {
-                this.threadContext.putHeader(ConfigConstants.SG_FLS_FIELDS_HEADER, Base64Helper.serializeObject((Serializable) flsFields));
-                if(log.isDebugEnabled()) {
+                this.threadContext.putHeader(ConfigConstants.SG_FLS_FIELDS_HEADER,
+                        Base64Helper.serializeObject((Serializable) flsFields));
+                if (log.isDebugEnabled()) {
                     log.debug("attach FLS info: {}", flsFields);
                 }
             }
@@ -310,7 +327,8 @@ public class PrivilegesEvaluator {
             presponse.allowedFlsFields = new HashMap<>(flsFields);
 
             if (!requestedResolved.getAllIndices().isEmpty()) {
-                for (Iterator<Entry<String, Set<String>>> it = presponse.allowedFlsFields.entrySet().iterator(); it.hasNext();) {
+                for (Iterator<Entry<String, Set<String>>> it = presponse.allowedFlsFields.entrySet().iterator(); it
+                        .hasNext();) {
                     Entry<String, Set<String>> entry = it.next();
                     if (!WildcardMatcher.matchAny(entry.getKey(), requestedResolved.getAllIndices(), false)) {
                         it.remove();
@@ -319,20 +337,20 @@ public class PrivilegesEvaluator {
             }
         }
 
-        if(requestedResolved == Resolved._EMPTY) {
+        if (requestedResolved == Resolved._EMPTY) {
             presponse.allowed = true;
             return presponse;
         }
 
-        if(request instanceof RestoreSnapshotRequest) {
-            
+        if (request instanceof RestoreSnapshotRequest) {
+
             if (enableSnapshotRestorePrivilege) {
-                
-                if(clusterInfoHolder.isLocalNodeElectedMaster() == Boolean.FALSE) {
+
+                if (clusterInfoHolder.isLocalNodeElectedMaster() == Boolean.FALSE) {
                     presponse.allowed = true;
                     return presponse;
                 }
-                
+
                 final RestoreSnapshotRequest restoreRequest = (RestoreSnapshotRequest) request;
 
                 // Do not allow restore of global state
@@ -367,126 +385,119 @@ public class PrivilegesEvaluator {
             return presponse;
         }
 
-        //TODO: newpeval: check if isAll() is all (contains("_all" or "*"))
-        if (requestedResolved.isAll()
-                && WildcardMatcher.matchAny(sgDeniedActionPatterns, action0)) {
+        // TODO: newpeval: check if isAll() is all (contains("_all" or "*"))
+        if (requestedResolved.isAll() && WildcardMatcher.matchAny(sgDeniedActionPatterns, action0)) {
             auditLog.logSgIndexAttempt(request, action0, task);
             log.warn(action0 + " for '_all' indices is not allowed for a regular user");
             presponse.allowed = false;
             return presponse;
         }
 
-      //TODO: newpeval: check if isAll() is all (contains("_all" or "*"))
-        if(requestedResolved.getAllIndices().contains(searchguardIndex) || requestedResolved.isAll()) {
+        // TODO: newpeval: check if isAll() is all (contains("_all" or "*"))
+        if (requestedResolved.getAllIndices().contains(searchguardIndex) || requestedResolved.isAll()) {
 
-            if(request instanceof SearchRequest) {
-                ((SearchRequest)request).requestCache(Boolean.FALSE);
-                if(log.isDebugEnabled()) {
+            if (request instanceof SearchRequest) {
+                ((SearchRequest) request).requestCache(Boolean.FALSE);
+                if (log.isDebugEnabled()) {
                     log.debug("Disable search request cache for this request");
                 }
             }
 
-            if(request instanceof RealtimeRequest) {
+            if (request instanceof RealtimeRequest) {
                 ((RealtimeRequest) request).realtime(Boolean.FALSE);
-                if(log.isDebugEnabled()) {
+                if (log.isDebugEnabled()) {
                     log.debug("Disable realtime for this request");
                 }
             }
         }
 
-        final boolean dnfofEnabled =
-                getConfigSettings().getAsBoolean("searchguard.dynamic.kibana.do_not_fail_on_forbidden", false)
+        final boolean dnfofEnabled = getConfigSettings()
+                .getAsBoolean("searchguard.dynamic.kibana.do_not_fail_on_forbidden", false)
                 || getConfigSettings().getAsBoolean("searchguard.dynamic.do_not_fail_on_forbidden", false);
-        
-        if(log.isTraceEnabled()) {
+
+        if (log.isTraceEnabled()) {
             log.trace("dnfof enabled? {}", dnfofEnabled);
         }
-        
+
         if (isClusterPerm(action0)) {
-            if(!sgRoles.impliesClusterPermissionPermission(action0)) {
+            if (!sgRoles.impliesClusterPermissionPermission(action0)) {
                 presponse.missingPrivileges.add(action0);
                 presponse.allowed = false;
-                log.info("No {}-level perm match for {} {} [Action [{}]] [RolesChecked {}]", "cluster" , user, requestedResolved, action0, sgRoles.getRoles().stream().map(r->r.getName()).toArray());
+                log.info("No {}-level perm match for {} {} [Action [{}]] [RolesChecked {}]", "cluster", user,
+                        requestedResolved, action0, sgRoles.getRoles().stream().map(r -> r.getName()).toArray());
                 log.info("No permissions for {}", presponse.missingPrivileges);
                 return presponse;
             } else {
 
-                if(request instanceof RestoreSnapshotRequest && checkSnapshotRestoreWritePrivileges) {
-                    if(log.isDebugEnabled()) {
+                if (request instanceof RestoreSnapshotRequest && checkSnapshotRestoreWritePrivileges) {
+                    if (log.isDebugEnabled()) {
                         log.debug("Normally allowed but we need to apply some extra checks for a restore request.");
                     }
                 } else {
 
-                    if (dnfofEnabled
-                            && (action0.startsWith("indices:data/read/"))
-                            && !requestedResolved.getAllIndices().isEmpty()
-                            ) {
-                        
-                        Set<String> reduced = sgRoles.reduce(requestedResolved, user, new String[]{action0}, resolver, clusterService);
+                    if (dnfofEnabled && (action0.startsWith("indices:data/read/"))
+                            && !requestedResolved.getAllIndices().isEmpty()) {
 
-                        if(reduced.isEmpty()) {
+                        Set<String> reduced = sgRoles.reduce(requestedResolved, user, new String[] { action0 },
+                                resolver, clusterService);
+
+                        if (reduced.isEmpty()) {
                             presponse.allowed = false;
                             return presponse;
                         }
 
-                        if(irr.replace(request, true, reduced.toArray(new String[0]))) {
+                        if (irr.replace(request, true, reduced.toArray(new String[0]))) {
                             presponse.missingPrivileges.clear();
                             presponse.allowed = true;
                             return presponse;
                         }
                     }
 
-                    if(log.isDebugEnabled()) {
-                        log.debug("Allowed because we have cluster permissions for "+action0);
+                    if (log.isDebugEnabled()) {
+                        log.debug("Allowed because we have cluster permissions for " + action0);
                     }
                     presponse.allowed = true;
                     return presponse;
                 }
 
-
             }
         }
 
         try {
-            if(request instanceof SearchRequest) {
+            if (request instanceof SearchRequest) {
                 SearchRequest sr = (SearchRequest) request;
 
-                if(     sr.source() != null
-                        && sr.source().query() == null
-                        && sr.source().aggregations() != null
+                if (sr.source() != null && sr.source().query() == null && sr.source().aggregations() != null
                         && sr.source().aggregations().getAggregatorFactories() != null
-                        && sr.source().aggregations().getAggregatorFactories().size() == 1
-                        && sr.source().size() == 0) {
-                   AggregationBuilder ab = sr.source().aggregations().getAggregatorFactories().get(0);
-                   if(     ab instanceof TermsAggregationBuilder
-                           && "terms".equals(ab.getType())
-                           && "indices".equals(ab.getName())) {
-                       if("_index".equals(((TermsAggregationBuilder) ab).field())
-                               && ab.getPipelineAggregations().isEmpty()
-                               && ab.getSubAggregations().isEmpty()) {
+                        && sr.source().aggregations().getAggregatorFactories().size() == 1 && sr.source().size() == 0) {
+                    AggregationBuilder ab = sr.source().aggregations().getAggregatorFactories().get(0);
+                    if (ab instanceof TermsAggregationBuilder && "terms".equals(ab.getType())
+                            && "indices".equals(ab.getName())) {
+                        if ("_index".equals(((TermsAggregationBuilder) ab).field())
+                                && ab.getPipelineAggregations().isEmpty() && ab.getSubAggregations().isEmpty()) {
 
-                           
-                           final Set<String> allPermittedIndices = getSgRoles(user, caller).getAllPermittedIndices(user, READ_ACTIONS, resolver, clusterService);
-                           if(allPermittedIndices == null || allPermittedIndices.isEmpty()) {
-                               sr.source().query(NONE_QUERY);
-                           } else {
-                               sr.source().query(new TermsQueryBuilder("_index", allPermittedIndices));
-                           }                 
-                           
-                           presponse.allowed = true;
-                           return presponse;
-                       }
-                   }
+                            final Set<String> allPermittedIndices = getSgRoles(user, caller)
+                                    .getAllPermittedIndices(user, READ_ACTIONS, resolver, clusterService);
+                            if (allPermittedIndices == null || allPermittedIndices.isEmpty()) {
+                                sr.source().query(NONE_QUERY);
+                            } else {
+                                sr.source().query(new TermsQueryBuilder("_index", allPermittedIndices));
+                            }
+
+                            presponse.allowed = true;
+                            return presponse;
+                        }
+                    }
                 }
             }
         } catch (Exception e) {
-            log.warn("Unable to evaluate terms aggregation",e);
+            log.warn("Unable to evaluate terms aggregation", e);
         }
 
         final Set<String> allIndexPermsRequired = evaluateAdditionalIndexPermissions(request, action0);
         final String[] allIndexPermsRequiredA = allIndexPermsRequired.toArray(new String[0]);
 
-        if(log.isDebugEnabled()) {
+        if (log.isDebugEnabled()) {
             log.debug("requested {} from {}", allIndexPermsRequired, caller);
         }
 
@@ -500,17 +511,17 @@ public class PrivilegesEvaluator {
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("sgr: {}", sgRoles.getRoles().stream().map(d->d.getName()).toArray());
+            log.debug("sgr: {}", sgRoles.getRoles().stream().map(d -> d.getName()).toArray());
         }
 
+        // TODO exclude sg index
 
-        //TODO exclude sg index
+        if (privilegesInterceptor.getClass() != PrivilegesInterceptor.class) {
 
-        if(privilegesInterceptor.getClass() != PrivilegesInterceptor.class) {
+            final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, config,
+                    requestedResolved.getAllIndices(), mapTenants(user, caller));
 
-            final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, config, requestedResolved.getAllIndices(), mapTenants(user, caller));
-
-            if(log.isDebugEnabled()) {
+            if (log.isDebugEnabled()) {
                 log.debug("Result from privileges interceptor: {}", replaceResult);
             }
 
@@ -525,82 +536,87 @@ public class PrivilegesEvaluator {
             }
         }
 
-        if (dnfofEnabled
-                && (action0.startsWith("indices:data/read/")
+        if (dnfofEnabled && (action0.startsWith("indices:data/read/")
                 || action0.startsWith("indices:admin/mappings/fields/get"))) {
-            Set<String> reduced = sgRoles.reduce(requestedResolved, user, allIndexPermsRequiredA, resolver, clusterService);
+            Set<String> reduced = sgRoles.reduce(requestedResolved, user, allIndexPermsRequiredA, resolver,
+                    clusterService);
 
-            if(reduced.isEmpty()) {
+            if (reduced.isEmpty()) {
                 presponse.allowed = false;
                 return presponse;
             }
 
-
-            if(irr.replace(request, true, reduced.toArray(new String[0]))) {
+            if (irr.replace(request, true, reduced.toArray(new String[0]))) {
                 presponse.missingPrivileges.clear();
                 presponse.allowed = true;
                 return presponse;
             }
         }
 
-
-        //not bulk, mget, etc request here
+        // not bulk, mget, etc request here
         boolean permGiven = false;
 
         if (config.getAsBoolean("searchguard.dynamic.multi_rolespan_enabled", false)) {
-            permGiven = sgRoles.impliesTypePermGlobal(requestedResolved, user, allIndexPermsRequiredA, resolver, clusterService);
-        }  else {
+            permGiven = sgRoles.impliesTypePermGlobal(requestedResolved, user, allIndexPermsRequiredA, resolver,
+                    clusterService);
+        } else {
             permGiven = sgRoles.get(requestedResolved, user, allIndexPermsRequiredA, resolver, clusterService);
 
         }
 
-         if (!permGiven) {
-            log.info("No {}-level perm match for {} {} [Action [{}]] [RolesChecked {}]", "index" , user, requestedResolved, action0, sgRoles.getRoles().stream().map(r->r.getName()).toArray());
+        if (!permGiven) {
+            log.info("No {}-level perm match for {} {} [Action [{}]] [RolesChecked {}]", "index", user,
+                    requestedResolved, action0, sgRoles.getRoles().stream().map(r -> r.getName()).toArray());
             log.info("No permissions for {}", presponse.missingPrivileges);
         } else {
 
-            if(checkFilteredAliases(requestedResolved.getAllIndices(), action0)) {
-                presponse.allowed=false;
+            if (checkFilteredAliases(requestedResolved.getAllIndices(), action0)) {
+                presponse.allowed = false;
                 return presponse;
             }
 
-            if(log.isDebugEnabled()) {
-                log.debug("Allowed because we have all indices permissions for "+action0);
+            if (log.isDebugEnabled()) {
+                log.debug("Allowed because we have all indices permissions for " + action0);
             }
         }
 
-        presponse.allowed=permGiven;
+        presponse.allowed = permGiven;
         return presponse;
 
     }
+
     public Set<String> mapSgRoles(final User user, final TransportAddress caller) {
 
         final Settings rolesMapping = getRolesMappingSettings();
         final Set<String> sgRoles = new TreeSet<String>();
 
-        if(user == null) {
+        if (user == null) {
             return Collections.emptySet();
         }
 
-        if(rolesMappingResolution == ConfigConstants.RolesMappingResolution.BOTH
+        if (rolesMappingResolution == ConfigConstants.RolesMappingResolution.BOTH
                 || rolesMappingResolution == ConfigConstants.RolesMappingResolution.BACKENDROLES_ONLY) {
-            if(log.isDebugEnabled()) {
+            if (log.isDebugEnabled()) {
                 log.debug("Pass backendroles from {}", user);
             }
             sgRoles.addAll(user.getRoles());
         }
 
-        if(rolesMapping != null && ((rolesMappingResolution == ConfigConstants.RolesMappingResolution.BOTH
+        if (rolesMapping != null && ((rolesMappingResolution == ConfigConstants.RolesMappingResolution.BOTH
                 || rolesMappingResolution == ConfigConstants.RolesMappingResolution.MAPPING_ONLY))) {
             for (final String roleMap : rolesMapping.names()) {
                 final Settings roleMapSettings = rolesMapping.getByPrefix(roleMap);
 
-                if (WildcardMatcher.allPatternsMatched(roleMapSettings.getAsList(".and_backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
+                if (WildcardMatcher.allPatternsMatched(
+                        roleMapSettings.getAsList(".and_backendroles", Collections.emptyList()).toArray(new String[0]),
+                        user.getRoles().toArray(new String[0]))) {
                     sgRoles.add(roleMap);
                     continue;
                 }
 
-                if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
+                if (WildcardMatcher.matchAny(
+                        roleMapSettings.getAsList(".backendroles", Collections.emptyList()).toArray(new String[0]),
+                        user.getRoles().toArray(new String[0]))) {
                     sgRoles.add(roleMap);
                     continue;
                 }
@@ -609,38 +625,41 @@ public class PrivilegesEvaluator {
                     sgRoles.add(roleMap);
                     continue;
                 }
-                
-                if(caller != null && log.isTraceEnabled()) {
+
+                if (caller != null && log.isTraceEnabled()) {
                     log.trace("caller (getAddress()) is {}", caller.getAddress());
                     log.trace("caller unresolved? {}", caller.address().isUnresolved());
-                    log.trace("caller inner? {}", caller.address().getAddress()==null?"<unresolved>":caller.address().getAddress().toString());
+                    log.trace("caller inner? {}", caller.address().getAddress() == null ? "<unresolved>"
+                            : caller.address().getAddress().toString());
                     log.trace("caller (getHostString()) is {}", caller.address().getHostString());
-                    log.trace("caller (getHostName(), dns) is {}", caller.address().getHostName()); //reverse lookup
+                    log.trace("caller (getHostName(), dns) is {}", caller.address().getHostName()); // reverse lookup
                 }
-                
-                if(caller != null) {
-                    //IPV4 or IPv6 (compressed and without scope identifiers)
+
+                if (caller != null) {
+                    // IPV4 or IPv6 (compressed and without scope identifiers)
                     final String ipAddress = caller.getAddress();
                     if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), ipAddress)) {
                         sgRoles.add(roleMap);
                         continue;
                     }
-    
-                    final String hostResolverMode = getConfigSettings().get("searchguard.dynamic.hosts_resolver_mode","ip-only");
-                    
-                    if(caller.address() != null && (hostResolverMode.equalsIgnoreCase("ip-hostname") || hostResolverMode.equalsIgnoreCase("ip-hostname-lookup"))){
+
+                    final String hostResolverMode = getConfigSettings().get("searchguard.dynamic.hosts_resolver_mode",
+                            "ip-only");
+
+                    if (caller.address() != null && (hostResolverMode.equalsIgnoreCase("ip-hostname")
+                            || hostResolverMode.equalsIgnoreCase("ip-hostname-lookup"))) {
                         final String hostName = caller.address().getHostString();
-        
+
                         if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), hostName)) {
                             sgRoles.add(roleMap);
                             continue;
                         }
                     }
-                    
-                    if(caller.address() != null && hostResolverMode.equalsIgnoreCase("ip-hostname-lookup")){
-    
+
+                    if (caller.address() != null && hostResolverMode.equalsIgnoreCase("ip-hostname-lookup")) {
+
                         final String resolvedHostName = caller.address().getHostName();
-             
+
                         if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), resolvedHostName)) {
                             sgRoles.add(roleMap);
                             continue;
@@ -656,39 +675,29 @@ public class PrivilegesEvaluator {
 
     public Map<String, Boolean> mapTenants(final User user, final TransportAddress caller) {
 
-        if(user == null) {
+        if (user == null) {
             return Collections.emptyMap();
         }
 
         final Map<String, Boolean> result = new HashMap<>();
         result.put(user.getName(), true);
 
-        for(String sgRole: mapSgRoles(user, caller)) {
-            Settings tenants = getRolesSettings().getByPrefix(sgRole+".tenants.");
+        for (SgRole sgRole : getSgRoles(user, caller).getRoles()) {
 
-            if(tenants != null) {
-                for(String tenant: tenants.names()) {
-
-                    if(tenant.equals(user.getName())) {
-                        continue;
+            // TODO what to do with user param?
+            for (Tenant tenant : sgRole.getTenants(user)) {
+                if (tenant.isReadOnly()) {
+                    if (!result.containsKey(tenant.getTenant())) { // RW outperforms RO
+                        result.put(tenant.getTenant(), false);
                     }
-
-                    if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
-                        result.put(tenant, true);
-                    } else {
-                        if(!result.containsKey(tenant)) { //RW outperforms RO
-                            result.put(tenant, false);
-                        }
-                    }
+                } else {
+                    result.put(tenant.getTenant(), true);
                 }
             }
-
         }
 
         return Collections.unmodifiableMap(result);
     }
-
-
 
     public boolean multitenancyEnabled() {
         return privilegesInterceptor.getClass() != PrivilegesInterceptor.class
@@ -701,18 +710,44 @@ public class PrivilegesEvaluator {
     }
 
     public String kibanaIndex() {
-        return getConfigSettings().get("searchguard.dynamic.kibana.index",".kibana");
+        return getConfigSettings().get("searchguard.dynamic.kibana.index", ".kibana");
     }
 
     public String kibanaServerUsername() {
-        return getConfigSettings().get("searchguard.dynamic.kibana.server_username","kibanaserver");
+        return getConfigSettings().get("searchguard.dynamic.kibana.server_username", "kibanaserver");
+    }
+
+    public Map<String, Boolean> evaluateApplicationPrivileges(User user, TransportAddress caller,
+            Collection<String> privileges) {
+        SgRoles sgRoles = getSgRoles(user, caller);
+        Settings config = getConfigSettings();
+
+        Map<String, Boolean> result = new HashMap<>();
+
+        for (String privilege : privileges) {
+
+            Boolean hasPrivilege = null;
+
+            // XXX why this check?
+            if (privilegesInterceptor.getClass() != PrivilegesInterceptor.class) {
+                hasPrivilege = privilegesInterceptor.hasPermissionAsTenant(privilege, user, config, sgRoles);
+            }
+
+            if (hasPrivilege == null) {
+                hasPrivilege = sgRoles.hasApplicationPermission(privilege);
+            }
+
+            result.put(privilege, hasPrivilege);
+        }
+
+        return result;
     }
 
     private Set<String> evaluateAdditionalIndexPermissions(final ActionRequest request, final String originalAction) {
-      //--- check inner bulk requests
+        // --- check inner bulk requests
         final Set<String> additionalPermissionsRequired = new HashSet<>();
 
-        if(!isClusterPerm(originalAction)) {
+        if (!isClusterPerm(originalAction)) {
             additionalPermissionsRequired.add(originalAction);
         }
 
@@ -748,112 +783,113 @@ public class PrivilegesEvaluator {
                 }
             }
         }
-        
+
         if (request instanceof CreateIndexRequest) {
             CreateIndexRequest cir = (CreateIndexRequest) request;
-            if(cir.aliases() != null && !cir.aliases().isEmpty()) {
+            if (cir.aliases() != null && !cir.aliases().isEmpty()) {
                 additionalPermissionsRequired.add(IndicesAliasesAction.NAME);
             }
         }
 
-        if(request instanceof RestoreSnapshotRequest && checkSnapshotRestoreWritePrivileges) {
+        if (request instanceof RestoreSnapshotRequest && checkSnapshotRestoreWritePrivileges) {
             additionalPermissionsRequired.addAll(ConfigConstants.SG_SNAPSHOT_RESTORE_NEEDED_WRITE_PRIVILEGES);
         }
 
-        if(actionTrace.isTraceEnabled() && additionalPermissionsRequired.size() > 1) {
-            actionTrace.trace(("Additional permissions required: "+additionalPermissionsRequired));
+        if (actionTrace.isTraceEnabled() && additionalPermissionsRequired.size() > 1) {
+            actionTrace.trace(("Additional permissions required: " + additionalPermissionsRequired));
         }
 
-        if(log.isDebugEnabled() && additionalPermissionsRequired.size() > 1) {
-            log.debug("Additional permissions required: "+additionalPermissionsRequired);
+        if (log.isDebugEnabled() && additionalPermissionsRequired.size() > 1) {
+            log.debug("Additional permissions required: " + additionalPermissionsRequired);
         }
 
         return Collections.unmodifiableSet(additionalPermissionsRequired);
     }
 
     private static boolean isClusterPerm(String action0) {
-        return  (    action0.startsWith("cluster:")
-                || action0.startsWith("indices:admin/template/")
+        return (action0.startsWith("cluster:") || action0.startsWith("indices:admin/template/")
 
-            || action0.startsWith(SearchScrollAction.NAME)
-            || (action0.equals(BulkAction.NAME))
-            || (action0.equals(MultiGetAction.NAME))
-            || (action0.equals(MultiSearchAction.NAME))
-            || (action0.equals(MultiTermVectorsAction.NAME))
-            || (action0.equals("indices:data/read/coordinate-msearch"))
-            || (action0.equals(ReindexAction.NAME))
+                || action0.startsWith(SearchScrollAction.NAME) || (action0.equals(BulkAction.NAME))
+                || (action0.equals(MultiGetAction.NAME)) || (action0.equals(MultiSearchAction.NAME))
+                || (action0.equals(MultiTermVectorsAction.NAME))
+                || (action0.equals("indices:data/read/coordinate-msearch")) || (action0.equals(ReindexAction.NAME))
 
-            ) ;
+        );
     }
 
     private boolean checkFilteredAliases(Set<String> requestedResolvedIndices, String action) {
-        //check filtered aliases
-        for(String requestAliasOrIndex: requestedResolvedIndices) {
+        // check filtered aliases
+        for (String requestAliasOrIndex : requestedResolvedIndices) {
 
             final List<AliasMetaData> filteredAliases = new ArrayList<AliasMetaData>();
 
             final IndexMetaData indexMetaData = clusterService.state().metaData().getIndices().get(requestAliasOrIndex);
 
-            if(indexMetaData == null) {
+            if (indexMetaData == null) {
                 log.debug("{} does not exist in cluster metadata", requestAliasOrIndex);
                 continue;
             }
 
             final ImmutableOpenMap<String, AliasMetaData> aliases = indexMetaData.getAliases();
 
-            if(aliases != null && aliases.size() > 0) {
+            if (aliases != null && aliases.size() > 0) {
 
-                if(log.isDebugEnabled()) {
+                if (log.isDebugEnabled()) {
                     log.debug("Aliases for {}: {}", requestAliasOrIndex, aliases);
                 }
 
                 final Iterator<String> it = aliases.keysIt();
-                while(it.hasNext()) {
+                while (it.hasNext()) {
                     final String alias = it.next();
                     final AliasMetaData aliasMetaData = aliases.get(alias);
 
-                    if(aliasMetaData != null && aliasMetaData.filteringRequired()) {
+                    if (aliasMetaData != null && aliasMetaData.filteringRequired()) {
                         filteredAliases.add(aliasMetaData);
-                        if(log.isDebugEnabled()) {
-                            log.debug(alias+" is a filtered alias "+aliasMetaData.getFilter());
+                        if (log.isDebugEnabled()) {
+                            log.debug(alias + " is a filtered alias " + aliasMetaData.getFilter());
                         }
                     } else {
-                        if(log.isDebugEnabled()) {
-                            log.debug(alias+" is not an alias or does not have a filter");
+                        if (log.isDebugEnabled()) {
+                            log.debug(alias + " is not an alias or does not have a filter");
                         }
                     }
                 }
             }
 
-            if(filteredAliases.size() > 1 && WildcardMatcher.match("indices:data/read/*search*", action)) {
-                //TODO add queries as dls queries (works only if dls module is installed)
-                final String faMode = getConfigSettings().get("searchguard.dynamic.filtered_alias_mode","warn");
+            if (filteredAliases.size() > 1 && WildcardMatcher.match("indices:data/read/*search*", action)) {
+                // TODO add queries as dls queries (works only if dls module is installed)
+                final String faMode = getConfigSettings().get("searchguard.dynamic.filtered_alias_mode", "warn");
 
-                if(faMode.equals("warn")) {
-                    log.warn("More than one ({}) filtered alias found for same index ({}). This is currently not recommended. Aliases: {}", filteredAliases.size(), requestAliasOrIndex, toString(filteredAliases));
+                if (faMode.equals("warn")) {
+                    log.warn(
+                            "More than one ({}) filtered alias found for same index ({}). This is currently not recommended. Aliases: {}",
+                            filteredAliases.size(), requestAliasOrIndex, toString(filteredAliases));
                 } else if (faMode.equals("disallow")) {
-                    log.error("More than one ({}) filtered alias found for same index ({}). This is currently not supported. Aliases: {}", filteredAliases.size(), requestAliasOrIndex, toString(filteredAliases));
+                    log.error(
+                            "More than one ({}) filtered alias found for same index ({}). This is currently not supported. Aliases: {}",
+                            filteredAliases.size(), requestAliasOrIndex, toString(filteredAliases));
                     return true;
                 } else {
                     if (log.isDebugEnabled()) {
-                        log.debug("More than one ({}) filtered alias found for same index ({}). Aliases: {}", filteredAliases.size(), requestAliasOrIndex, toString(filteredAliases));
+                        log.debug("More than one ({}) filtered alias found for same index ({}). Aliases: {}",
+                                filteredAliases.size(), requestAliasOrIndex, toString(filteredAliases));
                     }
                 }
             }
-        } //end-for
+        } // end-for
 
         return false;
     }
 
     private List<String> toString(List<AliasMetaData> aliases) {
-        if(aliases == null || aliases.size() == 0) {
+        if (aliases == null || aliases.size() == 0) {
             return Collections.emptyList();
         }
 
         final List<String> ret = new ArrayList<>(aliases.size());
 
-        for(final AliasMetaData amd: aliases) {
-            if(amd != null) {
+        for (final AliasMetaData amd : aliases) {
+            if (amd != null) {
                 ret.add(amd.alias());
             }
         }

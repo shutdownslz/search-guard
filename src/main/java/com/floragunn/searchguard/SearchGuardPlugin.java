@@ -137,6 +137,7 @@ import com.floragunn.searchguard.http.SearchGuardNonSslHttpServerTransport;
 import com.floragunn.searchguard.http.XFFResolver;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer;
 import com.floragunn.searchguard.rest.KibanaInfoAction;
+import com.floragunn.searchguard.rest.PermissionAction;
 import com.floragunn.searchguard.rest.SearchGuardHealthAction;
 import com.floragunn.searchguard.rest.SearchGuardInfoAction;
 import com.floragunn.searchguard.rest.SearchGuardLicenseAction;
@@ -418,7 +419,8 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             handlers.add(new KibanaInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool)));
             handlers.add(new SearchGuardLicenseAction(settings, restController));
             handlers.add(new SearchGuardHealthAction(settings, restController, Objects.requireNonNull(backendRegistry)));
-
+            handlers.add(new PermissionAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool)));
+            
             Collection<RestHandler> apiHandler = ReflectionHelper
                     .instantiateMngtRestApiHandler(settings, configPath, restController, localClient, adminDns, cr, cs, Objects.requireNonNull(principalExtractor),  evaluator, threadPool, Objects.requireNonNull(auditLog));
             handlers.addAll(apiHandler);
