@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -41,13 +42,13 @@ public class SearchGuardNonSslHttpServerTransport extends Netty4HttpServerTransp
 
     @Override
     public ChannelHandler configureServerChannelHandler() {
-        return new NonSslHttpChannelHandler(this);
+        return new NonSslHttpChannelHandler(this, handlingSettings);
     }
 
     protected class NonSslHttpChannelHandler extends Netty4HttpServerTransport.HttpChannelHandler {
         
-        protected NonSslHttpChannelHandler(Netty4HttpServerTransport transport) {
-            super(transport, SearchGuardNonSslHttpServerTransport.this.detailedErrorsEnabled, SearchGuardNonSslHttpServerTransport.this.threadContext);
+        protected NonSslHttpChannelHandler(Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
+            super(transport, handlingSettings);
         }
 
         @Override

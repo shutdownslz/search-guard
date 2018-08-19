@@ -632,10 +632,6 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                             sgi.getHandler(action, actualHandler).messageReceived(request, channel, task);
                         }
 
-                        @Override
-                        public void messageReceived(T request, TransportChannel channel) throws Exception {
-                            sgi.getHandler(action, actualHandler).messageReceived(request, channel);
-                        }
                     };
 
                 }
@@ -673,8 +669,8 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-            NamedXContentRegistry xContentRegistry, NetworkService networkService, Dispatcher dispatcher) {
+            PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService, NamedXContentRegistry xContentRegistry,
+            NetworkService networkService, Dispatcher dispatcher) {
 
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<String, Supplier<HttpServerTransport>>(1);
 

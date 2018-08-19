@@ -280,7 +280,7 @@ public final class ClusterHelper {
 				.putList("discovery.zen.ping.unicast.hosts", tcpPorts.stream().map(s->"127.0.0.1:"+s).collect(Collectors.toList()))
 				.put("transport.tcp.port", tcpPort)
 				.put("http.port", httpPort)
-				.put("http.enabled", true)
+				//.put("http.enabled", true)
 				.put("cluster.routing.allocation.disk.threshold_enabled", false)
 				.put("http.cors.enabled", true)
 				.put("path.home", ".");

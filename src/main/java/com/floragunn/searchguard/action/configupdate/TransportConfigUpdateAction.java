@@ -54,11 +54,10 @@ TransportNodesAction<ConfigUpdateRequest, ConfigUpdateResponse, TransportConfigU
     @Inject
     public TransportConfigUpdateAction(final Settings settings,
             final ThreadPool threadPool, final ClusterService clusterService, final TransportService transportService,
-            final IndexBaseConfigurationRepository configurationRepository, final ActionFilters actionFilters, final IndexNameExpressionResolver indexNameExpressionResolver,
-            Provider<BackendRegistry> backendRegistry) {
-        
+            final IndexBaseConfigurationRepository configurationRepository, final ActionFilters actionFilters,
+            Provider<BackendRegistry> backendRegistry) {        
         super(settings, ConfigUpdateAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ConfigUpdateRequest::new, TransportConfigUpdateAction.NodeConfigUpdateRequest::new,
+                ConfigUpdateRequest::new, TransportConfigUpdateAction.NodeConfigUpdateRequest::new,
                 ThreadPool.Names.MANAGEMENT, ConfigUpdateNodeResponse.class);
 
         this.configurationRepository = configurationRepository;

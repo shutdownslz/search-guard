@@ -20,18 +20,13 @@ package com.floragunn.searchguard.action.licenseinfo;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class LicenseInfoAction extends Action<LicenseInfoRequest, LicenseInfoResponse, LicenseInfoRequestBuilder> {
+public class LicenseInfoAction extends Action<LicenseInfoResponse> {
 
     public static final LicenseInfoAction INSTANCE = new LicenseInfoAction();
     public static final String NAME = "cluster:admin/searchguard/license/info";
 
     protected LicenseInfoAction() {
         super(NAME);
-    }
-
-    @Override
-    public LicenseInfoRequestBuilder newRequestBuilder(final ElasticsearchClient client) {
-        return new LicenseInfoRequestBuilder(client, this);
     }
 
     @Override

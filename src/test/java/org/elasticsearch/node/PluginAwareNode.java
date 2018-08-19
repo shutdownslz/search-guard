@@ -28,7 +28,7 @@ public class PluginAwareNode extends Node {
 
     @SafeVarargs
     public PluginAwareNode(boolean masterEligible, final Settings preparedSettings, final Class<? extends Plugin>... plugins) {
-        super(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Arrays.asList(plugins));
+        super(InternalSettingsPreparer.prepareEnvironment(preparedSettings), Arrays.asList(plugins));
         this.masterEligible = masterEligible;
     }
 

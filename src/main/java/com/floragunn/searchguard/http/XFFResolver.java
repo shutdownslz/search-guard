@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,12 +48,12 @@ public class XFFResolver implements ConfigurationChangeListener {
     public TransportAddress resolve(final RestRequest request) throws ElasticsearchSecurityException {
         
         if(log.isTraceEnabled()) {
-            log.trace("resolve {}", request.getRemoteAddress());
+            log.trace("resolve {}", request.getHttpChannel().getRemoteAddress());
         }
         
-        if(enabled && request.getRemoteAddress() instanceof InetSocketAddress && request instanceof Netty4HttpRequest) {
+        if(enabled && request.getHttpChannel().getRemoteAddress() instanceof InetSocketAddress && request.getHttpChannel() instanceof Netty4HttpChannel) {
 
-            final InetSocketAddress isa = new InetSocketAddress(detector.detect((Netty4HttpRequest) request, threadContext), ((InetSocketAddress)request.getRemoteAddress()).getPort());
+            final InetSocketAddress isa = new InetSocketAddress(detector.detect(request, threadContext), ((InetSocketAddress)request.getHttpChannel().getRemoteAddress()).getPort());
         
             if(isa.isUnresolved()) {           
                 throw new ElasticsearchSecurityException("Cannot resolve address "+isa.getHostString());
@@ -61,21 +62,21 @@ public class XFFResolver implements ConfigurationChangeListener {
              
             if(log.isTraceEnabled()) {
                 if(threadContext.getTransient(ConfigConstants.SG_XFF_DONE) == Boolean.TRUE) {
-                    log.trace("xff resolved {} to {}", request.getRemoteAddress(), isa);
+                    log.trace("xff resolved {} to {}", request.getHttpChannel().getRemoteAddress(), isa);
                 } else {
                     log.trace("no xff done for {}",request.getClass());
                 }
             }
             return new TransportAddress(isa);
-        } else if(request.getRemoteAddress() instanceof InetSocketAddress){
+        } else if(request.getHttpChannel().getRemoteAddress() instanceof InetSocketAddress){
             
             if(log.isTraceEnabled()) {
                 log.trace("no xff done (enabled or no netty request) {},{},{},{}",enabled, request.getClass());
 
             }
-            return new TransportAddress((InetSocketAddress)request.getRemoteAddress());
+            return new TransportAddress((InetSocketAddress)request.getHttpChannel().getRemoteAddress());
         } else {
-            throw new ElasticsearchSecurityException("Cannot handle this request. Remote address is "+request.getRemoteAddress()+" with request class "+request.getClass());
+            throw new ElasticsearchSecurityException("Cannot handle this request. Remote address is "+request.getHttpChannel().getRemoteAddress()+" with request class "+request.getClass());
         }
     }
 

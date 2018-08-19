@@ -46,10 +46,10 @@ TransportNodesAction<LicenseInfoRequest, LicenseInfoResponse, TransportLicenseIn
     @Inject
     public TransportLicenseInfoAction(final Settings settings,
             final ThreadPool threadPool, final ClusterService clusterService, final TransportService transportService,
-            final IndexBaseConfigurationRepository configurationRepository, final ActionFilters actionFilters, final IndexNameExpressionResolver indexNameExpressionResolver) {
+            final IndexBaseConfigurationRepository configurationRepository, final ActionFilters actionFilters) {
         
         super(settings, LicenseInfoAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, LicenseInfoRequest::new, TransportLicenseInfoAction.NodeLicenseRequest::new,
+                LicenseInfoRequest::new, TransportLicenseInfoAction.NodeLicenseRequest::new,
                 ThreadPool.Names.MANAGEMENT, LicenseInfoNodeResponse.class);
 
         this.configurationRepository = configurationRepository;
