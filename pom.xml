@@ -18,7 +18,11 @@
 
   <artifactId>search-guard-6</artifactId>
   <packaging>jar</packaging>
-  <!-- 6.x.y-a.b-->
+  <!-- When performing a automated release "version" must be something like:
+       <esversion>-<sgversion>-SNAPSHOT
+       
+       Example: 6.3.2-23.1-SNAPSHOT
+  -->
   <version>6.3.2-23.1-SNAPSHOT</version>
   <name>Search Guard</name>
   <description>Provide access control related features for Elasticsearch 6</description>
@@ -34,8 +38,23 @@
   </licenses>
 
   <properties>
+     <!-- When performing a automated release "sgssl.version" must be something like:
+          <esversion>-<sgsslversion>
+       
+          Example: 6.3.2-25.4
+          
+          (Must be a already released and not a SNAPSHOT version)
+     -->
     <sgssl.version>6.3.2-25.4</sgssl.version>
-    <enterprise-modules.version>6.3.2-32.1</enterprise-modules.version>
+    
+    <!--  When performing a automated release "enterprise-modules.version" must be something like:
+          <esversion>-<sgenterpriseversion>-SNAPSHOT
+       
+          Example: 6.3.2-32.1-SNAPSHOT
+          
+          (Creating a "api" version and release is handled automatically by the release scripts)
+     -->
+    <enterprise-modules.version>6.3.2-32.1-SNAPSHOT</enterprise-modules.version>
     <elasticsearch.version>6.3.2</elasticsearch.version>
     
     <!-- deps -->
