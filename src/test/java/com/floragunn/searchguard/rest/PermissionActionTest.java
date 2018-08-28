@@ -35,6 +35,13 @@ public class PermissionActionTest extends SingleClusterTest {
         Assert.assertTrue(response.getBody().matches(".*\"kibana:saved_objects/x/read\":\\s*true.*"));        
         Assert.assertTrue(response.getBody().matches(".*\"kibana:saved_objects/x/write\":\\s*true.*"));
         Assert.assertTrue(response.getBody().matches(".*\"kibana:foo/foo\":\\s*false.*"));
+        
+        response = rh.executeGetRequest("_searchguard/permission?permissions=kibana:visualisations/foo/bar,kibana:graph/qux/quz,kibana:foo/foo", encodeBasicHeader("kirk", "kirk"));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, response.getStatusCode());
+        Assert.assertTrue(response.getBody().matches(".*\"kibana:visualisations/foo/bar\":\\s*true.*"));        
+        Assert.assertTrue(response.getBody().matches(".*\"kibana:graph/qux/quz\":\\s*true.*"));
+        Assert.assertTrue(response.getBody().matches(".*\"kibana:foo/foo\":\\s*false.*"));
     }
 
 }

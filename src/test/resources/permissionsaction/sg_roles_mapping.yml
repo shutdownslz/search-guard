@@ -5,3 +5,7 @@ sg_so_read:
 sg_so_readwrite:
   users:
     - kirk
+
+sg_vg_all:
+  users:
+    - kirk
