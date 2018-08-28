@@ -1,0 +1,9 @@
+sg_so_read:
+  applications:
+    - kibana:saved_objects/*/read
+    - kibana:foo/bar
+
+sg_so_readwrite:
+  applications:
+    - kibana:saved_objects/*
+    - kibana:foo/bar

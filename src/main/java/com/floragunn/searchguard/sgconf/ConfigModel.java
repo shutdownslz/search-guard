@@ -75,7 +75,7 @@ public class ConfigModel {
             _sgRole.addClusterPerms(permittedClusterActions);
 
             Set<String> applicationPerms = ah
-                    .resolvedActions(sgRoleSettings.getAsList(".application", Collections.emptyList()));
+                    .resolvedActions(sgRoleSettings.getAsList(".applications", Collections.emptyList()));
             _sgRole.addApplicationPerms(applicationPerms);
 
             Settings tenants = settings.getByPrefix(sgRole + ".tenants.");
@@ -90,15 +90,15 @@ public class ConfigModel {
                     Settings tenantSettings = tenants.getAsSettings(tenant);
 
                     if (!tenantSettings.isEmpty()) {
-                        List<String> permissions = tenantSettings.getAsList("application");
-                        
+                        List<String> permissions = tenantSettings.getAsList("applications");
+
                         if (!permissions.isEmpty()) {
                             _sgRole.addTenant(new Tenant(tenant, new HashSet<>(permissions)));
                         }
                     } else {
 
                         // Legacy config
-                        
+
                         // TODO check if used permissions are right
 
                         if ("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
@@ -535,7 +535,8 @@ public class ConfigModel {
         public String toString() {
             return System.lineSeparator() + "  " + name + System.lineSeparator() + "    tenants=" + tenants
                     + System.lineSeparator() + "    ipatterns=" + ipatterns + System.lineSeparator()
-                    + "    clusterPerms=" + clusterPerms;
+                    + "    clusterPerms=" + clusterPerms + System.lineSeparator() + " applicationPerms="
+                    + applicationPerms;
         }
 
         public Set<Tenant> getTenants(User user) {
