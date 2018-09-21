@@ -517,7 +517,15 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                         if(evalMap(allowedFlsFields, index().getName()) != null) {
                             return weight;
                         } else {
-                            return nodeCache.doCache(weight, policy);
+                            
+                            final Map<String, Set<String>> maskedFieldsMap = (Map<String, Set<String>>) HeaderHelper.deserializeSafeFromHeader(threadPool.getThreadContext(),
+                                    ConfigConstants.SG_MASKED_FIELD_HEADER);
+                            
+                            if(evalMap(maskedFieldsMap, index().getName()) != null) {
+                                return weight;
+                            } else {
+                                return nodeCache.doCache(weight, policy);
+                            }
                         }
                         
                     }
@@ -720,7 +728,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         DlsFlsRequestValve dlsFlsValve = ReflectionHelper.instantiateDlsFlsValve();
 
         final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
-        irr = new IndexResolverReplacer(resolver, clusterService);
+        irr = new IndexResolverReplacer(resolver, clusterService, cih);
         auditLog = ReflectionHelper.instantiateAuditLog(settings, configPath, localClient, threadPool, resolver, clusterService);
         complianceConfig = (dlsFlsAvailable && (auditLog.getClass() != NullAuditLog.class))?new ComplianceConfig(environment, Objects.requireNonNull(irr), auditLog):null;
         log.debug("Compliance config is "+complianceConfig+" because of dlsFlsAvailable: "+dlsFlsAvailable+" and auditLog="+auditLog.getClass());
