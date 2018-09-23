@@ -18,7 +18,7 @@
 
   <artifactId>search-guard-6</artifactId>
   <packaging>jar</packaging>
-  <version>6.3.2-23.1-SNAPSHOT</version>
+  <version>6.3.2-23.1-api-SNAPSHOT</version>
   <name>Search Guard</name>
   <description>Provide access control related features for Elasticsearch 6</description>
   <url>https://github.com/floragunncom/search-guard</url>
