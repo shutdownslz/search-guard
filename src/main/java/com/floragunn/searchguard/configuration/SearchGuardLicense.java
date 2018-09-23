@@ -22,8 +22,10 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
+import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -202,7 +204,7 @@ public final class SearchGuardLicense implements Writeable {
                 msgs.add("License is expired");
             } else {
                 isExpired = false;
-                expiresInDays = TimeUnit.DAYS.convert(exd.getTime()-now.getTime(), TimeUnit.MILLISECONDS); 
+                expiresInDays = diffDays(exd);
             }
             
         } catch (Exception e) {
@@ -294,6 +296,15 @@ public final class SearchGuardLicense implements Writeable {
         } catch (Exception e) {
             return e.toString();
         } 
+    }
+    
+    private static long diffDays(Date to) {  
+        Calendar date = new GregorianCalendar();
+        date.set(Calendar.HOUR_OF_DAY, 0);
+        date.set(Calendar.MINUTE, 0);
+        date.set(Calendar.SECOND, 0);
+        date.set(Calendar.MILLISECOND, 0);
+        return TimeUnit.DAYS.convert((to.getTime()+123)-date.getTime().getTime(), TimeUnit.MILLISECONDS);
     }
 
     public String getUid() {
