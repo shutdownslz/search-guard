@@ -210,7 +210,6 @@ public class SearchGuardRequestHandler<T extends TransportRequest> extends Searc
                     User user;
                     //try {
                         if((user = backendRegistry.authenticate(request, principal, task, task.getAction())) == null) {
-                            
                             org.apache.logging.log4j.ThreadContext.remove("user");
                            
                             if(task.getAction().equals(WhoAmIAction.NAME)) {

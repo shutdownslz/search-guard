@@ -139,7 +139,7 @@ public class SearchGuardFilter implements ActionFilter {
             if (user != null) {
                 org.apache.logging.log4j.ThreadContext.put("user", user.getName());    
             }
-
+                        
             if(actionTrace.isTraceEnabled()) {
 
                 String count = "";
@@ -202,7 +202,8 @@ public class SearchGuardFilter implements ActionFilter {
             }
 
             if(Origin.LOCAL.toString().equals(threadContext.getTransient(ConfigConstants.SG_ORIGIN))
-                    && (interClusterRequest || HeaderHelper.isDirectRequest(threadContext))) {
+                    && (interClusterRequest || HeaderHelper.isDirectRequest(threadContext))
+                    ) {
 
                 chain.proceed(task, action, request, listener);
                 return;
@@ -246,7 +247,7 @@ public class SearchGuardFilter implements ActionFilter {
             
             if (pres.isAllowed()) {
                 auditLog.logGrantedPrivileges(action, request, task);
-                if(!dlsFlsValve.invoke(request, listener, pres.getAllowedFlsFields(), pres.getQueries())) {
+                if(!dlsFlsValve.invoke(request, listener, pres.getAllowedFlsFields(), pres.getMaskedFields(), pres.getQueries())) {
                     return;
                 }
                 chain.proceed(task, action, request, listener);
