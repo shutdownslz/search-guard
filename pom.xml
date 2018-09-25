@@ -35,7 +35,7 @@
 
   <properties>
     <sgssl.version>6.1.2-25.2</sgssl.version>
-    <enterprise-modules.version>6.1.2-31.3</enterprise-modules.version>
+    <enterprise-modules.version>6.1.2-31.4-SNAPSHOT</enterprise-modules.version>
     <elasticsearch.version>6.1.2</elasticsearch.version>
     
     <!-- deps -->
