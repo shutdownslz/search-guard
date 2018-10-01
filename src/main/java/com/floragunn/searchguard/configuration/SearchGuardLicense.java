@@ -292,6 +292,8 @@ public final class SearchGuardLicense implements Writeable {
     
     private static String addDays(String date, long days) {
         try {
+            System.out.println("adding "+days+": "+new Date(parseDate(date).getTime()+(days*1000L*60L*60L*24L)));
+            System.out.println(new SimpleDateFormat("yyyy-MM-dd").format(new Date(parseDate(date).getTime()+(days*1000L*60L*60L*24L))));
             return new SimpleDateFormat("yyyy-MM-dd").format(new Date(parseDate(date).getTime()+(days*1000L*60L*60L*24L)));
         } catch (Exception e) {
             return e.toString();
@@ -304,7 +306,9 @@ public final class SearchGuardLicense implements Writeable {
         date.set(Calendar.MINUTE, 0);
         date.set(Calendar.SECOND, 0);
         date.set(Calendar.MILLISECOND, 0);
-        return TimeUnit.DAYS.convert((to.getTime()+123)-date.getTime().getTime(), TimeUnit.MILLISECONDS);
+        System.out.println("diffing1 "+date);
+        System.out.println("diffing2 "+to);
+        return TimeUnit.DAYS.convert((to.getTime())-date.getTime().getTime(), TimeUnit.MILLISECONDS);
     }
 
     public String getUid() {
