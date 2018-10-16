@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Arrays;
+import java.util.Objects;
 
 import javax.net.ssl.SSLContext;
 
@@ -66,12 +67,12 @@ public class RestHelper {
 	private ClusterInfo clusterInfo;
 	
 	public RestHelper(ClusterInfo clusterInfo, String prefix) {
-		this.clusterInfo = clusterInfo;
+		this.clusterInfo = Objects.requireNonNull(clusterInfo);
 		this.prefix = prefix;
 	}
 	
 	public RestHelper(ClusterInfo clusterInfo, boolean enableHTTPClientSSL, boolean trustHTTPServerCertificate, String prefix) {
-		this.clusterInfo = clusterInfo;
+		this.clusterInfo = Objects.requireNonNull(clusterInfo);
 		this.enableHTTPClientSSL = enableHTTPClientSSL;
 		this.trustHTTPServerCertificate = trustHTTPServerCertificate;
 		this.prefix = prefix;

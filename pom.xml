@@ -34,7 +34,6 @@
   </licenses>
 
   <properties>
-    <sgssl.version>6.x-HEAD-SNAPSHOT</sgssl.version>
     <enterprise-modules.version>6.x-enterprise-HEAD-SNAPSHOT</enterprise-modules.version>
     <elasticsearch.version>6.4.0</elasticsearch.version>
     
@@ -67,12 +66,6 @@
   </issueManagement>
 
   <dependencies>
-    <!-- Search Guard SSL -->
-    <dependency>
-      <groupId>com.floragunn</groupId>
-      <artifactId>search-guard-ssl</artifactId>
-      <version>${sgssl.version}</version>
-    </dependency>
 
     <!-- Netty 4 transport -->
     <dependency>

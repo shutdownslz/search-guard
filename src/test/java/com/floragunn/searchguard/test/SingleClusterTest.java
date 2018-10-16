@@ -31,6 +31,10 @@ public abstract class SingleClusterTest extends AbstractSGUnitTest {
     protected ClusterHelper clusterHelper = new ClusterHelper("utest_n"+num.incrementAndGet()+"_f"+System.getProperty("forkno")+"_t"+System.nanoTime());
     protected ClusterInfo clusterInfo;
     
+    protected void setupSslOnly(Settings nodeOverride) throws Exception {    
+        clusterInfo = clusterHelper.startCluster(minimumSearchGuardSettings(nodeOverride, true), ClusterConfiguration.DEFAULT);
+    }
+    
     protected void setup(Settings nodeOverride) throws Exception {    
         setup(Settings.EMPTY, new DynamicSgConfig(), nodeOverride, true);
     }

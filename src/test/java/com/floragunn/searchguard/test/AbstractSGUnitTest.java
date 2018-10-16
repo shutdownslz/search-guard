@@ -81,11 +81,7 @@ public abstract class AbstractSGUnitTest {
 	
 	protected final Logger log = LogManager.getLogger(this.getClass());
     public static final ThreadPool MOCK_POOL = new ThreadPool(Settings.builder().put("node.name",  "mock").build());
-	
-    //TODO Test Matrix
-    protected boolean allowOpenSSL = false; //disabled, we test this already in SSL Plugin
-    //enable//disable enterprise modules
-    //1node and 3 node
+
     
 	@Rule
 	public TestName name = new TestName();
@@ -195,32 +191,41 @@ public abstract class AbstractSGUnitTest {
         }
     }
     
-    protected Settings.Builder minimumSearchGuardSettingsBuilder(int node) {
+    protected Settings.Builder minimumSearchGuardSettingsBuilder(int node, boolean sslOnly) {
         
         final String prefix = getResourceFolder()==null?"":getResourceFolder()+"/";
         
-        return Settings.builder()
+        Settings.Builder sb = Settings.builder()
                 //.put("searchguard.ssl.transport.enabled", true)
                  //.put("searchguard.no_default_init", true)
                 //.put("searchguard.ssl.http.enable_openssl_if_available", false)
                 //.put("searchguard.ssl.transport.enable_openssl_if_available", false)
-                .put(SSLConfigConstants.SEARCHGUARD_SSL_HTTP_ENABLE_OPENSSL_IF_AVAILABLE, allowOpenSSL)
-                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLE_OPENSSL_IF_AVAILABLE, allowOpenSSL)
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_HTTP_ENABLE_OPENSSL_IF_AVAILABLE, enableOpenssl())
+                .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLE_OPENSSL_IF_AVAILABLE, enableOpenssl())
                 .put("searchguard.ssl.transport.keystore_alias", "node-0")
                 .put("searchguard.ssl.transport.keystore_filepath",
                         FileHelper.getAbsoluteFilePathFromClassPath(prefix+"node-0-keystore.jks"))
                 .put("searchguard.ssl.transport.truststore_filepath",
                         FileHelper.getAbsoluteFilePathFromClassPath(prefix+"truststore.jks"))
-                .put("searchguard.ssl.transport.enforce_hostname_verification", false)
-                .putList("searchguard.authcz.admin_dn", "CN=kirk,OU=client,O=client,l=tEst, C=De");
-                //.put(other==null?Settings.EMPTY:other);
+                .put("searchguard.ssl.transport.enforce_hostname_verification", false);
+        
+                if(!sslOnly) {
+                    sb.putList("searchguard.authcz.admin_dn", "CN=kirk,OU=client,O=client,l=tEst, C=De");
+                }
+        
+                
+                return sb;
     }
     
     protected NodeSettingsSupplier minimumSearchGuardSettings(Settings other) {
+        return minimumSearchGuardSettings(other, false);
+    }
+    
+    protected NodeSettingsSupplier minimumSearchGuardSettings(Settings other, boolean sslOnly) {
         return new NodeSettingsSupplier() {
             @Override
             public Settings get(int i) {
-                return minimumSearchGuardSettingsBuilder(i).put(other).build();
+                return minimumSearchGuardSettingsBuilder(i, sslOnly).put(other).build();
             }
         };
     }
@@ -239,5 +244,9 @@ public abstract class AbstractSGUnitTest {
     
     protected String getResourceFolder() {
         return null;
+    }
+    
+    protected boolean enableOpenssl() {
+        return false;
     }
 }
