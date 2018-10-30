@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import com.floragunn.searchguard.configuration.SearchGuardLicense;
@@ -95,11 +94,9 @@ public class LicenseTests extends SingleClusterTest {
     }
     
     @Test
-    @Ignore //ITT-1651
     public void testComplianceLicense() throws Exception {
-      
-        final String now = new SimpleDateFormat("yyyy-MM-dd").format(new Date());
-        SearchGuardLicense license = SearchGuardLicense.createTrialLicense(now, cs, "");
+
+        SearchGuardLicense license = SearchGuardLicense.createTrialLicense(new SimpleDateFormat("yyyy-MM-dd").format(new Date()), cs, "");
         
         Assert.assertTrue(license.hasFeature(Feature.COMPLIANCE));
         Assert.assertArrayEquals(license.getFeatures(), Feature.values());
