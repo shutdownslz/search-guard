@@ -16,7 +16,7 @@
     <version>6.22.1</version>
   </parent>
 
-  <artifactId>search-guard-6</artifactId>
+  <artifactId>search-guard-7</artifactId>
   <packaging>jar</packaging>
   <!-- 6.x.y-a.b-->
   <version>7.x-HEAD-SNAPSHOT</version>
@@ -35,11 +35,11 @@
 
   <properties>
     <sgssl.version>7.x-HEAD-SNAPSHOT</sgssl.version>
-    <enterprise-modules.version>6.x-enterprise-HEAD-SNAPSHOT</enterprise-modules.version>
-    <elasticsearch.version>7.0.0-alpha1-SNAPSHOT</elasticsearch.version>
+    <enterprise-modules.version>7.x-enterprise-HEAD-SNAPSHOT</enterprise-modules.version>
+    <elasticsearch.version>7.0.0-alpha1</elasticsearch.version>
     
     <!-- deps -->
-    <netty-native.version>2.0.12.Final</netty-native.version>
+    <netty-native.version>2.0.15.Final</netty-native.version>
     <bc.version>1.60</bc.version>
     <log4j.version>2.11.1</log4j.version>
     <guava.version>25.1-jre</guava.version>
@@ -51,14 +51,14 @@
     <veracode.descriptor>${basedir}/src/main/assemblies/veracode.xml</veracode.descriptor>
     
     <!-- Test only -->
-    <mockito.version>1.10.19</mockito.version>
+    <mockito.version>2.23.0</mockito.version>
   </properties>
   
   <repositories>
     <repository>
       <id>elastic-lucene-snapshots</id>
       <name>Elastic Lucene Snapshots</name>
-      <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/13b9e28f9d</url>
+      <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/6d9c714052</url>
       <releases><enabled>true</enabled></releases>
       <snapshots><enabled>false</enabled></snapshots>
     </repository>
@@ -210,7 +210,7 @@
     
     <dependency>
       <groupId>org.mockito</groupId>
-      <artifactId>mockito-all</artifactId>
+      <artifactId>mockito-core</artifactId>
       <version>${mockito.version}</version>
       <scope>test</scope>
     </dependency>

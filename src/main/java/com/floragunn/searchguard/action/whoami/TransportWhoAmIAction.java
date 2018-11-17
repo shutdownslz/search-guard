@@ -45,7 +45,7 @@ HandledTransportAction<WhoAmIRequest, WhoAmIResponse> {
             final ThreadPool threadPool, final ClusterService clusterService, final TransportService transportService,
             final AdminDNs adminDNs, final ActionFilters actionFilters) {
 
-        super(settings, WhoAmIAction.NAME, transportService, actionFilters, WhoAmIRequest::new);
+        super(WhoAmIAction.NAME, transportService, actionFilters, WhoAmIRequest::new);
 
         this.adminDNs = adminDNs;
         this.threadPool = threadPool;

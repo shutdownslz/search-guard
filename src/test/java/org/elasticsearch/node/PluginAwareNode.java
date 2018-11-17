@@ -18,6 +18,7 @@
 package org.elasticsearch.node;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -28,7 +29,7 @@ public class PluginAwareNode extends Node {
 
     @SafeVarargs
     public PluginAwareNode(boolean masterEligible, final Settings preparedSettings, final Class<? extends Plugin>... plugins) {
-        super(InternalSettingsPreparer.prepareEnvironment(preparedSettings), Arrays.asList(plugins));
+    	super(InternalSettingsPreparer.prepareEnvironment(preparedSettings, Collections.emptyMap(), null, () -> System.getenv("HOSTNAME")), Arrays.asList(plugins), true);
         this.masterEligible = masterEligible;
     }
 

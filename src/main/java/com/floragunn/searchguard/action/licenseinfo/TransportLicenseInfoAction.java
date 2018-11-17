@@ -48,7 +48,7 @@ TransportNodesAction<LicenseInfoRequest, LicenseInfoResponse, TransportLicenseIn
             final ThreadPool threadPool, final ClusterService clusterService, final TransportService transportService,
             final IndexBaseConfigurationRepository configurationRepository, final ActionFilters actionFilters) {
         
-        super(settings, LicenseInfoAction.NAME, threadPool, clusterService, transportService, actionFilters,
+        super(LicenseInfoAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 LicenseInfoRequest::new, TransportLicenseInfoAction.NodeLicenseRequest::new,
                 ThreadPool.Names.MANAGEMENT, LicenseInfoNodeResponse.class);
 

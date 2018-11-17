@@ -287,7 +287,7 @@ public class PrivilegesEvaluator {
         // term aggregations
         if (termsAggregationEvaluator.evaluate(request, clusterService, user, sgRoles, resolver, presponse) .isComplete()) {
             return presponse;
-        }        
+        }
 
         final Set<String> allIndexPermsRequired = evaluateAdditionalIndexPermissions(request, action0);
         final String[] allIndexPermsRequiredA = allIndexPermsRequired.toArray(new String[0]);

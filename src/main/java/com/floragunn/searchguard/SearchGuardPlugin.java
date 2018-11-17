@@ -47,6 +47,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -670,7 +671,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         
         if (transportSSLEnabled) {
             transports.put("com.floragunn.searchguard.ssl.http.netty.SearchGuardSSLNettyTransport",
-                    () -> new SearchGuardSSLNettyTransport(settings, threadPool, networkService, bigArrays, namedWriteableRegistry,
+                    () -> new SearchGuardSSLNettyTransport(settings, Version.CURRENT, threadPool, networkService, bigArrays, namedWriteableRegistry,
                             circuitBreakerService, sgks, evaluateSslExceptionHandler()));
         }
         return transports;
@@ -682,7 +683,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             NetworkService networkService, Dispatcher dispatcher) {
 
         if(sslOnly) {
-            return super.getHttpTransports(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, dispatcher);
+            return super.getHttpTransports(settings, threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher);
         }
         
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<String, Supplier<HttpServerTransport>>(1);
@@ -731,7 +732,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
         DlsFlsRequestValve dlsFlsValve = ReflectionHelper.instantiateDlsFlsValve();
 
-        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
+        final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
         irr = new IndexResolverReplacer(resolver, clusterService, cih);
         auditLog = ReflectionHelper.instantiateAuditLog(settings, configPath, localClient, threadPool, resolver, clusterService);
         complianceConfig = (dlsFlsAvailable && (auditLog.getClass() != NullAuditLog.class))?new ComplianceConfig(environment, Objects.requireNonNull(irr), auditLog):null;
