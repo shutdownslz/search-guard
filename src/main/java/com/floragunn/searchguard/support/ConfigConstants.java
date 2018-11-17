@@ -73,6 +73,8 @@ public class ConfigConstants {
     public static final String SG_USER = SG_CONFIG_PREFIX+"user";
     public static final String SG_USER_HEADER = SG_CONFIG_PREFIX+"user_header";
 
+    public static final String SG_INJECTED_USER = "injected_user";
+    
     public static final String SG_XFF_DONE = SG_CONFIG_PREFIX+"xff_done";
 
     public static final String SSO_LOGOUT_URL = SG_CONFIG_PREFIX+"sso_logout_url";
@@ -99,6 +101,7 @@ public class ConfigConstants {
     public final static String CONFIGNAME_CONFIG = "config";
     public final static String CONFIGKEY_ACTION_GROUPS_PERMISSIONS = "permissions";
     public final static String CONFIGKEY_READONLY = "readonly";
+    public final static String CONFIGKEY_HIDDEN = "hidden";
 
     public final static List<String> CONFIG_NAMES = Collections.unmodifiableList(Arrays.asList(new String[] {CONFIGNAME_ROLES, CONFIGNAME_ROLES_MAPPING,
             CONFIGNAME_ACTION_GROUPS, CONFIGNAME_INTERNAL_USERS, CONFIGNAME_CONFIG}));
@@ -191,9 +194,10 @@ public class ConfigConstants {
     public static final String SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION  = "searchguard.compliance.disable_anonymous_authentication";
     public static final String SEARCHGUARD_COMPLIANCE_IMMUTABLE_INDICES = "searchguard.compliance.immutable_indices";
     public static final String SEARCHGUARD_COMPLIANCE_SALT = "searchguard.compliance.salt";
-    public static final String SEARCHGUARD_COMPLIANCE_SALT_DEAULT = "e1ukloTsQlOgPquJKb6Fs0d5ICGW9IAQ"; //32 chars
+    public static final String SEARCHGUARD_COMPLIANCE_SALT_DEFAULT = "e1ukloTsQlOgPquJ";//16 chars
     public static final String SEARCHGUARD_COMPLIANCE_HISTORY_INTERNAL_CONFIG_ENABLED  = "searchguard.compliance.history.internal_config_enabled";
 
+    public static final String SEARCHGUARD_SSL_ONLY = "searchguard.ssl_only";
     
     public enum RolesMappingResolution {
         MAPPING_ONLY,
@@ -213,5 +217,7 @@ public class ConfigConstants {
     public static final String SEARCHGUARD_UNSUPPORTED_RESTAPI_ACCEPT_INVALID_LICENSE = "searchguard.unsupported.restapi.accept_invalid_license";
     public static final String SEARCHGUARD_UNSUPPORTED_DISABLE_REST_AUTH_INITIALLY = "searchguard.unsupported.disable_rest_auth_initially";
     public static final String SEARCHGUARD_UNSUPPORTED_DISABLE_INTERTRANSPORT_AUTH_INITIALLY = "searchguard.unsupported.disable_intertransport_auth_initially";
-
+    public static final String SEARCHGUARD_UNSUPPORTED_RESTORE_SGINDEX_ENABLED = "searchguard.unsupported.restore.sgindex.enabled";
+    public static final String SEARCHGUARD_UNSUPPORTED_INJECT_USER_ENABLED = "searchguard.unsupported.inject_user.enabled";
+    public static final String SEARCHGUARD_UNSUPPORTED_INJECT_ADMIN_USER_ENABLED = "searchguard.unsupported.inject_user.admin.enabled";
 }
