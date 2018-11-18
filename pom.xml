@@ -13,7 +13,7 @@
   <parent>
     <groupId>com.floragunn</groupId>
     <artifactId>search-guard-parent</artifactId>
-    <version>6.22.0</version>
+    <version>6.22.1</version>
   </parent>
 
   <artifactId>search-guard-6</artifactId>
@@ -251,6 +251,7 @@
                 <phase>package</phase>
                 <configuration>
                   <appendAssemblyId>false</appendAssemblyId>
+                  <tarLongFileMode>posix</tarLongFileMode>
                   <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                   <descriptors>
                     <descriptor>${elasticsearch.assembly.descriptor}</descriptor>
@@ -265,6 +266,7 @@
                 <phase>package</phase>
                 <configuration>
                   <appendAssemblyId>true</appendAssemblyId>
+                  <tarLongFileMode>posix</tarLongFileMode>
                   <outputDirectory>${project.build.directory}/releases/</outputDirectory>
                   <descriptors>
                     <descriptor>${sgstandalone.descriptor}</descriptor>
@@ -350,6 +352,7 @@
                 <phase>package</phase>
                 <configuration>
                   <appendAssemblyId>true</appendAssemblyId>
+                  <tarLongFileMode>posix</tarLongFileMode>
                   <outputDirectory>${project.build.directory}/veracode/</outputDirectory>
                   <descriptors>
                     <descriptor>${veracode.descriptor}</descriptor>
