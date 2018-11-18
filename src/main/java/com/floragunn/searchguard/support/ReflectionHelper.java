@@ -47,8 +47,8 @@ import com.floragunn.searchguard.compliance.ComplianceIndexingOperationListener;
 import com.floragunn.searchguard.configuration.AdminDNs;
 import com.floragunn.searchguard.configuration.DlsFlsRequestValve;
 import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
-import com.floragunn.searchguard.configuration.PrivilegesEvaluator;
-import com.floragunn.searchguard.configuration.PrivilegesInterceptor;
+import com.floragunn.searchguard.privileges.PrivilegesEvaluator;
+import com.floragunn.searchguard.privileges.PrivilegesInterceptor;
 import com.floragunn.searchguard.ssl.transport.DefaultPrincipalExtractor;
 import com.floragunn.searchguard.ssl.transport.PrincipalExtractor;
 import com.floragunn.searchguard.transport.DefaultInterClusterRequestEvaluator;
@@ -66,6 +66,26 @@ public class ReflectionHelper {
 
     private static boolean enterpriseModulesDisabled() {
         return !enterpriseModulesEnabled;
+    }
+
+    public static void registerMngtRestApiHandler(final Settings settings) {
+
+        if (enterpriseModulesDisabled()) {
+            return;
+        }
+        
+        if(!settings.getAsBoolean("http.enabled", true)) {
+    
+            try {
+                final Class<?> clazz = Class.forName("com.floragunn.searchguard.dlic.rest.api.SearchGuardRestApiActions");
+                addLoadedModule(clazz);
+            } catch (final Throwable e) {
+                log.warn("Unable to register Rest Management Api Module due to {}", e.toString());
+                if(log.isDebugEnabled()) {
+                    log.debug("Stacktrace: ",e);
+                }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
