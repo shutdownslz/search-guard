@@ -42,6 +42,7 @@ import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.configuration.LicenseChangeListener;
 import com.floragunn.searchguard.configuration.SearchGuardLicense;
 import com.floragunn.searchguard.configuration.SearchGuardLicense.Feature;
+import com.floragunn.searchguard.configuration.SearchGuardLicense.Type;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.support.ConfigConstants;
@@ -73,6 +74,7 @@ public class ComplianceConfig implements LicenseChangeListener {
     private final AuditLog auditLog;
     private volatile boolean enabled = true;
     private volatile boolean externalConfigLogged = false;
+    private volatile boolean oem = false;
 
     public ComplianceConfig(final Environment environment, final IndexResolverReplacer irr, final AuditLog auditLog) {
         super();
@@ -159,6 +161,12 @@ public class ComplianceConfig implements LicenseChangeListener {
             } else {
                 this.enabled = false;
             }
+            
+            if(license.getType() == Type.OEM) {
+            	this.oem = true;
+            } else {
+            	this.oem = false;
+            }
         }
         
         log.info("Compliance features are "+(this.enabled?"enabled":"disabled. To enable them you need a special license. Please contact support for this."));
@@ -172,6 +180,10 @@ public class ComplianceConfig implements LicenseChangeListener {
 
     public boolean isEnabled() {
         return this.enabled;
+    }
+    
+    public boolean isOem() {
+        return this.oem;
     }
 
     //cached

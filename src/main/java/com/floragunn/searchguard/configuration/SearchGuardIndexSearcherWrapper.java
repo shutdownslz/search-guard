@@ -53,43 +53,49 @@ public class SearchGuardIndexSearcherWrapper extends IndexSearcherWrapper {
     @Override
     public final DirectoryReader wrap(final DirectoryReader reader) throws IOException {
 
-        if (isSearchGuardIndexRequest() && !isAdminAuthenticatedOrInternalRequest()) {
+        if (isSearchGuardIndexRequest() && evaluateRequestType() == RequestType.NORMAL) {
             return new EmptyFilterLeafReader.EmptyDirectoryReader(reader);
         }
 
 
-        return dlsFlsWrap(reader, isAdminAuthenticatedOrInternalRequest());
+        return dlsFlsWrap(reader, evaluateRequestType());
     }
 
     @Override
     public final IndexSearcher wrap(final IndexSearcher searcher) throws EngineException {
-        return dlsFlsWrap(searcher, isAdminAuthenticatedOrInternalRequest());
+        return dlsFlsWrap(searcher, evaluateRequestType());
     }
 
-    protected IndexSearcher dlsFlsWrap(final IndexSearcher searcher, boolean isAdmin) throws EngineException {
+    protected IndexSearcher dlsFlsWrap(final IndexSearcher searcher, RequestType requestType) throws EngineException {
         return searcher;
     }
 
-    protected DirectoryReader dlsFlsWrap(final DirectoryReader reader, boolean isAdmin) throws IOException {
+    protected DirectoryReader dlsFlsWrap(final DirectoryReader reader, RequestType requestType) throws IOException {
         return reader;
     }
 
-    protected final boolean isAdminAuthenticatedOrInternalRequest() {
+    protected final RequestType evaluateRequestType() {
 
         final User user = (User) threadContext.getTransient(ConfigConstants.SG_USER);
 
         if (user != null && adminDns.isAdmin(user)) {
-            return true;
+            return RequestType.ADMIN;
         }
-
+        
         if ("true".equals(HeaderHelper.getSafeFromHeader(threadContext, ConfigConstants.SG_CONF_REQUEST_HEADER))) {
-            return true;
+            return RequestType.INTERNAL;
         }
 
-        return false;
+        return RequestType.NORMAL;
     }
 
     protected final boolean isSearchGuardIndexRequest() {
         return index.getName().equals(searchguardIndex);
+    }
+    
+    protected enum RequestType {
+    	ADMIN,
+    	INTERNAL,
+    	NORMAL
     }
 }
