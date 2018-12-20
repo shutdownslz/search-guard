@@ -31,11 +31,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
@@ -84,6 +86,7 @@ import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -151,14 +154,16 @@ import com.floragunn.searchguard.support.HeaderHelper;
 import com.floragunn.searchguard.support.ModuleInfo;
 import com.floragunn.searchguard.support.ReflectionHelper;
 import com.floragunn.searchguard.support.SgUtils;
+import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.transport.DefaultInterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.InterClusterRequestEvaluator;
 import com.floragunn.searchguard.transport.SearchGuardInterceptor;
 import com.floragunn.searchguard.user.User;
 import com.google.common.collect.Lists;
 
-public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements ClusterPlugin {
+public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements ClusterPlugin, MapperPlugin {
 
+    private static final String KEYWORD = ".keyword";
     private final boolean tribeNodeClient;
     private final boolean dlsFlsAvailable;
     private final Constructor<?> dlsFlsConstructor;
@@ -939,6 +944,10 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_RESTAPI_ENDPOINTS_DISABLED + ".", Property.NodeScope));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_RESTAPI_ACCEPT_INVALID_LICENSE, false, Property.NodeScope, Property.Filtered));
     
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_RESTAPI_PASSWORD_VALIDATION_REGEX, Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_RESTAPI_PASSWORD_VALIDATION_ERROR_MESSAGE, Property.NodeScope, Property.Filtered));
+
+            
             // Compliance
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_WATCHED_INDICES, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_WATCHED_FIELDS, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
@@ -998,6 +1007,49 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         final List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
         services.add(GuiceHolder.class);
         return services;
+    }
+
+    @Override
+    public Function<String, Predicate<String>> getFieldFilter() {
+        return index -> {
+            final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper
+                    .deserializeSafeFromHeader(threadPool.getThreadContext(), ConfigConstants.SG_FLS_FIELDS_HEADER);
+
+            final String eval = SgUtils.evalMap(allowedFlsFields, index);
+
+            if (eval == null) {
+                return field -> true;
+            } else {
+
+                final Set<String> includesExcludes = allowedFlsFields.get(eval);
+
+                final Set<String> includesSet = new HashSet<>(includesExcludes.size());
+                final Set<String> excludesSet = new HashSet<>(includesExcludes.size());
+
+                for (final String incExc : includesExcludes) {
+                    final char firstChar = incExc.charAt(0);
+
+                    if (firstChar == '!' || firstChar == '~') {
+                        excludesSet.add(incExc.substring(1));
+                    } else {
+                        includesSet.add(incExc);
+                    }
+                }
+
+                if (!excludesSet.isEmpty()) {
+                    return field -> !WildcardMatcher.matchAny(excludesSet, handleKeyword(field));
+                } else {
+                    return field -> WildcardMatcher.matchAny(includesSet, handleKeyword(field));
+                }
+            }
+        };
+    }
+    
+    private static String handleKeyword(final String field) {
+        if(field != null && field.endsWith(KEYWORD)) {
+            return field.substring(0, field.length()-KEYWORD.length());
+        }
+        return field;
     }
 
     public static class GuiceHolder implements LifecycleComponent {
