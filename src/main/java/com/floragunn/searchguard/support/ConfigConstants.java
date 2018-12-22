@@ -167,6 +167,10 @@ public class ConfigConstants {
     // Log4j
     public static final String SEARCHGUARD_AUDIT_LOG4J_LOGGER_NAME = "log4j.logger_name";
     public static final String SEARCHGUARD_AUDIT_LOG4J_LEVEL = "log4j.level";
+    
+    //retry
+    public static final String SEARCHGUARD_AUDIT_RETRY_COUNT = "searchguard.audit.config.retry_count";
+    public static final String SEARCHGUARD_AUDIT_RETRY_DELAY_MS = "searchguard.audit.config.retry_delay_ms";
 
         
     public static final String SEARCHGUARD_KERBEROS_KRB5_FILEPATH = "searchguard.kerberos.krb5_filepath";
@@ -212,6 +216,9 @@ public class ConfigConstants {
     // REST API
     public static final String SEARCHGUARD_RESTAPI_ROLES_ENABLED = "searchguard.restapi.roles_enabled";
     public static final String SEARCHGUARD_RESTAPI_ENDPOINTS_DISABLED = "searchguard.restapi.endpoints_disabled";
+    public static final String SEARCHGUARD_RESTAPI_PASSWORD_VALIDATION_REGEX = "searchguard.restapi.password_validation_regex";
+    public static final String SEARCHGUARD_RESTAPI_PASSWORD_VALIDATION_ERROR_MESSAGE = "searchguard.restapi.password_validation_error_message";
+
 
     // Illegal Opcodes from here on
     public static final String SEARCHGUARD_UNSUPPORTED_RESTAPI_ACCEPT_INVALID_LICENSE = "searchguard.unsupported.restapi.accept_invalid_license";
