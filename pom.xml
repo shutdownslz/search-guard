@@ -19,7 +19,7 @@
   <artifactId>search-guard-6</artifactId>
   <packaging>jar</packaging>
   <!-- 6.x.y-a.b-->
-  <version>6.4.3-24.0-api</version>
+  <version>6.4.3-24.1-api-SNAPSHOT</version>
   <name>Search Guard</name>
   <description>Provide access control related features for Elasticsearch 6</description>
   <url>https://github.com/floragunncom/search-guard</url>
@@ -57,7 +57,7 @@
     <url>https://github.com/floragunncom/search-guard</url>
     <connection>scm:git:git@github.com:floragunncom/search-guard.git</connection>
     <developerConnection>scm:git:git@github.com:floragunncom/search-guard.git</developerConnection>
-    <tag>v6.4.3-24.0-api</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <issueManagement>
