@@ -39,10 +39,11 @@ jobs:
           command: |          
             mvn deploy -U -Penterprise -DskipTests -s settings.xml
             
-            set +e
+            echo "$-"
+            echo $SHELLOPTS
             
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              mvn -U -Pcoverage sonar:sonar -Dsonar.organization=floragunncom-github -Dsonar.login=$SONAR_LOGIN -Dsonar.host.url=https://sonarcloud.io
+              mvn -U -Pcoverage sonar:sonar -Dsonar.organization=floragunncom-github -Dsonar.login=$SONAR_LOGIN -Dsonar.host.url=https://sonarcloud.io || true
               ./dev/scan_veracode.sh
             fi
       - save_cache:
