@@ -1011,6 +1011,11 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
     @Override
     public Function<String, Predicate<String>> getFieldFilter() {
+        
+        if(threadPool == null) {
+           return NOOP_FIELD_FILTER;
+        }
+        
         return index -> {
             final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper
                     .deserializeSafeFromHeader(threadPool.getThreadContext(), ConfigConstants.SG_FLS_FIELDS_HEADER);
