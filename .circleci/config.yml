@@ -44,6 +44,7 @@ jobs:
             
             if [ "${CIRCLE_BRANCH}" == "master" ] && [ "${SG_JAVA_BUILD_VERSION}" == "8" ]; then
               mvn -U -Pcoverage sonar:sonar -Dsonar.organization=floragunncom-github -Dsonar.login=$SONAR_LOGIN -Dsonar.host.url=https://sonarcloud.io || true
+              mvn clean verify com.srcclr:srcclr-maven-plugin:scan -Penterprise -DskipTests -U
               ./dev/scan_veracode.sh
             fi
       - save_cache:
