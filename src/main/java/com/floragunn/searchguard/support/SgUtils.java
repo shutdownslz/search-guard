@@ -22,13 +22,17 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 
 public final class SgUtils {
     
     protected final static Logger log = LogManager.getLogger(SgUtils.class);
+    private static final Pattern ENV_PATTERN = Pattern.compile("\\$\\{env\\.([\\w]+)([+-]?)\\}");
     
     private SgUtils() {
     }
@@ -74,5 +78,38 @@ public final class SgUtils {
             map.put(keyValues[i], keyValues[i+1]);
         }
         return map;
+    }
+    
+    public static String replaceEnvVars(String in) {
+        //${env.MY_ENV_VAR}
+        Matcher matcher = ENV_PATTERN.matcher(in);
+        StringBuffer sb = new StringBuffer();
+        while(matcher.find()) {
+            final String replacement = resolveEnvVar(matcher.group(1), matcher.group(2));
+            if(replacement != null) {
+                matcher.appendReplacement(sb, replacement);
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+    
+    private static String resolveEnvVar(String envVarName, String mode) {
+        final String envVarValue = System.getenv(envVarName);
+        if(envVarValue == null || envVarValue.isEmpty()) {
+            if("+".equals(mode)) {
+                throw new ElasticsearchException(envVarName+" not defined");
+            } else if("-".equals(mode)) {
+                return "";
+            } else {
+                return null;
+            }
+        } else {
+            return envVarValue;
+        }
+    }
+    
+    public static void main(String[] args) {
+        System.out.println(replaceEnvVars("My land is a ${env.SHELL+} nice ${env.OOOL} with ${TZUJKL} and with ${user.name}"));
     }
 }

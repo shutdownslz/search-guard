@@ -134,7 +134,7 @@ class ConfigurationLoader {
                             GetResponse singleGetResponse = singleResponse.getResponse();
                             if(singleGetResponse.isExists() && !singleGetResponse.isSourceEmpty()) {
                                 //success
-                                final Settings _settings = toSettings(singleGetResponse.getSourceAsBytesRef(), singleGetResponse.getId());
+                                final Settings _settings = toSettings(singleGetResponse.getSourceAsString(), singleGetResponse.getId());
                                 if(_settings != null) {
                                     callback.success(singleGetResponse.getId(), _settings);
                                 } else {
@@ -159,13 +159,16 @@ class ConfigurationLoader {
         }
     }
 
-    private Settings toSettings(final BytesReference ref, final String id) {
-        if (ref == null || ref.length() == 0) {
-            log.error("Empty or null byte reference for {}", id);
+    private Settings toSettings(final String source, final String id) {
+        if (source == null || source.length() == 0) {
+            log.error("Empty or null source for {}", id);
             return null;
         }
         
-        XContentParser parser = null;
+        return Settings.builder().loadFromSource(source, XContentType.JSON).build();
+        
+        
+        /*XContentParser parser = null;
 
         try {
             parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, SearchGuardDeprecationHandler.INSTANCE, ref, XContentType.JSON);
@@ -190,6 +193,6 @@ class ConfigurationLoader {
                     //ignore
                 }
             }
-        }
+        }*/
     }
 }
