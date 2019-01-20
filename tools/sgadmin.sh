@@ -1,5 +1,16 @@
 #!/bin/bash
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if [ -L $SCRIPT_PATH ]; then
+    if ! [ -x "$(command -v realpath)" ]; then
+        #we fallback to readlink
+        DIR="$( cd "$( dirname $(readlink "$SCRIPT_PATH") )" && pwd )"
+    else
+        DIR="$( cd "$( dirname "$(realpath "$SCRIPT_PATH")" )" && pwd )"
+    fi
+else
+    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+fi
+
 BIN_PATH="java"
 
 if [ -z "$JAVA_HOME" ]; then
