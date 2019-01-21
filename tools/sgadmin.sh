@@ -1,14 +1,17 @@
 #!/bin/bash
 SCRIPT_PATH="${BASH_SOURCE[0]}"
-if [ -L $SCRIPT_PATH ]; then
-    if ! [ -x "$(command -v realpath)" ]; then
-        #we fallback to readlink
-        DIR="$( cd "$( dirname $(readlink "$SCRIPT_PATH") )" && pwd )"
+if ! [ -x "$(command -v realpath)" ]; then
+    if [ -L "$SCRIPT_PATH" ]; then
+        
+        [ -x "$(command -v readlink)" ] || { echo "Not able to resolve symlink. Install realpath or readlink.";exit 1; }
+        
+        # try readlink (-f not needed because we know its a symlink)
+        DIR="$( cd "$( dirname $(readlink "$SCRIPT_PATH") )" && pwd -P)"
     else
-        DIR="$( cd "$( dirname "$(realpath "$SCRIPT_PATH")" )" && pwd )"
+        DIR="$( cd "$( dirname "$SCRIPT_PATH" )" && pwd -P)"
     fi
 else
-    DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    DIR="$( cd "$( dirname "$(realpath "$SCRIPT_PATH")" )" && pwd -P)"
 fi
 
 BIN_PATH="java"
