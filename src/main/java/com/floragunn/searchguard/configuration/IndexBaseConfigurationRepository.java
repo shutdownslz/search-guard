@@ -36,6 +36,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -391,8 +392,13 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
                 continue;
             }
 
-            LOGGER.debug("Notify {} listener about change configuration with type {}", listener, type);
-            listener.onChange(settings);
+            try {
+                LOGGER.debug("Notify {} listener about change configuration with type {}", listener, type);
+                listener.onChange(settings);
+            } catch (Exception e) {
+                LOGGER.error("{} listener errored: "+e, listener, e);
+                throw ExceptionsHelper.convertToElastic(e);
+            }
         }
     }
 
