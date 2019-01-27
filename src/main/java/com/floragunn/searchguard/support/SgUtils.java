@@ -108,8 +108,4 @@ public final class SgUtils {
             return envVarValue;
         }
     }
-    
-    public static void main(String[] args) {
-        System.out.println(replaceEnvVars("My land is a ${env.SHELL+} nice ${env.OOOL} with ${TZUJKL} and with ${user.name}"));
-    }
 }

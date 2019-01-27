@@ -42,10 +42,12 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.SearchGuardDeprecationHandler;
+import com.floragunn.searchguard.support.SgUtils;
 
 class ConfigurationLoader {
 
@@ -165,13 +167,11 @@ class ConfigurationLoader {
             return null;
         }
         
-        return Settings.builder().loadFromSource(source, XContentType.JSON).build();
         
-        
-        /*XContentParser parser = null;
+        XContentParser parser = null;
 
         try {
-            parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, SearchGuardDeprecationHandler.INSTANCE, ref, XContentType.JSON);
+            parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, SearchGuardDeprecationHandler.INSTANCE, SgUtils.replaceEnvVars(source));
             parser.nextToken();
             parser.nextToken();
          
@@ -193,6 +193,6 @@ class ConfigurationLoader {
                     //ignore
                 }
             }
-        }*/
+        }
     }
 }
