@@ -289,8 +289,8 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     @Override
     public Map<String, Settings> reloadConfiguration(Collection<String> configTypes) {
         Map<String, Tuple<Long, Settings>> loaded = loadConfigurations(configTypes, false);
-        typeToConfig.clear();
         Map<String, Settings> loaded0 = loaded.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().v2()));
+        typeToConfig.keySet().removeAll(loaded0.keySet());
         typeToConfig.putAll(loaded0);
         notifyAboutChanges(loaded0);
 
