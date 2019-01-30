@@ -62,6 +62,7 @@ public class SlowIntegrationTests extends SingleClusterTest {
                 .put("node.master", false)
                 .put("node.ingest", false)
                 .put("path.home", ".")
+                .put("node.name", "transportclient")
                 .put("discovery.initial_state_timeout","8s")
                 .putList("discovery.zen.ping.unicast.hosts", clusterInfo.nodeHost+":"+clusterInfo.nodePort)
                 .build();
@@ -89,6 +90,7 @@ public class SlowIntegrationTests extends SingleClusterTest {
                 .put("node.master", false)
                 .put("node.ingest", false)
                 .put("path.home", ".")
+                .put("node.name", "transportclient")
                 .put("discovery.initial_state_timeout","8s")
                 .put("searchguard.ssl.transport.keystore_filepath", FileHelper.getAbsoluteFilePathFromClassPath("kirk-keystore.jks"))
                 .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_ALIAS,"kirk")
@@ -98,7 +100,7 @@ public class SlowIntegrationTests extends SingleClusterTest {
 
         try (Node node = new PluginAwareNode(false, tcSettings, Netty4Plugin.class, SearchGuardPlugin.class).start()) {
             Thread.sleep(50);
-            Assert.assertEquals(1, node.client().admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet().getNodes().size());    
+            Assert.assertEquals(1, node.client().admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet().getNodes().size());
         } catch (Exception e) {
             Assert.fail(e.toString());
         }
@@ -119,6 +121,7 @@ public class SlowIntegrationTests extends SingleClusterTest {
                 .put("node.master", false)
                 .put("node.ingest", false)
                 .put("path.home", ".")
+                .put("node.name", "transportclient")
                 .put("discovery.initial_state_timeout","8s")
                 .put("searchguard.ssl.transport.keystore_filepath", FileHelper.getAbsoluteFilePathFromClassPath("spock-keystore.jks"))
                 .put(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_KEYSTORE_ALIAS,"spock")

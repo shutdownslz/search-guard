@@ -39,7 +39,7 @@
     <elasticsearch.version>7.0.0-alpha2</elasticsearch.version>
     
     <!-- deps -->
-    <netty-native.version>2.0.15.Final</netty-native.version>
+    <netty-native.version>2.0.20.Final</netty-native.version>
     <bc.version>1.60</bc.version>
     <log4j.version>2.11.1</log4j.version>
     <guava.version>25.1-jre</guava.version>

@@ -18,6 +18,7 @@
 package com.floragunn.searchguard.auth;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -31,11 +32,13 @@ import java.util.concurrent.TimeUnit;
 
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -71,11 +74,11 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     private final Map<String, String> authImplMap = new HashMap<>();
-    private final SortedSet<AuthDomain> restAuthDomains = new TreeSet<>();
-    private final Set<AuthorizationBackend> restAuthorizers = new HashSet<>();
-    private final SortedSet<AuthDomain> transportAuthDomains = new TreeSet<>();
-    private final Set<AuthorizationBackend> transportAuthorizers = new HashSet<>();
-    private final List<Destroyable> destroyableComponents = new LinkedList<>();
+    private SortedSet<AuthDomain> restAuthDomains;
+    private Set<AuthorizationBackend> restAuthorizers;
+    private SortedSet<AuthDomain> transportAuthDomains;
+    private Set<AuthorizationBackend> transportAuthorizers;
+    private List<Destroyable> destroyableComponents;
     private volatile boolean initialized;
     private final AdminDNs adminDns;
     private final XFFResolver xffResolver;
@@ -91,6 +94,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
     private Cache<String, User> userCacheTransport;
     private Cache<AuthCredentials, User> authenticatedUserCacheTransport;
     private Cache<String, User> restImpersonationCache;
+    private volatile String transportUsernameAttribute = null;
     
     private void createCaches() {
         userCache = CacheBuilder.newBuilder()
@@ -179,16 +183,12 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
     @Override
     public void onChange(final Settings settings) {
-
-        //TODO synchronize via semaphore/atomicref
-        restAuthDomains.clear();
-        transportAuthDomains.clear();
-        restAuthorizers.clear();
-        transportAuthorizers.clear();
-        invalidateCache();
-        destroyDestroyables();
-        anonymousAuthEnabled = settings.getAsBoolean("searchguard.dynamic.http.anonymous_auth_enabled", false)
-                && !esSettings.getAsBoolean(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false);
+        
+        final SortedSet<AuthDomain> restAuthDomains0 = new TreeSet<>();
+        final Set<AuthorizationBackend> restAuthorizers0 = new HashSet<>();
+        final SortedSet<AuthDomain> transportAuthDomains0 = new TreeSet<>();
+        final Set<AuthorizationBackend> transportAuthorizers0 = new HashSet<>();
+        final List<Destroyable> destroyableComponents0 = new LinkedList<>();
 
         final Map<String, Settings> authzDyn = settings.getGroups("searchguard.dynamic.authz");
 
@@ -217,15 +217,15 @@ public class BackendRegistry implements ConfigurationChangeListener {
                     }
                     
                     if (httpEnabled) {
-                        restAuthorizers.add(authorizationBackend);
+                        restAuthorizers0.add(authorizationBackend);
                     }
 
                     if (transportEnabled) {
-                        transportAuthorizers.add(authorizationBackend);
+                        transportAuthorizers0.add(authorizationBackend);
                     }
                     
                     if (authorizationBackend instanceof Destroyable) {
-                    	this.destroyableComponents.add((Destroyable) authorizationBackend);
+                    	destroyableComponents0.add((Destroyable) authorizationBackend);
                     }
                 } catch (final Exception e) {
                     log.error("Unable to initialize AuthorizationBackend {} due to {}", ad, e.toString(),e);
@@ -264,19 +264,19 @@ public class BackendRegistry implements ConfigurationChangeListener {
                             ads.getAsBoolean("http_authenticator.challenge", true), ads.getAsInt("order", 0));
 
                     if (httpEnabled && _ad.getHttpAuthenticator() != null) {
-                        restAuthDomains.add(_ad);
+                        restAuthDomains0.add(_ad);
                     }
 
                     if (transportEnabled) {
-                        transportAuthDomains.add(_ad);
+                        transportAuthDomains0.add(_ad);
                     }
                     
                     if (httpAuthenticator instanceof Destroyable) {
-                    	this.destroyableComponents.add((Destroyable) httpAuthenticator);
+                    	destroyableComponents0.add((Destroyable) httpAuthenticator);
                     }
                     
                     if (authenticationBackend instanceof Destroyable) {
-                    	this.destroyableComponents.add((Destroyable) authenticationBackend);                    	
+                        destroyableComponents0.add((Destroyable) authenticationBackend);
                     }
                     
                 } catch (final Exception e) {
@@ -286,16 +286,47 @@ public class BackendRegistry implements ConfigurationChangeListener {
             }
         }
 
+        invalidateCache();
+
+        transportUsernameAttribute = settings.get("searchguard.dynamic.transport_userrname_attribute", null);
+        anonymousAuthEnabled = settings.getAsBoolean("searchguard.dynamic.http.anonymous_auth_enabled", false)
+                && !esSettings.getAsBoolean(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false);
+
+        List<Destroyable> originalDestroyableComponents = destroyableComponents;
+        
+        restAuthDomains = Collections.unmodifiableSortedSet(restAuthDomains0);
+        transportAuthDomains = Collections.unmodifiableSortedSet(transportAuthDomains0);
+        restAuthorizers = Collections.unmodifiableSet(restAuthorizers0);
+        transportAuthorizers = Collections.unmodifiableSet(transportAuthorizers0);
+        destroyableComponents = Collections.unmodifiableList(destroyableComponents0);
+        
         //SG6 no default authc
         initialized = !restAuthDomains.isEmpty() || anonymousAuthEnabled;
+        
+        if(originalDestroyableComponents != null) {
+            destroyDestroyables(originalDestroyableComponents);
+        }
+        
+        originalDestroyableComponents = null;
+
     }
 
     public User authenticate(final TransportRequest request, final String sslPrincipal, final Task task, final String action) {
 
-        final User origPKIUser = new User(sslPrincipal);
+        if(log.isDebugEnabled() && request.remoteAddress() != null) {
+            log.debug("Transport authentication request from {}", request.remoteAddress());
+        }
+        
+        User origPKIUser = new User(sslPrincipal);
+        
         if(adminDns.isAdmin(origPKIUser)) {
             auditLog.logSucceededLogin(origPKIUser.getName(), true, null, request, action, task);
             return origPKIUser;
+        }
+        
+        if (!isInitialized()) {
+            log.error("Not yet initialized (you may need to run sgadmin)");
+            return null;
         }
 
         final String authorizationHeader = threadPool.getThreadContext().getHeader("Authorization");
@@ -320,6 +351,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
                 //no credentials submitted
                 //impersonation possible
                 impersonatedTransportUser = impersonate(request, origPKIUser);
+                origPKIUser = resolveTransportUsernameAttribute(origPKIUser);
                 authenticatedUser = checkExistsAndAuthz(userCacheTransport, impersonatedTransportUser==null?origPKIUser:impersonatedTransportUser, authDomain.getBackend(), transportAuthorizers);
             } else {
                  //auth credentials submitted
@@ -356,8 +388,8 @@ public class BackendRegistry implements ConfigurationChangeListener {
         } else {
             auditLog.logFailedLogin(creds.getUsername(), false, null, request, task);
         }
-
-        log.warn("Transport authentication finally failed for {}", creds == null ? impersonatedTransportUser==null?origPKIUser.getName():impersonatedTransportUser.getName():creds.getUsername());
+ 
+        log.warn("Transport authentication finally failed for {} from {}", creds == null ? impersonatedTransportUser==null?origPKIUser.getName():impersonatedTransportUser.getName():creds.getUsername(), request.remoteAddress());
 
         return null;
     }
@@ -391,8 +423,14 @@ public class BackendRegistry implements ConfigurationChangeListener {
             channel.sendResponse(new BytesRestResponse(RestStatus.SERVICE_UNAVAILABLE, "Search Guard not initialized (SG11). See http://docs.search-guard.com/v6/sgadmin"));
             return false;
         }
+        
+        final TransportAddress remoteAddress = xffResolver.resolve(request);
+        
+        if(log.isDebugEnabled()) {
+    		log.debug("Rest authentication request from {} [original: {}]", remoteAddress, request.getHttpChannel().getRemoteAddress());
+    	}
 
-        threadContext.putTransient(ConfigConstants.SG_REMOTE_ADDRESS, xffResolver.resolve(request));
+        threadContext.putTransient(ConfigConstants.SG_REMOTE_ADDRESS, remoteAddress);
 
         boolean authenticated = false;
 
@@ -480,16 +518,16 @@ public class BackendRegistry implements ConfigurationChangeListener {
             }
 
             authenticatedUser.setRequestedTenant(tenant);
-            final User impersonatedUser = impersonate(request, authenticatedUser, authDomain.getBackend());
-            threadContext.putTransient(ConfigConstants.SG_USER, impersonatedUser==null?authenticatedUser:impersonatedUser);
-
-            auditLog.logSucceededLogin((impersonatedUser==null?authenticatedUser:impersonatedUser).getName(), false, authenticatedUser.getName(), request);
             authenticated = true;
             break;
         }//end looping auth domains
 
 
-        if(!authenticated) {
+        if(authenticated) {
+            final User impersonatedUser = impersonate(request, authenticatedUser);
+            threadContext.putTransient(ConfigConstants.SG_USER, impersonatedUser==null?authenticatedUser:impersonatedUser);
+            auditLog.logSucceededLogin((impersonatedUser==null?authenticatedUser:impersonatedUser).getName(), false, authenticatedUser.getName(), request);
+        } else {
             if(log.isDebugEnabled()) {
                 log.debug("User still not authenticated after checking {} auth domains", restAuthDomains.size());
             }
@@ -514,13 +552,13 @@ public class BackendRegistry implements ConfigurationChangeListener {
                         log.debug("Rerequest {} failed", firstChallengingHttpAuthenticator.getClass());
                     }
 
-                    log.warn("Authentication finally failed for {}", authCredenetials == null ? null:authCredenetials.getUsername());
+                    log.warn("Authentication finally failed for {} from {}", authCredenetials == null ? null:authCredenetials.getUsername(), remoteAddress);
                     auditLog.logFailedLogin(authCredenetials == null ? null:authCredenetials.getUsername(), false, null, request);
                     return false;
                 }
             }
 
-            log.warn("Authentication finally failed for {}", authCredenetials == null ? null:authCredenetials.getUsername());
+            log.warn("Authentication finally failed for {} from {}", authCredenetials == null ? null:authCredenetials.getUsername(), remoteAddress);
             auditLog.logFailedLogin(authCredenetials == null ? null:authCredenetials.getUsername(), false, null, request);
             channel.sendResponse(new BytesRestResponse(RestStatus.UNAUTHORIZED, "Authentication finally failed"));
             return false;
@@ -665,7 +703,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
         return aU;
     }
 
-    private User impersonate(final RestRequest request, final User originalUser, final AuthenticationBackend authenticationBackend) throws ElasticsearchSecurityException {
+    private User impersonate(final RestRequest request, final User originalUser) throws ElasticsearchSecurityException {
 
         final String impersonatedUserHeader = request.header("sg_impersonate_as");
 
@@ -686,18 +724,24 @@ public class BackendRegistry implements ConfigurationChangeListener {
             throw new ElasticsearchSecurityException("'" + originalUser.getName() + "' is not allowed to impersonate as '" + impersonatedUserHeader
                     + "'", RestStatus.FORBIDDEN);
         } else {
+            //loop over all http/rest auth domains
+            for (final AuthDomain authDomain: restAuthDomains) {
+                final AuthenticationBackend authenticationBackend = authDomain.getBackend();
+                final User impersonatedUser = checkExistsAndAuthz(restImpersonationCache, new User(impersonatedUserHeader), authenticationBackend, restAuthorizers);
 
-            final User impersonatedUser = checkExistsAndAuthz(restImpersonationCache, new User(impersonatedUserHeader), authenticationBackend, restAuthorizers);
+                if(impersonatedUser == null) {
+                    log.debug("Unable to impersonate rest user from '{}' to '{}' because the impersonated user does not exists in {}, try next ...", originalUser.getName(), impersonatedUserHeader, authenticationBackend.getType());
+                    continue;
+                }
 
-            if(impersonatedUser == null) {
-                log.debug("Unable to impersonate rest user from '{}' to '{}' because the impersonated user does not exists in {}", originalUser.getName(), impersonatedUserHeader, authenticationBackend.getType());
-                throw new ElasticsearchSecurityException("No such user:" + impersonatedUserHeader, RestStatus.FORBIDDEN);
+                if (log.isDebugEnabled()) {
+                    log.debug("Impersonate rest user from '{}' to '{}'", originalUser.getName(), impersonatedUserHeader);
+                }
+                return impersonatedUser;
             }
 
-            if (log.isDebugEnabled()) {
-                log.debug("Impersonate rest user from '{}' to '{}'", originalUser.getName(), impersonatedUserHeader);
-            }
-            return impersonatedUser;
+            log.debug("Unable to impersonate rest user from '{}' to '{}' because the impersonated user does not exists", originalUser.getName(), impersonatedUserHeader);
+            throw new ElasticsearchSecurityException("No such user:" + impersonatedUserHeader, RestStatus.FORBIDDEN);
         }
 
     }
@@ -720,15 +764,31 @@ public class BackendRegistry implements ConfigurationChangeListener {
         return ReflectionHelper.instantiateAAA(clazz, settings, configPath, isEnterprise);
     }
     
-    private void destroyDestroyables() {
-    	for (Destroyable destroyable : this.destroyableComponents) {
+    private void destroyDestroyables(List<Destroyable> destroyableComponents) {
+    	for (Destroyable destroyable : destroyableComponents) {
     		try {
     			destroyable.destroy();
     		} catch (Exception e) {
     			log.error("Error while destroying " + destroyable, e);
     		}
     	}
-    	
-    	this.destroyableComponents.clear();
+    }
+    
+    private User resolveTransportUsernameAttribute(User pkiUser) {
+    	//#547
+        if(transportUsernameAttribute != null && !transportUsernameAttribute.isEmpty()) {
+	    	try {
+				final LdapName sslPrincipalAsLdapName = new LdapName(pkiUser.getName());
+				for(final Rdn rdn: sslPrincipalAsLdapName.getRdns()) {
+					if(rdn.getType().equals(transportUsernameAttribute)) {
+						return new User((String) rdn.getValue());
+					}
+				}
+			} catch (InvalidNameException e) {
+				//cannot happen
+			}
+        }
+        
+        return pkiUser;
     }
 }

@@ -39,6 +39,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.support.SgUtils;
 import com.floragunn.searchguard.test.DynamicSgConfig;
 import com.floragunn.searchguard.test.SingleClusterTest;
 import com.floragunn.searchguard.test.helper.rest.RestHelper;
@@ -267,7 +268,7 @@ public class IndexIntegrationTests extends SingleClusterTest {
             tc.index(new IndexRequest("logstash-3").type("logs").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":1}", XContentType.JSON)).actionGet();
             tc.index(new IndexRequest("logstash-4").type("logs").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":1}", XContentType.JSON)).actionGet();
     
-            SimpleDateFormat sdf = new SimpleDateFormat("YYYY.MM.dd");
+            SimpleDateFormat sdf = new SimpleDateFormat("YYYY.MM.dd", SgUtils.EN_Locale);
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             
             String date = sdf.format(new Date());
@@ -365,7 +366,7 @@ public class IndexIntegrationTests extends SingleClusterTest {
         
         Assert.assertEquals(HttpStatus.SC_FORBIDDEN, (res = rh.executePostRequest("/mysgi/sg", "{}",encodeBasicHeader("nagilum", "nagilum"))).getStatusCode());
         Assert.assertEquals(HttpStatus.SC_OK, (res = rh.executeGetRequest("/mysgi/_search?pretty", encodeBasicHeader("nagilum", "nagilum"))).getStatusCode());
-        assertContains(res, "*\"hits\" : {*\"total\" : 0,*\"hits\" : [ ]*");
+        assertContains(res, "*\"hits\" : {*\"value\" : 0,*\"hits\" : [ ]*");
         
         System.out.println("#### add alias to allowed index");
         Assert.assertEquals(HttpStatus.SC_OK, (res = rh.executePutRequest("/logstash-1/_alias/alog1", "",encodeBasicHeader("aliasmngt", "nagilum"))).getStatusCode());

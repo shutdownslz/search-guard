@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.join.ParentJoinPlugin;
@@ -59,6 +60,14 @@ public enum ClusterConfiguration {
 	public  List<NodeSettings> getNodeSettings() {
 		return Collections.unmodifiableList(nodeSettings);
 	}
+	
+	public  List<NodeSettings> getMasterNodeSettings() {
+        return Collections.unmodifiableList(nodeSettings.stream().filter(a->a.masterNode).collect(Collectors.toList()));
+    }
+	
+	public  List<NodeSettings> getNonMasterNodeSettings() {
+        return Collections.unmodifiableList(nodeSettings.stream().filter(a->!a.masterNode).collect(Collectors.toList()));
+    }
 	
 	public int getNodes() {
         return nodeSettings.size();

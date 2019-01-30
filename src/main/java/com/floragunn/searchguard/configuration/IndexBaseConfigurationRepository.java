@@ -36,6 +36,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -66,6 +67,7 @@ import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.ConfigHelper;
 import com.floragunn.searchguard.support.LicenseHelper;
+import com.floragunn.searchguard.support.SgUtils;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
@@ -390,8 +392,13 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
                 continue;
             }
 
-            LOGGER.debug("Notify {} listener about change configuration with type {}", listener, type);
-            listener.onChange(settings);
+            try {
+                LOGGER.debug("Notify {} listener about change configuration with type {}", listener, type);
+                listener.onChange(settings);
+            } catch (Exception e) {
+                LOGGER.error("{} listener errored: "+e, listener, e);
+                throw ExceptionsHelper.convertToElastic(e);
+            }
         }
     }
 
@@ -409,14 +416,15 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
                 boolean searchGuardIndexExists = clusterService.state().metaData().hasConcreteIndex(this.searchguardIndex);
 
                 if(searchGuardIndexExists) {
-                    if(clusterService.state().metaData().index(this.searchguardIndex).mapping("config") != null) {
+                    //TODO types removal
+                    //if(clusterService.state().metaData().index(this.searchguardIndex)("config") != null) {
                         //legacy layout
-                        LOGGER.debug("sg index exists and was created before ES 6 (legacy layout)");
-                        retVal.putAll(validate(legacycl.loadLegacy(configTypes.toArray(new String[0]), 5, TimeUnit.SECONDS), configTypes.size()));
-                    } else {
+                    //    LOGGER.debug("sg index exists and was created before ES 6 (legacy layout)");
+                    //    retVal.putAll(validate(legacycl.loadLegacy(configTypes.toArray(new String[0]), 5, TimeUnit.SECONDS), configTypes.size()));
+                    //} else {
                         LOGGER.debug("sg index exists and was created with ES 6 (new layout)");
                         retVal.putAll(validate(cl.load(configTypes.toArray(new String[0]), 5, TimeUnit.SECONDS), configTypes.size()));
-                    }
+                    //}
                 } else {
                     //wait (and use new layout)
                     LOGGER.debug("sg index not exists (yet)");
@@ -460,7 +468,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
     private static String formatDate(long date) {
-        return new SimpleDateFormat("yyyy-MM-dd").format(new Date(date));
+        return new SimpleDateFormat("yyyy-MM-dd", SgUtils.EN_Locale).format(new Date(date));
     }
 
     /**

@@ -5,7 +5,7 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd $DIR
 
-ES_VERSION=7.0.0-alpha1
+ES_VERSION=7.0.0-alpha2
 NETTY_NATIVE_VERSION=2.0.7.Final
 NETTY_NATIVE_CLASSIFIER=non-fedora-linux-x86_64
 
@@ -14,7 +14,7 @@ wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-$ES_VERS
 tar -xzf elasticsearch-$ES_VERSION.tar.gz
 rm -rf elasticsearch-$ES_VERSION.tar.gz
 #wget -O netty-tcnative-$NETTY_NATIVE_VERSION-$NETTY_NATIVE_CLASSIFIER.jar https://search.maven.org/remotecontent?filepath=io/netty/netty-tcnative/$NETTY_NATIVE_VERSION/netty-tcnative-$NETTY_NATIVE_VERSION-$NETTY_NATIVE_CLASSIFIER.jar
-mvn clean package -Penterprise -DskipTests > /dev/null 2>&1
+mvn clean package -Penterprise -DskipTests
 PLUGIN_FILE=($DIR/target/releases/search-guard!(*sgadmin*).zip)
 URL=file://$PLUGIN_FILE
 echo $URL

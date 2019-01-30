@@ -230,7 +230,7 @@ public class PrivilegesEvaluator {
                     
                     if(privilegesInterceptor.getClass() != PrivilegesInterceptor.class) {
                         
-                        final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, config, requestedResolved.getAllIndices(), mapTenants(user, caller));
+                        final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, config, requestedResolved, mapTenants(user, caller));
 
                         if(log.isDebugEnabled()) {
                             log.debug("Result from privileges interceptor for cluster perm: {}", replaceResult);
@@ -312,7 +312,7 @@ public class PrivilegesEvaluator {
 
         if(privilegesInterceptor.getClass() != PrivilegesInterceptor.class) {
 
-            final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, config, requestedResolved.getAllIndices(), mapTenants(user, caller));
+            final Boolean replaceResult = privilegesInterceptor.replaceKibanaIndex(request, action0, user, config, requestedResolved, mapTenants(user, caller));
 
             if(log.isDebugEnabled()) {
                 log.debug("Result from privileges interceptor: {}", replaceResult);
@@ -500,7 +500,26 @@ public class PrivilegesEvaluator {
         return Collections.unmodifiableMap(result);
     }
 
+    public Set<String> getAllConfiguredTenantNames() {
+    	
+    	final Settings roles = getRolesSettings();
 
+    	if(roles == null || roles.isEmpty()) {
+    		return Collections.emptySet();
+    	}
+    	
+    	final Set<String> configuredTenants = new HashSet<>();
+    	for(String sgRole: roles.names()) {
+            Settings tenants = roles.getByPrefix(sgRole+".tenants.");
+
+            if(tenants != null) {
+                configuredTenants.addAll(tenants.names());
+            }
+
+        }
+
+    	return Collections.unmodifiableSet(configuredTenants);
+    }
 
     public boolean multitenancyEnabled() {
         return privilegesInterceptor.getClass() != PrivilegesInterceptor.class
