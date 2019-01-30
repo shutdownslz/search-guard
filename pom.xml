@@ -36,7 +36,7 @@
   <properties>
     <sgssl.version>7.x-HEAD-SNAPSHOT</sgssl.version>
     <enterprise-modules.version>7.x-enterprise-HEAD-SNAPSHOT</enterprise-modules.version>
-    <elasticsearch.version>7.0.0-alpha1</elasticsearch.version>
+    <elasticsearch.version>7.0.0-alpha2</elasticsearch.version>
     
     <!-- deps -->
     <netty-native.version>2.0.15.Final</netty-native.version>
@@ -58,7 +58,7 @@
     <repository>
       <id>elastic-lucene-snapshots</id>
       <name>Elastic Lucene Snapshots</name>
-      <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/6d9c714052</url>
+      <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/774e9aefbc</url>
       <releases><enabled>true</enabled></releases>
       <snapshots><enabled>false</enabled></snapshots>
     </repository>
