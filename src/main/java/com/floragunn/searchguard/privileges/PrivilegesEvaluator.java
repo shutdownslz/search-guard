@@ -18,6 +18,7 @@
 package com.floragunn.searchguard.privileges;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -67,7 +68,9 @@ import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.sgconf.ConfigModel;
+import com.floragunn.searchguard.sgconf.ConfigModel.SgRole;
 import com.floragunn.searchguard.sgconf.ConfigModel.SgRoles;
+import com.floragunn.searchguard.sgconf.ConfigModel.Tenant;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.user.User;
@@ -466,40 +469,60 @@ public class PrivilegesEvaluator {
 
     }
 
+    
     public Map<String, Boolean> mapTenants(final User user, final TransportAddress caller) {
 
-        if(user == null) {
+        if (user == null) {
             return Collections.emptyMap();
         }
 
         final Map<String, Boolean> result = new HashMap<>();
         result.put(user.getName(), true);
 
-        for(String sgRole: mapSgRoles(user, caller)) {
-            Settings tenants = getRolesSettings().getByPrefix(sgRole+".tenants.");
+        for (SgRole sgRole : getSgRoles(user, caller).getRoles()) {
 
-            if(tenants != null) {
-                for(String tenant: tenants.names()) {
-
-                    if(tenant.equals(user.getName())) {
-                        continue;
+            // TODO what to do with user param?
+            for (Tenant tenant : sgRole.getTenants(user)) {
+                if (tenant.isReadOnly()) {
+                    if (!result.containsKey(tenant.getTenant())) { // RW outperforms RO
+                        result.put(tenant.getTenant(), false);
                     }
-
-                    if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
-                        result.put(tenant, true);
-                    } else {
-                        if(!result.containsKey(tenant)) { //RW outperforms RO
-                            result.put(tenant, false);
-                        }
-                    }
+                } else {
+                    result.put(tenant.getTenant(), true);
                 }
             }
-
         }
 
         return Collections.unmodifiableMap(result);
     }
+    
+    
+    public Map<String, Boolean> evaluateApplicationPrivileges(User user, TransportAddress caller,
+            Collection<String> privileges) {
+        SgRoles sgRoles = getSgRoles(user, caller);
+        Settings config = getConfigSettings();
 
+        Map<String, Boolean> result = new HashMap<>();
+
+        for (String privilege : privileges) {
+
+            Boolean hasPrivilege = null;
+
+            // XXX why this check?
+            if (privilegesInterceptor.getClass() != PrivilegesInterceptor.class) {
+                hasPrivilege = privilegesInterceptor.hasPermissionAsTenant(privilege, user, config, sgRoles);
+            }
+
+            if (hasPrivilege == null) {
+                hasPrivilege = sgRoles.hasApplicationPermission(privilege);
+            }
+
+            result.put(privilege, hasPrivilege);
+        }
+
+        return result;
+    }
+    
     public Set<String> getAllConfiguredTenantNames() {
     	
     	final Settings roles = getRolesSettings();

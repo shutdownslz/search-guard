@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
+import com.floragunn.searchguard.sgconf.ConfigModel.SgRoles;
 import com.floragunn.searchguard.user.User;
 
 public class PrivilegesInterceptor {
@@ -52,4 +53,8 @@ public class PrivilegesInterceptor {
     protected final ThreadContext getThreadContext() {
         return threadPool.getThreadContext();
     }
+    
+    public Boolean hasPermissionAsTenant(String permission, User user, Settings config, SgRoles roles) {
+        return null;
+    }    
 }

@@ -1,0 +1,8 @@
+KIBANA_VIS_GRAPH_ALL:
+  - kibana:visualisations/*
+  - kibana:graph/*
+
+KIBANA_VIS_GRAPH_READ:
+  - kibana:visualisations/*/read
+  - kibana:graph/*/read
+  
