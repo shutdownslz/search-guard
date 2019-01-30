@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.http.HttpStatus;
+import org.apache.http.NoHttpResponseException;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
@@ -377,10 +378,12 @@ public class HttpIntegrationTests extends SingleClusterTest {
             setup(settings);
             RestHelper rh = nonSslRestHelper();
             rh.executeGetRequest("", encodeBasicHeader("worf", "worf"));
-            Assert.fail();
-        } catch (Exception e) {
+            Assert.fail("NoHttpResponseException expected");
+        } catch (NoHttpResponseException e) {
             String log = FileUtils.readFileToString(new File("unittest.log"), StandardCharsets.UTF_8);
-            Assert.assertTrue(log.contains("speaks http plaintext instead of ssl, will close the channel"));
+            Assert.assertTrue(log, log.contains("speaks http plaintext instead of ssl, will close the channel"));
+        } catch (Exception e) {
+            Assert.fail("NoHttpResponseException expected but was "+e.getClass()+"#"+e.getMessage());
         }
         
       }
