@@ -137,15 +137,15 @@ public class PrivilegesEvaluator {
     }
 
     private Settings getRolesSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES);
     }
 
     private Settings getRolesMappingSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES_MAPPING, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES_MAPPING);
     }
 
     private Settings getConfigSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_CONFIG, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_CONFIG);
     }
 
     //TODO: optimize, recreate only if changed
