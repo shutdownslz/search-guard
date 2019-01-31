@@ -17,8 +17,6 @@
 
 package com.floragunn.searchguard.test;
 
-import io.netty.handler.ssl.OpenSsl;
-
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -31,6 +29,8 @@ import org.apache.http.Header;
 import org.apache.http.message.BasicHeader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.junit.LoggerContextRule;
+import org.apache.logging.log4j.test.appender.ListAppender;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -44,10 +44,12 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestName;
-import org.junit.rules.TestWatcher;
 
 import com.floragunn.searchguard.SearchGuardPlugin;
 import com.floragunn.searchguard.action.configupdate.ConfigUpdateAction;
@@ -59,7 +61,8 @@ import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.test.helper.cluster.ClusterInfo;
 import com.floragunn.searchguard.test.helper.file.FileHelper;
 import com.floragunn.searchguard.test.helper.rest.RestHelper.HttpResponse;
-import com.floragunn.searchguard.test.helper.rules.SGTestWatcher;
+
+import io.netty.handler.ssl.OpenSsl;
 
 public abstract class AbstractSGUnitTest {
     
@@ -93,8 +96,8 @@ public abstract class AbstractSGUnitTest {
 	@Rule
     public final TemporaryFolder repositoryPath = new TemporaryFolder();
 
-	@Rule
-	public final TestWatcher testWatcher = new SGTestWatcher();
+	//@Rule
+	//public final TestWatcher testWatcher = new SGTestWatcher();
 
 	public static Header encodeBasicHeader(final String username, final String password) {
 		return new BasicHeader("Authorization", "Basic "+Base64.getEncoder().encodeToString(
@@ -253,5 +256,20 @@ public abstract class AbstractSGUnitTest {
     
     protected String getResourceFolder() {
         return null;
+    }
+    
+    protected static ListAppender appender;
+
+    @ClassRule
+    public static LoggerContextRule init = new LoggerContextRule("log4j2-test.properties");
+
+    @BeforeClass
+    public static void setupLogging() {
+        appender = init.getListAppender("list");
+    }
+
+    @Before
+    public void clearAppender() {
+        appender.clear();
     }
 }
