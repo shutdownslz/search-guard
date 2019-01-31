@@ -140,15 +140,15 @@ public class PrivilegesEvaluator {
     }
 
     private Settings getRolesSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES);
     }
 
     private Settings getRolesMappingSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES_MAPPING, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES_MAPPING);
     }
 
     private Settings getConfigSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_CONFIG, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_CONFIG);
     }
 
     //TODO: optimize, recreate only if changed
@@ -642,7 +642,6 @@ public class PrivilegesEvaluator {
             || (action0.equals(MultiGetAction.NAME))
             || (action0.equals(MultiSearchAction.NAME))
             || (action0.equals(MultiTermVectorsAction.NAME))
-            || (action0.equals("indices:data/read/coordinate-msearch"))
             || (action0.equals(ReindexAction.NAME))
 
             ) ;
