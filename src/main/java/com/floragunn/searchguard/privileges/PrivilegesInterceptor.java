@@ -57,4 +57,8 @@ public class PrivilegesInterceptor {
     public Boolean hasPermissionAsTenant(String permission, User user, Settings config, SgRoles roles) {
         return null;
     }    
+    
+    public Boolean isRbacEnabled(Settings config) {
+    	return null;
+    }
 }

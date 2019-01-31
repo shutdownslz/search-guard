@@ -548,6 +548,10 @@ public class PrivilegesEvaluator {
         return privilegesInterceptor.getClass() != PrivilegesInterceptor.class
                 && getConfigSettings().getAsBoolean("searchguard.dynamic.kibana.multitenancy_enabled", true);
     }
+    
+    public Boolean isRbacEnabled() {
+    	return privilegesInterceptor.isRbacEnabled(getConfigSettings());
+    }
 
     public boolean notFailOnForbiddenEnabled() {
         return privilegesInterceptor.getClass() != PrivilegesInterceptor.class
@@ -560,6 +564,10 @@ public class PrivilegesEvaluator {
 
     public String kibanaServerUsername() {
         return getConfigSettings().get("searchguard.dynamic.kibana.server_username","kibanaserver");
+    }
+    
+    public int getApplicationPermissionFormatVersion() {
+    	return configModel.load().getFormatVersion();
     }
 
     private Set<String> evaluateAdditionalIndexPermissions(final ActionRequest request, final String originalAction) {
