@@ -769,13 +769,14 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         //final PrincipalExtractor pe = new DefaultPrincipalExtractor();
         cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService, auditLog, complianceConfig);
         cr.subscribeOnLicenseChange(complianceConfig);
+        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, irr);
         final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);
         final XFFResolver xffResolver = new XFFResolver(threadPool);
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, xffResolver);
         backendRegistry = new BackendRegistry(settings, configPath, adminDns, xffResolver, iab, auditLog, threadPool);
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
         final ActionGroupHolder ah = new ActionGroupHolder(cr);
-        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih);
+        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih, irr);
         
         final CompatConfig compatConfig = new CompatConfig(environment);
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, compatConfig);
@@ -1011,7 +1012,13 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
     @Override
     public Function<String, Predicate<String>> getFieldFilter() {
+        
         return index -> {
+            
+            if(threadPool == null) {
+                return field -> true;
+            }
+            
             final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper
                     .deserializeSafeFromHeader(threadPool.getThreadContext(), ConfigConstants.SG_FLS_FIELDS_HEADER);
 
