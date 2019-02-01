@@ -83,7 +83,6 @@ public class PrivilegesEvaluator {
     
     private final AuditLog auditLog;
     private ThreadContext threadContext;
-    //private final static IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.lenientExpandOpen();
     private final ConfigurationRepository configurationRepository;
 
     private PrivilegesInterceptor privilegesInterceptor;
