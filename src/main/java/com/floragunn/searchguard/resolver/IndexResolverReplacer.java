@@ -102,7 +102,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
     private final IndexNameExpressionResolver resolver;
     private final ClusterService clusterService;
     private final ClusterInfoHolder clusterInfoHolder;
-    private boolean respectRequestIndicesOptions = true;
+    private volatile boolean respectRequestIndicesOptions = false;
 
     public IndexResolverReplacer(IndexNameExpressionResolver resolver, ClusterService clusterService, ClusterInfoHolder clusterInfoHolder) {
         super();
@@ -910,6 +910,6 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
 
     @Override
     public void onChange(Settings dynamicSgConfig) {
-        respectRequestIndicesOptions = dynamicSgConfig.getAsBoolean("searchguard.dynamic.respect_request_indices_options", true);
+        respectRequestIndicesOptions = dynamicSgConfig.getAsBoolean("searchguard.dynamic.respect_request_indices_options", false);
     }
 }

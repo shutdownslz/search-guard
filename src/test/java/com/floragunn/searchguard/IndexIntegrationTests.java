@@ -518,7 +518,7 @@ public class IndexIntegrationTests extends SingleClusterTest {
     @Test
     public void testIndexResolveIgnoreUnavailable() throws Exception {
 
-        setup(Settings.EMPTY, new DynamicSgConfig().setSgRoles("sg_roles_bs.yml"), Settings.EMPTY, true);
+        setup(Settings.EMPTY, new DynamicSgConfig().setSgConfig("sg_config_respect_indices_options.yml").setSgRoles("sg_roles_bs.yml"), Settings.EMPTY, true);
         final RestHelper rh = nonSslRestHelper();
 
         try (TransportClient tc = getInternalTransportClient()) {

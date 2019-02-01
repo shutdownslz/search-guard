@@ -104,7 +104,7 @@ public class PrivilegesEvaluator {
 
     public PrivilegesEvaluator(final ClusterService clusterService, final ThreadPool threadPool, final ConfigurationRepository configurationRepository, final ActionGroupHolder ah,
             final IndexNameExpressionResolver resolver, AuditLog auditLog, final Settings settings, final PrivilegesInterceptor privilegesInterceptor,
-            final ClusterInfoHolder clusterInfoHolder) {
+            final ClusterInfoHolder clusterInfoHolder, final IndexResolverReplacer irr) {
 
         super();
         this.configurationRepository = configurationRepository;
@@ -128,7 +128,7 @@ public class PrivilegesEvaluator {
         this.clusterInfoHolder = clusterInfoHolder;
         //this.typeSecurityDisabled = settings.getAsBoolean(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY, false);
         configModel = new ConfigModel(ah, configurationRepository);
-        irr = new IndexResolverReplacer(resolver, clusterService, clusterInfoHolder);
+        this.irr = irr;
         snapshotRestoreEvaluator = new SnapshotRestoreEvaluator(settings, auditLog);
         sgIndexAccessEvaluator = new SearchGuardIndexAccessEvaluator(settings, auditLog);
         dlsFlsEvaluator = new DlsFlsEvaluator(settings, threadPool);
