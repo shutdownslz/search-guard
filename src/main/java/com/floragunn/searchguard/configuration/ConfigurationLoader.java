@@ -36,6 +36,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.MultiGetResponse.Failure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.JsonSettingsLoader;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -63,14 +64,14 @@ public class ConfigurationLoader {
         log.debug("Index is: {}", searchguardIndex);
     }
     
-    public Map<String, Settings> load(final String[] events, long timeout, TimeUnit timeUnit) throws InterruptedException, TimeoutException {
+    public Map<String, Tuple<Long, Settings>> load(final String[] events, long timeout, TimeUnit timeUnit) throws InterruptedException, TimeoutException {
         final CountDownLatch latch = new CountDownLatch(events.length);
-        final Map<String, Settings> rs = new HashMap<String, Settings>(events.length);
+        final Map<String, Tuple<Long, Settings>> rs = new HashMap<String, Tuple<Long, Settings>>(events.length);
         
         loadAsync(events, new ConfigCallback() {
             
             @Override
-            public void success(String type, Settings settings) {
+            public void success(String type, Tuple<Long, Settings> settings) {
                 if(latch.getCount() <= 0) {
                     log.error("Latch already counted down (for {} of {})  (index={})", type, Arrays.toString(events), searchguardIndex);
                 }
@@ -106,7 +107,7 @@ public class ConfigurationLoader {
         return rs;
     }
     
-    public void loadAsync(final String[] events, final ConfigCallback callback) {        
+    public void loadAsync(final String[] events, final ConfigCallback callback) {
         if(events == null || events.length == 0) {
             log.warn("No config events requested to load");
             return;
@@ -135,7 +136,7 @@ public class ConfigurationLoader {
                             GetResponse singleGetResponse = singleResponse.getResponse();
                             if(singleGetResponse.isExists() && !singleGetResponse.isSourceEmpty()) {
                                 //success
-                                final Settings _settings = toSettings(singleGetResponse.getSourceAsBytesRef(), singleGetResponse.getType());
+                                final Tuple<Long, Settings> _settings = toSettings(singleGetResponse, singleGetResponse.getType());
                                 if(_settings != null) {
                                     callback.success(singleGetResponse.getType(), _settings);
                                 } else {
@@ -160,7 +161,11 @@ public class ConfigurationLoader {
         }
     }
 
-    private Settings toSettings(final BytesReference ref, final String type) {
+    private Tuple<Long, Settings> toSettings(final GetResponse singleGetResponse, final String type) {
+        final BytesReference ref = singleGetResponse.getSourceAsBytesRef();
+        final long version = singleGetResponse.getVersion();
+
+        
         if (ref == null || ref.length() == 0) {
             return null;
         }
@@ -178,7 +183,7 @@ public class ConfigurationLoader {
             
             parser.nextToken();
             
-            return Settings.builder().put(new JsonSettingsLoader(true).load(parser.binaryValue())).build();
+            return new Tuple<Long, Settings>(version,Settings.builder().put(new JsonSettingsLoader(true).load(parser.binaryValue())).build());
         } catch (final IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {
