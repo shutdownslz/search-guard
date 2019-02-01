@@ -18,6 +18,7 @@
 package com.floragunn.searchguard.auth;
 
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -73,11 +74,11 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     private final Map<String, String> authImplMap = new HashMap<>();
-    private final SortedSet<AuthDomain> restAuthDomains = new TreeSet<>();
-    private final Set<AuthorizationBackend> restAuthorizers = new HashSet<>();
-    private final SortedSet<AuthDomain> transportAuthDomains = new TreeSet<>();
-    private final Set<AuthorizationBackend> transportAuthorizers = new HashSet<>();
-    private final List<Destroyable> destroyableComponents = new LinkedList<>();
+    private SortedSet<AuthDomain> restAuthDomains;
+    private Set<AuthorizationBackend> restAuthorizers;
+    private SortedSet<AuthDomain> transportAuthDomains;
+    private Set<AuthorizationBackend> transportAuthorizers;
+    private List<Destroyable> destroyableComponents;
     private volatile boolean initialized;
     private final AdminDNs adminDns;
     private final XFFResolver xffResolver;
@@ -93,7 +94,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
     private Cache<String, User> userCacheTransport;
     private Cache<AuthCredentials, User> authenticatedUserCacheTransport;
     private Cache<String, User> restImpersonationCache;
-    private volatile String transportUsernameAttribute = null; 
+    private volatile String transportUsernameAttribute = null;
     
     private void createCaches() {
         userCache = CacheBuilder.newBuilder()
@@ -182,17 +183,12 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
     @Override
     public void onChange(final Settings settings) {
-
-        //TODO synchronize via semaphore/atomicref
-        restAuthDomains.clear();
-        transportAuthDomains.clear();
-        restAuthorizers.clear();
-        transportAuthorizers.clear();
-        invalidateCache();
-        destroyDestroyables();
-        transportUsernameAttribute = settings.get("searchguard.dynamic.transport_userrname_attribute", null);
-        anonymousAuthEnabled = settings.getAsBoolean("searchguard.dynamic.http.anonymous_auth_enabled", false)
-                && !esSettings.getAsBoolean(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false);
+        
+        final SortedSet<AuthDomain> restAuthDomains0 = new TreeSet<>();
+        final Set<AuthorizationBackend> restAuthorizers0 = new HashSet<>();
+        final SortedSet<AuthDomain> transportAuthDomains0 = new TreeSet<>();
+        final Set<AuthorizationBackend> transportAuthorizers0 = new HashSet<>();
+        final List<Destroyable> destroyableComponents0 = new LinkedList<>();
 
         final Map<String, Settings> authzDyn = settings.getGroups("searchguard.dynamic.authz");
 
@@ -221,15 +217,15 @@ public class BackendRegistry implements ConfigurationChangeListener {
                     }
                     
                     if (httpEnabled) {
-                        restAuthorizers.add(authorizationBackend);
+                        restAuthorizers0.add(authorizationBackend);
                     }
 
                     if (transportEnabled) {
-                        transportAuthorizers.add(authorizationBackend);
+                        transportAuthorizers0.add(authorizationBackend);
                     }
                     
                     if (authorizationBackend instanceof Destroyable) {
-                    	this.destroyableComponents.add((Destroyable) authorizationBackend);
+                    	destroyableComponents0.add((Destroyable) authorizationBackend);
                     }
                 } catch (final Exception e) {
                     log.error("Unable to initialize AuthorizationBackend {} due to {}", ad, e.toString(),e);
@@ -268,19 +264,19 @@ public class BackendRegistry implements ConfigurationChangeListener {
                             ads.getAsBoolean("http_authenticator.challenge", true), ads.getAsInt("order", 0));
 
                     if (httpEnabled && _ad.getHttpAuthenticator() != null) {
-                        restAuthDomains.add(_ad);
+                        restAuthDomains0.add(_ad);
                     }
 
                     if (transportEnabled) {
-                        transportAuthDomains.add(_ad);
+                        transportAuthDomains0.add(_ad);
                     }
                     
                     if (httpAuthenticator instanceof Destroyable) {
-                    	this.destroyableComponents.add((Destroyable) httpAuthenticator);
+                    	destroyableComponents0.add((Destroyable) httpAuthenticator);
                     }
                     
                     if (authenticationBackend instanceof Destroyable) {
-                    	this.destroyableComponents.add((Destroyable) authenticationBackend);                    	
+                        destroyableComponents0.add((Destroyable) authenticationBackend);
                     }
                     
                 } catch (final Exception e) {
@@ -290,21 +286,47 @@ public class BackendRegistry implements ConfigurationChangeListener {
             }
         }
 
+        invalidateCache();
+
+        transportUsernameAttribute = settings.get("searchguard.dynamic.transport_userrname_attribute", null);
+        anonymousAuthEnabled = settings.getAsBoolean("searchguard.dynamic.http.anonymous_auth_enabled", false)
+                && !esSettings.getAsBoolean(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false);
+
+        List<Destroyable> originalDestroyableComponents = destroyableComponents;
+        
+        restAuthDomains = Collections.unmodifiableSortedSet(restAuthDomains0);
+        transportAuthDomains = Collections.unmodifiableSortedSet(transportAuthDomains0);
+        restAuthorizers = Collections.unmodifiableSet(restAuthorizers0);
+        transportAuthorizers = Collections.unmodifiableSet(transportAuthorizers0);
+        destroyableComponents = Collections.unmodifiableList(destroyableComponents0);
+        
         //SG6 no default authc
         initialized = !restAuthDomains.isEmpty() || anonymousAuthEnabled;
+        
+        if(originalDestroyableComponents != null) {
+            destroyDestroyables(originalDestroyableComponents);
+        }
+        
+        originalDestroyableComponents = null;
+
     }
 
     public User authenticate(final TransportRequest request, final String sslPrincipal, final Task task, final String action) {
 
-    	  if(log.isDebugEnabled() && request.remoteAddress() != null) {
-    		  log.debug("Transport authentication request from {}", request.remoteAddress());
-    	  }
+        if(log.isDebugEnabled() && request.remoteAddress() != null) {
+            log.debug("Transport authentication request from {}", request.remoteAddress());
+        }
         
         User origPKIUser = new User(sslPrincipal);
         
         if(adminDns.isAdmin(origPKIUser)) {
             auditLog.logSucceededLogin(origPKIUser.getName(), true, null, request, action, task);
             return origPKIUser;
+        }
+        
+        if (!isInitialized()) {
+            log.error("Not yet initialized (you may need to run sgadmin)");
+            return null;
         }
 
         final String authorizationHeader = threadPool.getThreadContext().getHeader("Authorization");
@@ -742,16 +764,14 @@ public class BackendRegistry implements ConfigurationChangeListener {
         return ReflectionHelper.instantiateAAA(clazz, settings, configPath, isEnterprise);
     }
     
-    private void destroyDestroyables() {
-    	for (Destroyable destroyable : this.destroyableComponents) {
+    private void destroyDestroyables(List<Destroyable> destroyableComponents) {
+    	for (Destroyable destroyable : destroyableComponents) {
     		try {
     			destroyable.destroy();
     		} catch (Exception e) {
     			log.error("Error while destroying " + destroyable, e);
     		}
     	}
-    	
-    	this.destroyableComponents.clear();
     }
     
     private User resolveTransportUsernameAttribute(User pkiUser) {

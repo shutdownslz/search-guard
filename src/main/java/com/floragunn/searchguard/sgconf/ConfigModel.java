@@ -61,7 +61,7 @@ public class ConfigModel {
     }
 
     public SgRoles load() {
-        final Settings settings = configurationRepository.getConfiguration("roles", false);
+        final Settings settings = configurationRepository.getConfiguration("roles");
         SgRoles _sgRoles = new SgRoles();
         Set<String> sgRoles = settings.names();
         for(String sgRole: sgRoles) {
