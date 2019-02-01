@@ -383,6 +383,7 @@ public class HttpIntegrationTests extends SingleClusterTest {
             Assert.fail();
         } catch (NoHttpResponseException e) {
             clusterHelper.stopCluster();
+            Assert.assertNotNull(appender);
             List<LogEvent> logEvents = new ArrayList<LogEvent>(appender.getEvents());
             Assert.assertTrue(logEvents.size() > 0);
             for(LogEvent evt: logEvents) {
