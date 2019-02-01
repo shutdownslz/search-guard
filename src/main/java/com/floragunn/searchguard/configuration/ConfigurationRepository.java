@@ -18,6 +18,7 @@
 package com.floragunn.searchguard.configuration;
 
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collection;
@@ -81,4 +82,6 @@ public interface ConfigurationRepository {
      * @throws NullPointerException if specified configuration type is null or empty, or callback function is null
      */
     void subscribeOnChange(String configurationType, ConfigurationChangeListener listener);
+    
+    Map<String, Tuple<Long, Settings>> loadConfigurations(Collection<String> configTypes);
 }
