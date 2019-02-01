@@ -265,11 +265,18 @@ public abstract class AbstractSGUnitTest {
 
     @BeforeClass
     public static void setupLogging() {
-        appender = init.getListAppender("list");
+        try {
+            appender = init.getListAppender("list");
+        } catch (Throwable e) {
+            //ignore
+        }
     }
 
     @Before
     public void clearAppender() {
-        appender.clear();
+        
+        if(appender != null) {
+            appender.clear();
+        }
     }
 }
