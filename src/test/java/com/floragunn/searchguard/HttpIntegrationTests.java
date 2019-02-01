@@ -33,6 +33,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import com.floragunn.searchguard.action.configupdate.ConfigUpdateAction;
@@ -367,6 +368,7 @@ public class HttpIntegrationTests extends SingleClusterTest {
     }
 
     @Test
+    @Ignore
     public void testHTTPPlaintextErrMsg() throws Exception {
         
         try {
