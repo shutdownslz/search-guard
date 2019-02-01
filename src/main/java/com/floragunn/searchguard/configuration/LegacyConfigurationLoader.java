@@ -37,6 +37,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.MultiGetResponse.Failure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -62,14 +63,14 @@ class LegacyConfigurationLoader {
         log.debug("Index is: {}", searchguardIndex);
     }
     
-    Map<String, Settings> loadLegacy(final String[] events, long timeout, TimeUnit timeUnit) throws InterruptedException, TimeoutException {
+    Map<String, Tuple<Long, Settings>> loadLegacy(final String[] events, long timeout, TimeUnit timeUnit) throws InterruptedException, TimeoutException {
         final CountDownLatch latch = new CountDownLatch(events.length);
-        final Map<String, Settings> rs = new HashMap<String, Settings>(events.length);
+        final Map<String, Tuple<Long, Settings>> rs = new HashMap<String, Tuple<Long, Settings>>(events.length);
         
         loadAsyncLegacy(events, new ConfigCallback() {
             
             @Override
-            public void success(String type, Settings settings) {
+            public void success(String type, Tuple<Long, Settings> settings) {
                 if(latch.getCount() <= 0) {
                     log.error("Latch already counted down (for {} of {})  (index={})", type, Arrays.toString(events), searchguardIndex);
                 }
@@ -134,8 +135,8 @@ class LegacyConfigurationLoader {
                             GetResponse singleGetResponse = singleResponse.getResponse();
                             if(singleGetResponse.isExists() && !singleGetResponse.isSourceEmpty()) {
                                 //success
-                                final Settings _settings = toSettings(singleGetResponse.getSourceAsBytesRef(), singleGetResponse.getType());
-                                if(_settings != null) {
+                                final Tuple<Long, Settings> _settings = toSettings(singleGetResponse);
+                                if(_settings.v2() != null) {
                                     callback.success(singleGetResponse.getType(), _settings);
                                 } else {
                                     log.error("Cannot parse settings for "+singleGetResponse.getType());
@@ -159,7 +160,10 @@ class LegacyConfigurationLoader {
         }
     }
 
-    private Settings toSettings(final BytesReference ref, final String type) {
+    private Tuple<Long, Settings> toSettings(GetResponse singleGetResponse) {
+        final BytesReference ref = singleGetResponse.getSourceAsBytesRef();
+        final String type = singleGetResponse.getType();
+        final long version = singleGetResponse.getVersion();
         if (ref == null || ref.length() == 0) {
             log.error("Empty or null byte reference for {}", type);
             return null;
@@ -179,7 +183,7 @@ class LegacyConfigurationLoader {
             
             parser.nextToken();
             
-            return Settings.builder().loadFromStream("dummy.json", new ByteArrayInputStream(parser.binaryValue()), true).build();
+            return new Tuple<Long, Settings>(version, Settings.builder().loadFromStream("dummy.json", new ByteArrayInputStream(parser.binaryValue()), true).build());
         } catch (final IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {
