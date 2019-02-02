@@ -39,6 +39,7 @@ import org.junit.Ignore;
 import org.junit.Test;
 
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.support.SgUtils;
 import com.floragunn.searchguard.test.DynamicSgConfig;
 import com.floragunn.searchguard.test.SingleClusterTest;
 import com.floragunn.searchguard.test.helper.rest.RestHelper;
@@ -267,7 +268,7 @@ public class IndexIntegrationTests extends SingleClusterTest {
             tc.index(new IndexRequest("logstash-3").type("logs").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":1}", XContentType.JSON)).actionGet();
             tc.index(new IndexRequest("logstash-4").type("logs").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":1}", XContentType.JSON)).actionGet();
     
-            SimpleDateFormat sdf = new SimpleDateFormat("YYYY.MM.dd");
+            SimpleDateFormat sdf = new SimpleDateFormat("YYYY.MM.dd", SgUtils.EN_Locale);
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             
             String date = sdf.format(new Date());
@@ -512,5 +513,27 @@ public class IndexIntegrationTests extends SingleClusterTest {
         res = rh.executeGetRequest("/*:noexists/_search", encodeBasicHeader("ccsresolv", "nagilum"));
         Assert.assertEquals(HttpStatus.SC_OK, res.getStatusCode());
         System.out.println(res.getBody());
+    }
+    
+    @Test
+    public void testIndexResolveIgnoreUnavailable() throws Exception {
+
+        setup(Settings.EMPTY, new DynamicSgConfig().setSgConfig("sg_config_respect_indices_options.yml").setSgRoles("sg_roles_bs.yml"), Settings.EMPTY, true);
+        final RestHelper rh = nonSslRestHelper();
+
+        try (TransportClient tc = getInternalTransportClient()) {
+            //create indices and mapping upfront
+            tc.index(new IndexRequest("test").type("type1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"field2\":\"init\"}", XContentType.JSON)).actionGet();
+            tc.index(new IndexRequest("lorem").type("type1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"field2\":\"init\"}", XContentType.JSON)).actionGet();
+        }
+
+        String msearchBody =
+            "{\"index\": [\"tes*\",\"-.searchguard\",\"-missing\"], \"ignore_unavailable\": true}"+System.lineSeparator()+
+                "{\"size\":10, \"query\":{\"match_all\":{}}}"+System.lineSeparator();
+
+
+        HttpResponse resc = rh.executePostRequest("_msearch", msearchBody, encodeBasicHeader("worf", "worf"));
+        Assert.assertEquals(HttpStatus.SC_OK, resc.getStatusCode());
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"hits\":{\"total\":1"));
     }
 }
