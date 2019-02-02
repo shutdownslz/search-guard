@@ -83,7 +83,6 @@ public class PrivilegesEvaluator {
     
     private final AuditLog auditLog;
     private ThreadContext threadContext;
-    //private final static IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.lenientExpandOpen();
     private final ConfigurationRepository configurationRepository;
 
     private PrivilegesInterceptor privilegesInterceptor;
@@ -105,7 +104,7 @@ public class PrivilegesEvaluator {
 
     public PrivilegesEvaluator(final ClusterService clusterService, final ThreadPool threadPool, final ConfigurationRepository configurationRepository, final ActionGroupHolder ah,
             final IndexNameExpressionResolver resolver, AuditLog auditLog, final Settings settings, final PrivilegesInterceptor privilegesInterceptor,
-            final ClusterInfoHolder clusterInfoHolder) {
+            final ClusterInfoHolder clusterInfoHolder, final IndexResolverReplacer irr) {
 
         super();
         this.configurationRepository = configurationRepository;
@@ -129,7 +128,7 @@ public class PrivilegesEvaluator {
         this.clusterInfoHolder = clusterInfoHolder;
         //this.typeSecurityDisabled = settings.getAsBoolean(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY, false);
         configModel = new ConfigModel(ah, configurationRepository);
-        irr = new IndexResolverReplacer(resolver, clusterService, clusterInfoHolder);
+        this.irr = irr;
         snapshotRestoreEvaluator = new SnapshotRestoreEvaluator(settings, auditLog);
         sgIndexAccessEvaluator = new SearchGuardIndexAccessEvaluator(settings, auditLog);
         dlsFlsEvaluator = new DlsFlsEvaluator(settings, threadPool);
@@ -137,15 +136,15 @@ public class PrivilegesEvaluator {
     }
 
     private Settings getRolesSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES);
     }
 
     private Settings getRolesMappingSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES_MAPPING, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES_MAPPING);
     }
 
     private Settings getConfigSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_CONFIG, false);
+        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_CONFIG);
     }
 
     //TODO: optimize, recreate only if changed
@@ -611,7 +610,6 @@ public class PrivilegesEvaluator {
             || (action0.equals(MultiGetAction.NAME))
             || (action0.equals(MultiSearchAction.NAME))
             || (action0.equals(MultiTermVectorsAction.NAME))
-            || (action0.equals("indices:data/read/coordinate-msearch"))
             || (action0.equals(ReindexAction.NAME))
 
             ) ;

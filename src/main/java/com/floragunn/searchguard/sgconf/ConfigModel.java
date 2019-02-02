@@ -61,7 +61,7 @@ public class ConfigModel {
     }
 
     public SgRoles load() {
-        final Settings settings = configurationRepository.getConfiguration("roles", false);
+        final Settings settings = configurationRepository.getConfiguration("roles");
         SgRoles _sgRoles = new SgRoles();
         Set<String> sgRoles = settings.names();
         for(String sgRole: sgRoles) {
@@ -384,11 +384,11 @@ public class ConfigModel {
                        //we want all indices so just return what's permitted
                        
                        //#557
-                       final String[] allIndices = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), "*");
+                       //final String[] allIndices = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), "*");
+                       final String[] allIndices = cs.state().metaData().getConcreteAllOpenIndices();
                        final Set<String> wanted = new HashSet<>(Arrays.asList(allIndices));
                        WildcardMatcher.wildcardRetainInSet(wanted, permitted);
                        res.addAll(wanted);
-                       //res.addAll(Arrays.asList(resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), permitted)));
                    }
                    retVal.addAll(res);
                }
