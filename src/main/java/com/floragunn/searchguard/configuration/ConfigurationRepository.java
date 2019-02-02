@@ -37,7 +37,7 @@ public interface ConfigurationRepository {
      * @throws NullPointerException if specified configuration type is null or empty
      */
     
-    Settings getConfiguration(String configurationType, boolean triggerComplianceWhenCached);
+    Settings getConfiguration(String configurationType);
 
     /**
      * Bulk load configuration from persistence layer
