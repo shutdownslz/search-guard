@@ -63,6 +63,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
@@ -135,15 +136,15 @@ public class PrivilegesEvaluator {
         termsAggregationEvaluator = new TermsAggregationEvaluator();
     }
 
-    private Settings getRolesSettings() {
+    private DynamicConfiguration getRolesSettings() {
         return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES);
     }
 
-    private Settings getRolesMappingSettings() {
+    private DynamicConfiguration getRolesMappingSettings() {
         return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ROLES_MAPPING);
     }
 
-    private Settings getConfigSettings() {
+    private DynamicConfiguration getConfigSettings() {
         return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_CONFIG);
     }
 
@@ -209,7 +210,7 @@ public class PrivilegesEvaluator {
             log.trace("dnfof enabled? {}", dnfofEnabled);
         }
         
-        final Settings config = getConfigSettings();
+        final DynamicConfiguration config = getConfigSettings();
         
         if (isClusterPerm(action0)) {
             if(!sgRoles.impliesClusterPermissionPermission(action0)) {
@@ -386,7 +387,7 @@ public class PrivilegesEvaluator {
     }
     public Set<String> mapSgRoles(final User user, final TransportAddress caller) {
 
-        final Settings rolesMapping = getRolesMappingSettings();
+        final DynamicConfiguration rolesMapping = getRolesMappingSettings();
         final Set<String> sgRoles = new TreeSet<String>();
 
         if(user == null) {
@@ -404,19 +405,19 @@ public class PrivilegesEvaluator {
         if(rolesMapping != null && ((rolesMappingResolution == ConfigConstants.RolesMappingResolution.BOTH
                 || rolesMappingResolution == ConfigConstants.RolesMappingResolution.MAPPING_ONLY))) {
             for (final String roleMap : rolesMapping.names()) {
-                final Settings roleMapSettings = rolesMapping.getByPrefix(roleMap);
+                final DynamicConfiguration roleMapSettings = rolesMapping.getByPrefix(roleMap);
 
-                if (WildcardMatcher.allPatternsMatched(roleMapSettings.getAsList(".and_backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
+                if (WildcardMatcher.allPatternsMatched(roleMapSettings.getAsList("and_backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
                     sgRoles.add(roleMap);
                     continue;
                 }
 
-                if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
+                if (WildcardMatcher.matchAny(roleMapSettings.getAsList("backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
                     sgRoles.add(roleMap);
                     continue;
                 }
 
-                if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".users"), user.getName())) {
+                if (WildcardMatcher.matchAny(roleMapSettings.getAsList("users"), user.getName())) {
                     sgRoles.add(roleMap);
                     continue;
                 }
@@ -432,7 +433,7 @@ public class PrivilegesEvaluator {
                 if(caller != null) {
                     //IPV4 or IPv6 (compressed and without scope identifiers)
                     final String ipAddress = caller.getAddress();
-                    if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), ipAddress)) {
+                    if (WildcardMatcher.matchAny(roleMapSettings.getAsList("hosts"), ipAddress)) {
                         sgRoles.add(roleMap);
                         continue;
                     }
@@ -475,7 +476,7 @@ public class PrivilegesEvaluator {
         result.put(user.getName(), true);
 
         for(String sgRole: mapSgRoles(user, caller)) {
-            Settings tenants = getRolesSettings().getByPrefix(sgRole+".tenants.");
+            DynamicConfiguration tenants = getRolesSettings().getByPrefix(sgRole+".tenants");
 
             if(tenants != null) {
                 for(String tenant: tenants.names()) {
@@ -501,7 +502,7 @@ public class PrivilegesEvaluator {
 
     public Set<String> getAllConfiguredTenantNames() {
     	
-    	final Settings roles = getRolesSettings();
+    	final DynamicConfiguration roles = getRolesSettings();
 
     	if(roles == null || roles.isEmpty()) {
     		return Collections.emptySet();
@@ -509,7 +510,7 @@ public class PrivilegesEvaluator {
     	
     	final Set<String> configuredTenants = new HashSet<>();
     	for(String sgRole: roles.names()) {
-            Settings tenants = roles.getByPrefix(sgRole+".tenants.");
+    	    DynamicConfiguration tenants = roles.getByPrefix(sgRole+".tenants");
 
             if(tenants != null) {
                 configuredTenants.addAll(tenants.names());

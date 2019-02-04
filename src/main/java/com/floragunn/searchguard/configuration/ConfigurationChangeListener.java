@@ -20,6 +20,8 @@ package com.floragunn.searchguard.configuration;
 
 import org.elasticsearch.common.settings.Settings;
 
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+
 /**
  * Callback function on change particular configuration
  */
@@ -28,5 +30,5 @@ public interface ConfigurationChangeListener {
     /**
      * @param configuration not null updated configuration on that was subscribe current listener
      */
-    void onChange(Settings configuration);
+    void onChange(DynamicConfiguration configuration);
 }

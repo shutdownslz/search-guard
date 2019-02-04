@@ -17,6 +17,7 @@
 
 package com.floragunn.searchguard.support;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,6 +27,12 @@ import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.floragunn.searchguard.user.User;
+import com.google.common.collect.Iterators;
 
 public final class SgUtils {
     
@@ -97,5 +104,25 @@ public final class SgUtils {
             map.put(keyValues[i], keyValues[i+1]);
         }
         return map;
+    }
+    
+    public static void main(String[] args) {
+
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+
+        try {
+
+            JsonNode n = mapper.readTree(new File("/Users/salyh/sgdev/search-guard/sgconfig/test.yml"));
+            System.out.println(Iterators.toString(n.get(".kibana.kibana1").fieldNames()));
+            
+
+        } catch (Exception e) {
+
+            // TODO Auto-generated catch block
+
+            e.printStackTrace();
+
+        }
+
     }
 }

@@ -23,6 +23,8 @@ import java.util.Map;
 
 import org.elasticsearch.common.settings.Settings;
 
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+
 /**
  * Abstraction layer over search guard configuration repository
  */
@@ -37,7 +39,7 @@ public interface ConfigurationRepository {
      * @throws NullPointerException if specified configuration type is null or empty
      */
     
-    Settings getConfiguration(String configurationType);
+    DynamicConfiguration getConfiguration(String configurationType);
 
     /**
      * Bulk load configuration from persistence layer
@@ -61,7 +63,7 @@ public interface ConfigurationRepository {
      * they will be absent in result map
      * @throws NullPointerException if specified collection with type null or contain null or empty types
      */
-    Map<String, Settings> reloadConfiguration(Collection<String> configTypes);
+    Map<String, DynamicConfiguration> reloadConfiguration(Collection<String> configTypes);
 
     /**
      * Save changed configuration in persistence layer. After save, changes will be available for
@@ -71,7 +73,7 @@ public interface ConfigurationRepository {
      * @param settings          not null configuration that need persist
      * @throws NullPointerException if specified configuration is null or configuration type is null or empty
      */
-    void persistConfiguration(String configurationType, Settings settings);
+    void persistConfiguration(String configurationType, DynamicConfiguration settings);
 
     /**
      * Subscribe on configuration change

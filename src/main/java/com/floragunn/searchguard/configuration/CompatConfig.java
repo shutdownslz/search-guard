@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.support.ConfigConstants;
 
 
@@ -29,7 +30,7 @@ public class CompatConfig implements ConfigurationChangeListener {
 
     private final Logger log = LogManager.getLogger(getClass());
     private final Settings staticSettings;
-    private Settings dynamicSgConfig;
+    private DynamicConfiguration dynamicSgConfig;
 
     public CompatConfig(final Environment environment) {
         super();
@@ -37,7 +38,7 @@ public class CompatConfig implements ConfigurationChangeListener {
     }
     
     @Override
-    public void onChange(final Settings dynamicSgConfig) {
+    public void onChange(final DynamicConfiguration dynamicSgConfig) {
         this.dynamicSgConfig = dynamicSgConfig;
         log.debug("dynamicSgConfig updated?: {}", (dynamicSgConfig != null));
     }

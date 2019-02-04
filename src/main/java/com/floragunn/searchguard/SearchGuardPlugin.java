@@ -132,6 +132,7 @@ import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
 import com.floragunn.searchguard.configuration.DlsFlsRequestValve;
 import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardIndexSearcherWrapper;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.filter.SearchGuardFilter;
 import com.floragunn.searchguard.filter.SearchGuardRestFilter;
 import com.floragunn.searchguard.http.SearchGuardHttpServerTransport;
@@ -798,7 +799,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, new ConfigurationChangeListener() {
 
             @Override
-            public void onChange(Settings unused) {
+            public void onChange(DynamicConfiguration unused) {
                 //auditLog.logExternalConfig(settings, environment);
             }
         });

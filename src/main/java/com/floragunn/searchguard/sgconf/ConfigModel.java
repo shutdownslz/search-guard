@@ -34,9 +34,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
 
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.support.WildcardMatcher;
@@ -61,22 +61,22 @@ public class ConfigModel {
     }
 
     public SgRoles load() {
-        final Settings settings = configurationRepository.getConfiguration("roles");
+        final DynamicConfiguration settings = configurationRepository.getConfiguration("roles");
         SgRoles _sgRoles = new SgRoles();
         Set<String> sgRoles = settings.names();
         for(String sgRole: sgRoles) {
 
             SgRole _sgRole = new SgRole(sgRole);
 
-            final Settings sgRoleSettings = settings.getByPrefix(sgRole);
+            final DynamicConfiguration sgRoleSettings = settings.getByPrefix0(sgRole);
             if (sgRoleSettings.names().isEmpty()) {
                 continue;
             }
 
-            final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
+            final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(Collections.emptyList(), "cluster"));
             _sgRole.addClusterPerms(permittedClusterActions);
 
-            Settings tenants = settings.getByPrefix(sgRole+".tenants.");
+            DynamicConfiguration tenants = settings.getByPrefix0(sgRole,"tenants");
 
             if(tenants != null) {
                 for(String tenant: tenants.names()) {
@@ -85,7 +85,7 @@ public class ConfigModel {
                     //    continue;
                     //}
 
-                    if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
+                    if("RW".equalsIgnoreCase(tenants.getAsStringWithDefault("RO", tenant))) {
                         _sgRole.addTenant(new Tenant(tenant, true));
                     } else {
                         _sgRole.addTenant(new Tenant(tenant, false));
@@ -97,16 +97,16 @@ public class ConfigModel {
             }
 
 
-            final Map<String, Settings> permittedAliasesIndices = sgRoleSettings.getGroups(".indices");
+            final Map<String, DynamicConfiguration> permittedAliasesIndices = sgRoleSettings.getGroups0("indices");
 
             for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
 
                 final String resolvedRole = sgRole;
                 final String indexPattern = permittedAliasesIndex;
 
-                final String dls = settings.get(resolvedRole+".indices."+indexPattern+"._dls_");
-                final List<String> fls = settings.getAsList(resolvedRole+".indices."+indexPattern+"._fls_");
-                final List<String> maskedFields = settings.getAsList(resolvedRole+".indices."+indexPattern+"._masked_fields_");
+                final String dls = settings.getAsString(resolvedRole,"indices",indexPattern,"_dls_");
+                final List<String> fls = settings.getAsListWithEmptyDefault(resolvedRole,"indices",indexPattern,"_fls_");
+                final List<String> maskedFields = settings.getAsListWithEmptyDefault(resolvedRole,"indices",indexPattern,"_masked_fields_");
 
                 IndexPattern _indexPattern = new IndexPattern(indexPattern);
                 _indexPattern.setDlsQuery(dls);
@@ -120,7 +120,7 @@ public class ConfigModel {
                     }
 
                     TypePerm typePerm = new TypePerm(type);
-                    final List<String> perms = settings.getAsList(resolvedRole+".indices."+indexPattern+"."+type);
+                    final List<String> perms = settings.getAsListWithEmptyDefault(resolvedRole,"indices",indexPattern,type);
                     typePerm.addPerms(ah.resolvedActions(perms));
                     _indexPattern.addTypePerms(typePerm);
                 }

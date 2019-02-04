@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import com.floragunn.searchguard.auth.BackendRegistry;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardLicense;
@@ -108,7 +109,7 @@ TransportNodesAction<ConfigUpdateRequest, ConfigUpdateResponse, TransportConfigU
 	
     @Override
     protected ConfigUpdateNodeResponse nodeOperation(final NodeConfigUpdateRequest request) {
-        final Map<String, Settings> setn = configurationRepository.reloadConfiguration(Arrays.asList(request.request.getConfigTypes()));
+        final Map<String, DynamicConfiguration> setn = configurationRepository.reloadConfiguration(Arrays.asList(request.request.getConfigTypes()));
         String licenseText = null;
         
         if(setn.get("config") != null) {

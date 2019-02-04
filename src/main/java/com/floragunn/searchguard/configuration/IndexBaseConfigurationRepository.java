@@ -65,6 +65,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.compliance.ComplianceConfig;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.ConfigHelper;
@@ -81,11 +82,10 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
 
     private final String searchguardIndex;
     private final Client client;
-    private final ConcurrentMap<String, Settings> typeToConfig;
+    private final ConcurrentMap<String, DynamicConfiguration> typeToConfig;
     private final Multimap<String, ConfigurationChangeListener> configTypeToChancheListener;
     private final List<LicenseChangeListener> licenseChangeListener;
-    private final ConfigurationLoader cl;
-    private final LegacyConfigurationLoader legacycl;
+    private final ConfigurationLoaderSG7 cl;
     private final Settings settings;
     private final ClusterService clusterService;
     private final AuditLog auditLog;
@@ -105,8 +105,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
         this.typeToConfig = Maps.newConcurrentMap();
         this.configTypeToChancheListener = ArrayListMultimap.create();
         this.licenseChangeListener = new ArrayList<LicenseChangeListener>();
-        cl = new ConfigurationLoader(client, threadPool, settings);
-        legacycl = new LegacyConfigurationLoader(client, threadPool, settings);
+        cl = new ConfigurationLoaderSG7(client, threadPool, settings);
 
         final AtomicBoolean installDefaultConfig = new AtomicBoolean();
 
@@ -263,22 +262,22 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
     @Override
-    public Settings getConfiguration(String configurationType) {
+    public DynamicConfiguration getConfiguration(String configurationType) {
 
-        Settings result = typeToConfig.get(configurationType);
+        DynamicConfiguration result = typeToConfig.get(configurationType);
         
         if (result != null) {
             return result;
         }
 
-        Map<String, Tuple<Long, Settings>> loaded = loadConfigurations(Collections.singleton(configurationType), false);
+        Map<String, DynamicConfiguration> loaded = loadConfigurations(Collections.singleton(configurationType), false);
 
-        result = loaded.get(configurationType).v2();
+        result = loaded.get(configurationType);
 
         return putSettingsToCache(configurationType, result);
     }
 
-    private Settings putSettingsToCache(String configurationType, Settings result) {
+    private DynamicConfiguration putSettingsToCache(String configurationType, DynamicConfiguration result) {
         if (result != null) {
             typeToConfig.putIfAbsent(configurationType, result);
         }
@@ -287,9 +286,9 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
     @Override
-    public Map<String, Settings> reloadConfiguration(Collection<String> configTypes) {
-        Map<String, Tuple<Long, Settings>> loaded = loadConfigurations(configTypes, false);
-        Map<String, Settings> loaded0 = loaded.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().v2()));
+    public Map<String, DynamicConfiguration> reloadConfiguration(Collection<String> configTypes) {
+        Map<String, DynamicConfiguration> loaded = loadConfigurations(configTypes, false);
+        Map<String, DynamicConfiguration> loaded0 = loaded.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
         typeToConfig.keySet().removeAll(loaded0.keySet());
         typeToConfig.putAll(loaded0);
         notifyAboutChanges(loaded0);
@@ -321,7 +320,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
     @Override
-    public void persistConfiguration(String configurationType,  Settings settings) {
+    public void persistConfiguration(String configurationType,  DynamicConfiguration settings) {
         //TODO should be use from com.floragunn.searchguard.tools.SearchGuardAdmin
         throw new UnsupportedOperationException("Not implemented yet");
     }
@@ -345,12 +344,12 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
         }
     }
 
-    private synchronized void notifyAboutChanges(Map<String, Settings> typeToConfig) {
+    private synchronized void notifyAboutChanges(Map<String, DynamicConfiguration> typeToConfig) {
         for (Map.Entry<String, ConfigurationChangeListener> entry : configTypeToChancheListener.entries()) {
             String type = entry.getKey();
             ConfigurationChangeListener listener = entry.getValue();
 
-            Settings settings = typeToConfig.get(type);
+            DynamicConfiguration settings = typeToConfig.get(type);
 
             if (settings == null) {
                 continue;
@@ -367,10 +366,10 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
 
-    public Map<String, Tuple<Long, Settings>> loadConfigurations(Collection<String> configTypes, boolean logComplianceEvent) {
+    public Map<String, DynamicConfiguration> loadConfigurations(Collection<String> configTypes, boolean logComplianceEvent) {
 
             final ThreadContext threadContext = threadPool.getThreadContext();
-            final Map<String, Tuple<Long, Settings>> retVal = new HashMap<String, Tuple<Long, Settings>>();
+            final Map<String, DynamicConfiguration> retVal = new HashMap<String, DynamicConfiguration>();
 
             try(StoredContext ctx = threadContext.stashContext()) {
                 threadContext.putHeader(ConfigConstants.SG_CONF_REQUEST_HEADER, "true");
@@ -400,23 +399,23 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
             if(logComplianceEvent && complianceConfig.isEnabled()) {
                 String configurationType = configTypes.iterator().next();
                 Map<String, String> fields = new HashMap<String, String>();
-                fields.put(configurationType, Strings.toString(retVal.get(configurationType).v2()));
+                fields.put(configurationType, Strings.toString(retVal.get(configurationType)));
                 auditLog.logDocumentRead(this.searchguardIndex, configurationType, null, fields, complianceConfig);
             }
             
             return retVal;
     }
 
-    private Map<String, Tuple<Long, Settings>> validate(Map<String, Tuple<Long, Settings>> conf, int expectedSize) throws InvalidConfigException {
+    private Map<String, DynamicConfiguration> validate(Map<String, DynamicConfiguration> conf, int expectedSize) throws InvalidConfigException {
 
         if(conf == null || conf.size() != expectedSize) {
             throw new InvalidConfigException("Retrieved only partial configuration");
         }
 
-        final Tuple<Long, Settings> roles = conf.get("roles");
+        /*final DynamicConfiguration roles = conf.get("roles");
         final String rolesDelimited;
 
-        if (roles != null && roles.v2() != null && (rolesDelimited = roles.v2().toDelimitedString('#')) != null) {
+        if (roles != null && (rolesDelimited = roles.toDelimitedString('#')) != null) {
 
             //<role>.indices.<indice>._dls_= OK
             //<role>.indices.<indice>._fls_.<num>= OK
@@ -432,7 +431,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
                     LOGGER.error("Invalid DLS configuration detected, FLS/DLS will not work correctly: {}", role);
                 }
             }
-        }
+        }*/
 
         return conf;
     }

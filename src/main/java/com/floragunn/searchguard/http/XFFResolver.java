@@ -31,6 +31,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.support.ConfigConstants;
 
 public class XFFResolver implements ConfigurationChangeListener {
@@ -81,7 +82,7 @@ public class XFFResolver implements ConfigurationChangeListener {
     }
 
     @Override
-    public void onChange(final Settings settings) {
+    public void onChange(final DynamicConfiguration settings) {
         enabled = settings.getAsBoolean("searchguard.dynamic.http.xff.enabled", true);
         if(enabled) {
             detector = new RemoteIpDetector();

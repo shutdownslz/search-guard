@@ -24,6 +24,7 @@ import java.util.Set;
 
 import org.elasticsearch.common.settings.Settings;
 
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.support.ConfigConstants;
 
 public class ActionGroupHolder {
@@ -36,7 +37,7 @@ public class ActionGroupHolder {
 
     public Set<String> getGroupMembers(final String groupname) {
 
-        final Settings actionGroups = getSettings();
+        final DynamicConfiguration actionGroups = getSettings();
         
         if (actionGroups == null) {
             return Collections.emptySet();
@@ -45,7 +46,7 @@ public class ActionGroupHolder {
         return resolve(actionGroups, groupname);
     }
 
-    private Set<String> resolve(final Settings actionGroups, final String entry) {
+    private Set<String> resolve(final DynamicConfiguration actionGroups, final String entry) {
 
         final Set<String> ret = new HashSet<String>();
         // SG5 format, plain array
@@ -78,7 +79,7 @@ public class ActionGroupHolder {
         return resolvedActions;
     }
 
-    private Settings getSettings() {
+    private DynamicConfiguration getSettings() {
         return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ACTION_GROUPS);
     }
 }

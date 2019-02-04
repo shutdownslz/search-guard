@@ -23,6 +23,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import com.floragunn.searchguard.auth.AuthenticationBackend;
 import com.floragunn.searchguard.auth.AuthorizationBackend;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.user.AuthCredentials;
@@ -47,7 +50,7 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
     @Override
     public boolean exists(User user) {
 
-        final Settings cfg = getConfigSettings();
+        final DynamicConfiguration cfg = getConfigSettings();
         if (cfg == null) {
             return false;
         }
@@ -81,13 +84,17 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
     @Override
     public User authenticate(final AuthCredentials credentials) {
         
-        final Settings cfg = getConfigSettings();
+        final DynamicConfiguration cfg = getConfigSettings();
         if (cfg == null) {
             throw new ElasticsearchSecurityException("Internal authentication backend not configured. May be Search Guard is not initialized. See http://docs.search-guard.com/v6/sgadmin");
 
         }
 
+        System.out.println(credentials);
+        
         String hashed = cfg.get(credentials.getUsername() + ".hash");
+        
+        System.out.println(hashed);
 
         if (hashed == null) {
             
@@ -120,11 +127,11 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
         try {
             if (OpenBSDBCrypt.checkPassword(hashed, array)) {
                 final List<String> roles = cfg.getAsList(credentials.getUsername() + ".roles", Collections.emptyList());
-                final Settings customAttributes = cfg.getAsSettings(credentials.getUsername() + ".attributes");
+                final Map<String, String> customAttributes = cfg.getAsStringMap(credentials.getUsername() + ".attributes");
 
                 if(customAttributes != null) {
-                    for(String attributeName: customAttributes.names()) {
-                        credentials.addAttribute("attr.internal."+attributeName, customAttributes.get(attributeName));
+                    for(Entry<String, String> attributeName: customAttributes.entrySet()) {
+                        credentials.addAttribute("attr.internal."+attributeName.getKey(), customAttributes.get(attributeName.getValue()));
                     }
                 }
 
@@ -144,13 +151,13 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
         return "internal";
     }
 
-    private Settings getConfigSettings() {
+    private DynamicConfiguration getConfigSettings() {
         return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_INTERNAL_USERS);
     }
 
     @Override
     public void fillRoles(User user, AuthCredentials credentials) throws ElasticsearchSecurityException {
-        final Settings cfg = getConfigSettings();
+        final DynamicConfiguration cfg = getConfigSettings();
         if (cfg == null) {
             throw new ElasticsearchSecurityException("Internal authentication backend not configured. May be Search Guard is not initialized. See http://docs.search-guard.com/v6/sgadmin");
 
