@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,6 +38,7 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -105,7 +107,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
                                 continue;
                             }
 
-                            Map<String, Settings> setn = null;
+                            Map<String, Tuple<Long, Settings>> setn = null;
                             
                             while(setn == null || !setn.keySet().containsAll(Lists.newArrayList("config", "roles", "rolesmapping"))) {
 
@@ -134,7 +136,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
                                 
                             }
                             
-                            LOGGER.debug("Retrieved {} configs", setn.keySet());                         
+                            LOGGER.debug("Retrieved {} configs", setn.keySet());
                             reloadConfiguration(Arrays.asList(new String[] { "config", "roles", "rolesmapping", "internalusers", "actiongroups"} ));                           
                             LOGGER.info("Node '{}' initialized", clusterService.localNode().getName());
                             
@@ -206,9 +208,9 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
             return result;
         }
 
-        Map<String, Settings> loaded = loadConfigurations(Collections.singleton(configurationType));
+        Map<String, Tuple<Long, Settings>> loaded = loadConfigurations(Collections.singleton(configurationType));
 
-        result = loaded.get(configurationType);
+        result = loaded.get(configurationType).v2();
 
         return putSettingsToCache(configurationType, result);
     }
@@ -244,10 +246,10 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
             return result;
         }
 
-        Map<String, Settings> loaded = loadConfigurations(typesToLoad);
+        Map<String, Tuple<Long, Settings>> loaded = loadConfigurations(typesToLoad);
 
-        for (Map.Entry<String, Settings> entry : loaded.entrySet()) {
-            Settings conf = putSettingsToCache(entry.getKey(), entry.getValue());
+        for (Map.Entry<String, Tuple<Long, Settings>> entry : loaded.entrySet()) {
+            Settings conf = putSettingsToCache(entry.getKey(), entry.getValue().v2());
 
             if (conf != null) {
                 result.put(entry.getKey(), conf);
@@ -263,14 +265,14 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
         //if (!ensureIndexReady()) {
         //    return Collections.emptyMap();
         //}
+        
+        Map<String, Tuple<Long, Settings>> loaded = loadConfigurations(configTypes);
+        Map<String, Settings> loaded0 = loaded.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue().v2()));
+        typeToConfig.keySet().removeAll(loaded0.keySet());
+        typeToConfig.putAll(loaded0);
+        notifyAboutChanges(loaded0);
 
-        Map<String, Settings> loaded = loadConfigurations(configTypes);
-
-        typeToConfig.clear();
-        typeToConfig.putAll(loaded);
-        notifyAboutChanges(loaded);
-
-        return loaded;
+        return loaded0;
     }
 
     @Override
@@ -359,7 +361,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }*/
 
     
-    private Map<String, Settings> loadConfigurations(Collection<String> configTypes) {
+    public Map<String, Tuple<Long, Settings>> loadConfigurations(Collection<String> configTypes) {
         try {
             return validate(cl.load(configTypes.toArray(new String[0]), 1, TimeUnit.MINUTES));
         } catch (Exception e) {
@@ -369,12 +371,12 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
         return Collections.emptyMap();
     }
     
-    private Map<String, Settings> validate(Map<String, Settings> conf) throws InvalidConfigException {
+    private Map<String, Tuple<Long, Settings>> validate(Map<String, Tuple<Long, Settings>> conf) throws InvalidConfigException {
 
-        final Settings roles = conf.get("roles");
+        final Tuple<Long, Settings> roles = conf.get("roles");
         final String rolesDelimited;
 
-        if (roles != null && (rolesDelimited = roles.toDelimitedString('#')) != null) {
+        if (roles != null && roles.v2() != null && (rolesDelimited = roles.v2().toDelimitedString('#')) != null) {
 
             //<role>.indices.<indice>._dls_= OK
             //<role>.indices.<indice>._fls_.<num>= OK

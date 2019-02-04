@@ -18,11 +18,12 @@
 package com.floragunn.searchguard.configuration;
 
 import org.elasticsearch.action.get.MultiGetResponse.Failure;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 
 public interface ConfigCallback {
     
-    void success(String type, Settings settings);
+    void success(String type, Tuple<Long, Settings> settings);
     void noData(String type);
     void singleFailure(Failure failure);
     void failure(Throwable t);
