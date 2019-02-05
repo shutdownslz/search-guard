@@ -76,6 +76,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -87,14 +88,13 @@ import org.elasticsearch.transport.TransportRequest;
 
 import com.floragunn.searchguard.SearchGuardPlugin;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
+import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
 import com.floragunn.searchguard.support.SnapshotRestoreHelper;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.google.common.collect.Sets;
 
-public final class IndexResolverReplacer {
+public final class IndexResolverReplacer implements ConfigurationChangeListener {
 
-    //private final static IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.lenientExpandOpen();
-    //private static final String[] NO_INDICES_SET = Sets.newHashSet("\\",";",",","/","|").toArray(new String[0]);
     private static final Set<String> NULL_SET = Sets.newHashSet((String)null);
     private final Map<Class<?>, Method> typeCache = Collections.synchronizedMap(new HashMap<Class<?>, Method>(100));
     private final Map<Class<?>, Method> typesCache = Collections.synchronizedMap(new HashMap<Class<?>, Method>(100));
@@ -102,6 +102,7 @@ public final class IndexResolverReplacer {
     private final IndexNameExpressionResolver resolver;
     private final ClusterService clusterService;
     private final ClusterInfoHolder clusterInfoHolder;
+    private volatile boolean respectRequestIndicesOptions = false;
 
     public IndexResolverReplacer(IndexNameExpressionResolver resolver, ClusterService clusterService, ClusterInfoHolder clusterInfoHolder) {
         super();
@@ -133,7 +134,7 @@ public final class IndexResolverReplacer {
         return false;
     }
 
-    private Resolved resolveIndexPatterns(final String... requestedPatterns) {
+    private Resolved resolveIndexPatterns(final IndicesOptions indicesOptions, final String... requestedPatterns) {
 
         if(log.isTraceEnabled()) {
             log.trace("resolve requestedPatterns: "+Arrays.toString(requestedPatterns));
@@ -169,7 +170,7 @@ public final class IndexResolverReplacer {
 
             List<String> _indices;
             try {
-                _indices = new ArrayList<>(Arrays.asList(resolver.concreteIndexNames(state, IndicesOptions.fromOptions(false, true, true, false), requestedPatterns)));
+                _indices = new ArrayList<>(Arrays.asList(resolver.concreteIndexNames(state, indicesOptions, requestedPatterns)));
                 if (log.isDebugEnabled()) {
                     log.debug("Resolved pattern {} to {}", requestedPatterns, _indices);
                 }
@@ -402,7 +403,8 @@ public final class IndexResolverReplacer {
                     }
 
                 } else {
-                    final Resolved iResolved = resolveIndexPatterns(original);
+                    final IndicesOptions indicesOptions = indicesOptionsFrom(localRequest);
+                    final Resolved iResolved = resolveIndexPatterns(indicesOptions, original);
 
                     if(log.isTraceEnabled()) {
                         log.trace("Resolved patterns {} for {} ({}) to {}", original, localRequest.getClass().getSimpleName(), request.getClass().getSimpleName(), iResolved);
@@ -887,5 +889,27 @@ public final class IndexResolverReplacer {
         }
 
         return result;
+    }
+    
+    private IndicesOptions indicesOptionsFrom(Object localRequest) {
+        
+        if(!respectRequestIndicesOptions) {
+            return IndicesOptions.fromOptions(false, true, true, false);
+        }
+        
+        if (IndicesRequest.class.isInstance(localRequest)) {
+            return ((IndicesRequest) localRequest).indicesOptions();
+        }
+        else if (RestoreSnapshotRequest.class.isInstance(localRequest)) {
+            return ((RestoreSnapshotRequest) localRequest).indicesOptions();
+        }
+        else {
+            return IndicesOptions.fromOptions(false, true, true, false);
+        }
+    }
+
+    @Override
+    public void onChange(Settings dynamicSgConfig) {
+        respectRequestIndicesOptions = dynamicSgConfig.getAsBoolean("searchguard.dynamic.respect_request_indices_options", false);
     }
 }

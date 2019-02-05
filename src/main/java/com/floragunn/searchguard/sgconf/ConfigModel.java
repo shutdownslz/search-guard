@@ -238,12 +238,11 @@ public class ConfigModel {
             return retVal;
         }
 
-        public Map<String, Set<String>> getMaskedFields(User user, IndexNameExpressionResolver resolver,
-                ClusterService cs) {
-            final Map<String, Set<String>> maskedFieldsMap = new HashMap<String, Set<String>>();
+        public Map<String,Set<String>> getMaskedFields(User user, IndexNameExpressionResolver resolver, ClusterService cs) {
+            final Map<String,Set<String>> maskedFieldsMap = new HashMap<String, Set<String>>();
 
-            for (SgRole sgr : roles) {
-                for (IndexPattern ip : sgr.getIpatterns()) {
+            for (SgRole sgr: roles) {
+                for (IndexPattern ip: sgr.getIpatterns()) {
                     final Set<String> maskedFields = ip.getMaskedFields();
                     final String indexPattern = ip.getUnresolvedIndexPattern(user);
                     String[] concreteIndices = new String[0];
@@ -340,10 +339,8 @@ public class ConfigModel {
 
         }
 
-        // kibana special only
-        public Set<String> getAllPermittedIndices(User user, String[] actions, IndexNameExpressionResolver resolver,
-                ClusterService cs) {
-
+        //kibana special only
+        public Set<String> getAllPermittedIndices(User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             Set<String> retVal = new HashSet<>();
             for (SgRole sgr : roles) {
                 retVal.addAll(sgr.getAllResolvedPermittedIndices(Resolved._ALL, user, actions, resolver, cs));
@@ -408,9 +405,9 @@ public class ConfigModel {
             return result;
         }
 
-        // rolespan
-        public boolean impliesTypePermGlobal(Resolved resolved, User user, String[] actions,
-                IndexNameExpressionResolver resolver, ClusterService cs) {
+        //rolespan
+        public boolean impliesTypePermGlobal(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
+
             Set<IndexPattern> ipatterns = new HashSet<ConfigModel.IndexPattern>();
             roles.stream().forEach(p -> ipatterns.addAll(p.getIpatterns()));
             return ConfigModel.impliesTypePerm(ipatterns, resolved, user, actions, resolver, cs);
@@ -448,33 +445,30 @@ public class ConfigModel {
                 IndexNameExpressionResolver resolver, ClusterService cs) {
 
             final Set<String> retVal = new HashSet<>();
-
-            for (IndexPattern p : ipatterns) {
-                // what if we cannot resolve one (for create purposes)
+            for (IndexPattern p: ipatterns) {
+                //what if we cannot resolve one (for create purposes)
                 boolean patternMatch = false;
                 final Set<TypePerm> tperms = p.getTypePerms();
-                for (TypePerm tp : tperms) {
+                for (TypePerm tp: tperms) {
                     if (WildcardMatcher.matchAny(tp.typePattern, resolved.getTypes().toArray(new String[0]))) {
                         patternMatch = WildcardMatcher.matchAll(tp.perms.toArray(new String[0]), actions);
                     }
                 }
                 if (patternMatch) {
-                    // resolved but can contain patterns for nonexistent indices
-                    final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); // maybe they do not
-                    // exists
+                    //resolved but can contain patterns for nonexistent indices
+                    final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); //maybe they do not exists
                     final Set<String> res = new HashSet<>();
-                    if (!resolved.isAll() && !resolved.getAllIndices().contains("*")
-                            && !resolved.getAllIndices().contains("_all")) {
+                    if (!resolved.isAll() && !resolved.getAllIndices().contains("*")  && !resolved.getAllIndices().contains("_all")) {
                         final Set<String> wanted = new HashSet<>(resolved.getAllIndices());
-                        // resolved but can contain patterns for nonexistent indices
+                        //resolved but can contain patterns for nonexistent indices
                         WildcardMatcher.wildcardRetainInSet(wanted, permitted);
                         res.addAll(wanted);
                     } else {
-                        // we want all indices so just return what's permitted
+                        //we want all indices so just return what's permitted
 
-                        // #557
-                        final String[] allIndices = resolver.concreteIndexNames(cs.state(),
-                                IndicesOptions.lenientExpandOpen(), "*");
+                        //#557
+                        //final String[] allIndices = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), "*");
+                        final String[] allIndices = cs.state().metaData().getConcreteAllOpenIndices();
                         final Set<String> wanted = new HashSet<>(Arrays.asList(allIndices));
                         WildcardMatcher.wildcardRetainInSet(wanted, permitted);
                         res.addAll(wanted);
@@ -706,14 +700,14 @@ public class ConfigModel {
             String unresolved = getUnresolvedIndexPattern(user);
             String[] resolved = null;
             if (WildcardMatcher.containsWildcard(unresolved)) {
-                final String[] aliasesForPermittedPattern = cs.state().getMetaData().getAliasAndIndexLookup().entrySet()
-                        .stream().filter(e -> e.getValue().isAlias())
-                        .filter(e -> WildcardMatcher.match(unresolved, e.getKey())).map(e -> e.getKey())
-                        .toArray(String[]::new);
+                final String[] aliasesForPermittedPattern = cs.state().getMetaData().getAliasAndIndexLookup()
+                        .entrySet().stream()
+                        .filter(e->e.getValue().isAlias())
+                        .filter(e->WildcardMatcher.match(unresolved, e.getKey()))
+                        .map(e->e.getKey()).toArray(String[]::new);
 
                 if (aliasesForPermittedPattern != null && aliasesForPermittedPattern.length > 0) {
-                    resolved = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(),
-                            aliasesForPermittedPattern);
+                    resolved = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), aliasesForPermittedPattern);
                 }
             }
 
@@ -923,8 +917,8 @@ public class ConfigModel {
         }));
     }
 
-    private static boolean impliesTypePerm(Set<IndexPattern> ipatterns, Resolved resolved, User user, String[] actions,
-            IndexNameExpressionResolver resolver, ClusterService cs) {
+    private static boolean impliesTypePerm(Set<IndexPattern> ipatterns, Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
+
         Set<String> matchingIndex = new HashSet<>(resolved.getAllIndices());
 
         for (String in : resolved.getAllIndices()) {
