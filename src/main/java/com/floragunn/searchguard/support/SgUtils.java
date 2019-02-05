@@ -33,7 +33,7 @@ import org.elasticsearch.ElasticsearchException;
 public final class SgUtils {
     
     protected final static Logger log = LogManager.getLogger(SgUtils.class);
-    private static final Pattern ENV_PATTERN = Pattern.compile("\\$\\{env\\.([\\w]+)([+-]?)\\}");
+    private static final Pattern ENV_PATTERN = Pattern.compile("\\$\\{env\\.([\\w]+)((\\:\\-)?[\\w]*)\\}");
     public static Locale EN_Locale = forEN();
     
     private SgUtils() {
@@ -117,13 +117,13 @@ public final class SgUtils {
         return sb.toString();
     }
     
+    //${env.MY_ENV_VAR}
+    //${env.MY_ENV_VAR:-default}
     private static String resolveEnvVar(String envVarName, String mode) {
         final String envVarValue = System.getenv(envVarName);
         if(envVarValue == null || envVarValue.isEmpty()) {
-            if("+".equals(mode)) {
-                throw new ElasticsearchException(envVarName+" not defined");
-            } else if("-".equals(mode)) {
-                return "";
+            if(mode != null && mode.startsWith(":-") && mode.length() > 2) {
+                return mode.substring(2);
             } else {
                 return null;
             }

@@ -689,4 +689,28 @@ public class HttpIntegrationTests extends SingleClusterTest {
         Assert.assertEquals(HttpStatus.SC_OK, res.getStatusCode());
     }
 
+    @Test
+    public void testEnvReplace() throws Exception {
+        final Settings settings = Settings.builder()
+                .build();
+        setup(Settings.EMPTY, new DynamicSgConfig(), settings);
+
+        try (TransportClient tc = getInternalTransportClient(this.clusterInfo, Settings.EMPTY)) {
+            tc.index(new IndexRequest("index1").type("doc").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":1}", XContentType.JSON)).actionGet();            
+            tc.index(new IndexRequest("index2").type("doc").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":2}", XContentType.JSON)).actionGet();            
+            tc.index(new IndexRequest("index3").type("doc").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":3}", XContentType.JSON)).actionGet();            
+            tc.index(new IndexRequest("env.replace@example.comp.com").type("doc").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":4}", XContentType.JSON)).actionGet();            
+        }
+        
+        final RestHelper rh = nonSslRestHelper();
+
+        HttpResponse res = rh.executeGetRequest("/index1/_search?pretty", encodeBasicHeader("env.replace@example.comp.com", "nagilum"));
+        Assert.assertEquals(res.getBody(), HttpStatus.SC_OK, res.getStatusCode());
+        res = rh.executeGetRequest("/index2/_search?pretty", encodeBasicHeader("env.replace@example.comp.com", "nagilum"));
+        Assert.assertEquals(res.getBody(), HttpStatus.SC_OK, res.getStatusCode());
+        res = rh.executeGetRequest("/env.replace@example.comp.com/_search?pretty", encodeBasicHeader("env.replace@example.comp.com", "nagilum"));
+        Assert.assertEquals(res.getBody(), HttpStatus.SC_OK, res.getStatusCode());
+        //res = rh.executeGetRequest("/index3/_search?pretty", encodeBasicHeader("env.replace@example.comp.com", "nagilum"));
+        //Assert.assertEquals(res.getBody(), HttpStatus.SC_OK, res.getStatusCode());
+    }
 }

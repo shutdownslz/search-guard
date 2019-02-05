@@ -19,6 +19,7 @@ package com.floragunn.searchguard.configuration;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -36,10 +37,13 @@ import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.get.MultiGetResponse.Failure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -156,13 +160,13 @@ class ConfigurationLoader {
     }
 
     private Tuple<Long, Settings> toSettings(GetResponse singleGetResponse) {
-        final String source = singleGetResponse.getSourceAsString();
+        final BytesReference ref = singleGetResponse.getSourceAsBytesRef();
         final String id = singleGetResponse.getId();
         final long version = singleGetResponse.getVersion();
         
 
-        if (source == null || source.length() == 0) {
-            log.error("Empty or null source for {}", id);
+        if (ref == null || ref.length() == 0) {
+            log.error("Empty or null byte reference for {}", id);
             return null;
         }
         
@@ -170,7 +174,7 @@ class ConfigurationLoader {
         XContentParser parser = null;
 
         try {
-            parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, SearchGuardDeprecationHandler.INSTANCE, SgUtils.replaceEnvVars(source));
+            parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, SearchGuardDeprecationHandler.INSTANCE, ref, XContentType.JSON);
             parser.nextToken();
             parser.nextToken();
          
@@ -180,8 +184,10 @@ class ConfigurationLoader {
             }
             
             parser.nextToken();
+            
+            final byte[] content = parser.binaryValue();
 
-            return new Tuple<Long, Settings>(version, Settings.builder().loadFromStream("dummy.json", new ByteArrayInputStream(parser.binaryValue()), true).build());
+            return new Tuple<Long, Settings>(version, Settings.builder().loadFromSource(SgUtils.replaceEnvVars(new String(content, StandardCharsets.UTF_8)), XContentType.JSON).build());
         } catch (final IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {

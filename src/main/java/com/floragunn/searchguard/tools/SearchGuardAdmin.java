@@ -20,10 +20,8 @@ package com.floragunn.searchguard.tools;
 import java.io.ByteArrayInputStream;
 import java.io.Console;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.Reader;
 import java.io.Writer;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -105,6 +103,7 @@ import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.SearchGuardDeprecationHandler;
+import com.floragunn.searchguard.support.SgUtils;
 import com.google.common.io.Files;
 
 public class SearchGuardAdmin {
@@ -211,6 +210,8 @@ public class SearchGuardAdmin {
 
         options.addOption(Option.builder("er").longOpt("explicit-replicas").hasArg().argName("number of replicas").desc("Set explicit number of replicas or autoexpand expression for searchguard index").build());
 
+        options.addOption(Option.builder("rev").longOpt("resolve-env-vars").desc("Resolve/Substitute env vars in config with their value before uploading").build());
+
         
         //when adding new options also adjust validate(CommandLine line)
         
@@ -255,6 +256,7 @@ public class SearchGuardAdmin {
         boolean whoami;
         final boolean promptForPassword;
         String explicitReplicas = null;
+        final boolean resolveEnvVars;
         
         CommandLineParser parser = new DefaultParser();
         try {
@@ -338,6 +340,8 @@ public class SearchGuardAdmin {
             whoami = line.hasOption("w");
             
             explicitReplicas = line.getOptionValue("er", explicitReplicas);
+            
+            resolveEnvVars = line.hasOption("rev");
             
         }
         catch( ParseException exp ) {
@@ -713,7 +717,7 @@ public class SearchGuardAdmin {
                     System.exit(-1);
                 }
                 
-                boolean success = uploadFile(tc, file, index, type, legacy);
+                boolean success = uploadFile(tc, file, index, type, legacy, resolveEnvVars);
                 ConfigUpdateResponse cur = tc.execute(ConfigUpdateAction.INSTANCE, new ConfigUpdateRequest(new String[]{type})).actionGet();
                 
                 success = checkConfigUpdateResponse(cur, nodesInfo, 1) && success;
@@ -722,11 +726,11 @@ public class SearchGuardAdmin {
                 System.exit(success?0:-1);
             }
 
-            boolean success = uploadFile(tc, cd+"sg_config.yml", index, "config", legacy);
-            success = uploadFile(tc, cd+"sg_roles.yml", index, "roles", legacy) && success;
-            success = uploadFile(tc, cd+"sg_roles_mapping.yml", index, "rolesmapping", legacy) && success;
-            success = uploadFile(tc, cd+"sg_internal_users.yml", index, "internalusers", legacy) && success;
-            success = uploadFile(tc, cd+"sg_action_groups.yml", index, "actiongroups", legacy) && success;
+            boolean success = uploadFile(tc, cd+"sg_config.yml", index, "config", legacy, resolveEnvVars);
+            success = uploadFile(tc, cd+"sg_roles.yml", index, "roles", legacy, resolveEnvVars) && success;
+            success = uploadFile(tc, cd+"sg_roles_mapping.yml", index, "rolesmapping", legacy, resolveEnvVars) && success;
+            success = uploadFile(tc, cd+"sg_internal_users.yml", index, "internalusers", legacy, resolveEnvVars) && success;
+            success = uploadFile(tc, cd+"sg_action_groups.yml", index, "actiongroups", legacy, resolveEnvVars) && success;
             
             if(failFast && !success) {
                 System.out.println("ERR: cannot upload configuration, see errors above");
@@ -775,7 +779,7 @@ public class SearchGuardAdmin {
         return success;
     }
     
-    private static boolean uploadFile(final Client tc, final String filepath, final String index, final String _id, final boolean legacy) {
+    private static boolean uploadFile(final Client tc, final String filepath, final String index, final String _id, final boolean legacy, boolean resolveEnvVars) {
         
         String type = "sg";
         String id = _id;
@@ -786,12 +790,12 @@ public class SearchGuardAdmin {
         }
         
         System.out.println("Will update '"+type+"/" + id + "' with " + filepath+" "+(legacy?"(legacy mode)":""));
-        
-        try (Reader reader = new FileReader(filepath)) {
 
+        try {
+            final String content = Files.asCharSource(new File(filepath), StandardCharsets.UTF_8).read();
             final String res = tc
                     .index(new IndexRequest(index).type(type).id(id).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-                            .source(_id, readXContent(reader, XContentType.YAML))).actionGet().getId();
+                            .source(_id, readXContent(resolveEnvVars?SgUtils.replaceEnvVars(content):content, XContentType.YAML))).actionGet().getId();
 
             if (id.equals(res)) {
                 System.out.println("   SUCC: Configuration for '" + _id + "' created or updated");
@@ -842,11 +846,11 @@ public class SearchGuardAdmin {
         return false;
     }
 
-    private static BytesReference readXContent(final Reader reader, final XContentType xContentType) throws IOException {
+    private static BytesReference readXContent(final String content, final XContentType xContentType) throws IOException {
         BytesReference retVal;
         XContentParser parser = null;
         try {
-            parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, SearchGuardDeprecationHandler.INSTANCE, reader);
+            parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY, SearchGuardDeprecationHandler.INSTANCE, content);
             parser.nextToken();
             final XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.copyCurrentStructure(parser);

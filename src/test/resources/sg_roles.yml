@@ -18,6 +18,23 @@ sg_all_access:
       '*':  
         - ALL
         
+sg_env_test:
+  cluster:
+    - '*'
+  indices:
+    '${env.INDEXNAME1:-index1}':
+      '*':  
+        - ALL
+    '${env.INDEXNAME2:-index2}':
+      '*':  
+        - ALL
+    '${user_name}':
+      '*':  
+        - ALL
+    '${env.INDEXNAME3}':
+      '*':  
+        - ALL
+        
 role.with.dot:
   cluster:
     - '*'

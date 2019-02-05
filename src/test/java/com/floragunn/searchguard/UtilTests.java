@@ -87,4 +87,24 @@ public class UtilTests {
         assertEquals("value2", map.get("key2"));
 
     }
+    
+    @Test
+    public void testEnvReplace() {
+        Assert.assertEquals("abv${env.MYENV}xyz", SgUtils.replaceEnvVars("abv${env.MYENV}xyz"));
+        Assert.assertEquals("abvtTtxyz", SgUtils.replaceEnvVars("abv${env.MYENV:-tTt}xyz"));
+        Assert.assertEquals("abvtTtxyzxxx", SgUtils.replaceEnvVars("abv${env.MYENV:-tTt}xyz${env.MYENV:-xxx}"));
+        Assert.assertEquals("abv${env.MYENV:tTt}xyz", SgUtils.replaceEnvVars("abv${env.MYENV:tTt}xyz"));
+        Assert.assertEquals("abv${env.MYENV-tTt}xyz", SgUtils.replaceEnvVars("abv${env.MYENV-tTt}xyz"));
+        Map<String, String> env = System.getenv();
+        Assert.assertTrue(env.size() > 0);
+        
+        for(String k: env.keySet()) {
+            String val=System.getenv().get(k);
+            Assert.assertEquals("abv"+val+"xyz", SgUtils.replaceEnvVars("abv${env."+k+"}xyz"));
+            Assert.assertEquals("abv${"+k+"}xyz", SgUtils.replaceEnvVars("abv${"+k+"}xyz"));
+            Assert.assertEquals("abv"+val+"xyz", SgUtils.replaceEnvVars("abv${env."+k+":-k182765ggh}xyz"));
+            Assert.assertEquals("abv"+val+"xyzabv"+val+"xyz", SgUtils.replaceEnvVars("abv${env."+k+"}xyzabv${env."+k+"}xyz"));
+            Assert.assertEquals("abv"+val+"xyz", SgUtils.replaceEnvVars("abv${env."+k+":-k182765ggh}xyz"));
+        }
+    }
 }
