@@ -1,10 +1,10 @@
 /*
  * Copyright 2015-2018 floragunn GmbH
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -12,7 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  */
 
 package com.floragunn.searchguard.sgconf;
@@ -139,7 +139,7 @@ public class ConfigModel {
     public static class SgRoles {
 
         protected final Logger log = LogManager.getLogger(this.getClass());
-        
+
         final Set<SgRole> roles = new HashSet<>(100);
 
         private SgRoles() {
@@ -195,10 +195,10 @@ public class ConfigModel {
             }
             return retVal;
         }
-        
+
         public Map<String,Set<String>> getMaskedFields(User user, IndexNameExpressionResolver resolver, ClusterService cs) {
             final Map<String,Set<String>> maskedFieldsMap = new HashMap<String, Set<String>>();
-            
+
             for(SgRole sgr: roles) {
                 for(IndexPattern ip: sgr.getIpatterns()) {
                     final Set<String> maskedFields = ip.getMaskedFields();
@@ -296,7 +296,7 @@ public class ConfigModel {
             return new Tuple<Map<String,Set<String>>, Map<String,Set<String>>>(dlsQueries, flsFields);
 
         }
-        
+
         //kibana special only
         public Set<String> getAllPermittedIndices(User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             Set<String> retVal = new HashSet<>();
@@ -332,13 +332,13 @@ public class ConfigModel {
             return roles.stream()
                     .filter(r->r.impliesClusterPermission(action)).count() > 0;
         }
-        
+
         //rolespan
         public boolean impliesTypePermGlobal(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             Set<IndexPattern> ipatterns = new HashSet<ConfigModel.IndexPattern>();
             roles.stream().forEach(p->ipatterns.addAll(p.getIpatterns()));
             return ConfigModel.impliesTypePerm(ipatterns, resolved, user, actions, resolver, cs);
-        }  
+        }
     }
 
     public static class SgRole {
@@ -363,42 +363,42 @@ public class ConfigModel {
 
             final Set<String> retVal = new HashSet<>();
             for(IndexPattern p: ipatterns) {
-               //what if we cannot resolve one (for create purposes)
-               boolean patternMatch = false;
-               final Set<TypePerm> tperms = p.getTypePerms();
-               for(TypePerm tp: tperms) {
-                   if(WildcardMatcher.matchAny(tp.typePattern, resolved.getTypes().toArray(new String[0]))) {
-                       patternMatch = WildcardMatcher.matchAll(tp.perms.toArray(new String[0]), actions);
-                   }
-               }
-               if(patternMatch) {
-                   //resolved but can contain patterns for nonexistent indices
-                   final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); //maybe they do not exists
-                   final Set<String> res = new HashSet<>();
-                   if(!resolved.isAll() && !resolved.getAllIndices().contains("*")  && !resolved.getAllIndices().contains("_all")) {
-                       final Set<String> wanted = new HashSet<>(resolved.getAllIndices());
-                       //resolved but can contain patterns for nonexistent indices
-                       WildcardMatcher.wildcardRetainInSet(wanted, permitted);
-                       res.addAll(wanted);
-                   } else {
-                       //we want all indices so just return what's permitted
-                       
-                       //#557
-                       //final String[] allIndices = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), "*");
-                       final String[] allIndices = cs.state().metaData().getConcreteAllOpenIndices();
-                       final Set<String> wanted = new HashSet<>(Arrays.asList(allIndices));
-                       WildcardMatcher.wildcardRetainInSet(wanted, permitted);
-                       res.addAll(wanted);
-                   }
-                   retVal.addAll(res);
-               }
+                //what if we cannot resolve one (for create purposes)
+                boolean patternMatch = false;
+                final Set<TypePerm> tperms = p.getTypePerms();
+                for(TypePerm tp: tperms) {
+                    if(WildcardMatcher.matchAny(tp.typePattern, resolved.getTypes().toArray(new String[0]))) {
+                        patternMatch = WildcardMatcher.matchAll(tp.perms.toArray(new String[0]), actions);
+                    }
+                }
+                if(patternMatch) {
+                    //resolved but can contain patterns for nonexistent indices
+                    final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); //maybe they do not exists
+                    final Set<String> res = new HashSet<>();
+                    if(!resolved.isAll() && !resolved.getAllIndices().contains("*")  && !resolved.getAllIndices().contains("_all")) {
+                        final Set<String> wanted = new HashSet<>(resolved.getAllIndices());
+                        //resolved but can contain patterns for nonexistent indices
+                        WildcardMatcher.wildcardRetainInSet(wanted, permitted);
+                        res.addAll(wanted);
+                    } else {
+                        //we want all indices so just return what's permitted
+
+                        //#557
+                        //final String[] allIndices = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), "*");
+                        final String[] allIndices = cs.state().metaData().getConcreteAllOpenIndices();
+                        final Set<String> wanted = new HashSet<>(Arrays.asList(allIndices));
+                        WildcardMatcher.wildcardRetainInSet(wanted, permitted);
+                        res.addAll(wanted);
+                    }
+                    retVal.addAll(res);
+                }
             }
 
             //all that we want and all thats permitted of them
             return Collections.unmodifiableSet(retVal);
         }
 
-        
+
 
         private SgRole addTenant(Tenant tenant) {
             if(tenant != null) {
@@ -508,7 +508,7 @@ public class ConfigModel {
             }
             return this;
         }
-        
+
         public IndexPattern addMaskedFields(List<String> maskedFields) {
             if(maskedFields != null) {
                 this.maskedFields.addAll(maskedFields);
@@ -592,17 +592,17 @@ public class ConfigModel {
             String unresolved = getUnresolvedIndexPattern(user);
             String[] resolved = null;
             if(WildcardMatcher.containsWildcard(unresolved)) {
-                final String[] aliasesForPermittedPattern = cs.state().getMetaData().getAliasAndIndexLookup()        
+                final String[] aliasesForPermittedPattern = cs.state().getMetaData().getAliasAndIndexLookup()
                         .entrySet().stream()
                         .filter(e->e.getValue().isAlias())
                         .filter(e->WildcardMatcher.match(unresolved, e.getKey()))
                         .map(e->e.getKey()).toArray(String[]::new);
-                
+
                 if(aliasesForPermittedPattern != null && aliasesForPermittedPattern.length > 0) {
                     resolved = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), aliasesForPermittedPattern);
                 }
             }
-            
+
             if(resolved == null && !unresolved.isEmpty()) {
                 resolved = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), unresolved);
             }
@@ -623,7 +623,7 @@ public class ConfigModel {
         public Set<String> getFls() {
             return Collections.unmodifiableSet(fls);
         }
-        
+
         public Set<String> getMaskedFields() {
             return Collections.unmodifiableSet(maskedFields);
         }
@@ -748,13 +748,13 @@ public class ConfigModel {
         }
     }
 
-    
+
     private static String replaceProperties(String orig, User user) {
-        
+
         if(user == null || orig == null) {
             return orig;
         }
-        
+
         orig = orig.replace("${user.name}", user.getName()).replace("${user_name}", user.getName());
         orig = replaceRoles(orig, user);
         for(Entry<String, String> entry: user.getCustomAttributesMap().entrySet()) {
@@ -766,7 +766,7 @@ public class ConfigModel {
         }
         return orig;
     }
-    
+
     private static String replaceRoles(final String orig, final User user) {
         String retVal = orig;
         if(orig.contains("${user.roles}") || orig.contains("${user_roles}")) {
@@ -775,13 +775,13 @@ public class ConfigModel {
         }
         return retVal;
     }
-    
+
     private static String toQuotedCommaSeparatedString(final Set<String> roles) {
         return Joiner.on(',').join(Iterables.transform(roles, s->{
             return new StringBuilder(s.length()+2).append('"').append(s).append('"').toString();
         }));
     }
-    
+
     private static boolean impliesTypePerm(Set<IndexPattern> ipatterns, Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
         Set<String> matchingIndex = new HashSet<>(resolved.getAllIndices());
 
