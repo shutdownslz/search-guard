@@ -28,12 +28,14 @@ import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+
+import com.floragunn.searchguard.tools.Hasher;
 
 public final class SgUtils {
     
     protected final static Logger log = LogManager.getLogger(SgUtils.class);
     private static final Pattern ENV_PATTERN = Pattern.compile("\\$\\{env\\.([\\w]+)((\\:\\-)?[\\w]*)\\}");
+    private static final Pattern ENVBC_PATTERN = Pattern.compile("\\$\\{envbc\\.([\\w]+)((\\:\\-)?[\\w]*)\\}");
     public static Locale EN_Locale = forEN();
     
     private SgUtils() {
@@ -104,13 +106,37 @@ public final class SgUtils {
     }
     
     public static String replaceEnvVars(String in) {
+        if(in == null || in.isEmpty()) {
+            return in;
+        }
+        
+        return replaceEnvVarsBC(replaceEnvVarsNonBC(in));
+    }
+    
+    private static String replaceEnvVarsNonBC(String in) {
         //${env.MY_ENV_VAR}
+        //${env.MY_ENV_VAR:-default}
         Matcher matcher = ENV_PATTERN.matcher(in);
         StringBuffer sb = new StringBuffer();
         while(matcher.find()) {
-            final String replacement = resolveEnvVar(matcher.group(1), matcher.group(2));
+            final String replacement = resolveEnvVar(matcher.group(1), matcher.group(2), false);
             if(replacement != null) {
-                matcher.appendReplacement(sb, replacement);
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+    
+    private static String replaceEnvVarsBC(String in) {
+        //${envbc.MY_ENV_VAR}
+        //${envbc.MY_ENV_VAR:-default}
+        Matcher matcher = ENVBC_PATTERN.matcher(in);
+        StringBuffer sb = new StringBuffer();
+        while(matcher.find()) {
+            final String replacement = resolveEnvVar(matcher.group(1), matcher.group(2), true);
+            if(replacement != null) {
+                matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
             }
         }
         matcher.appendTail(sb);
@@ -119,16 +145,16 @@ public final class SgUtils {
     
     //${env.MY_ENV_VAR}
     //${env.MY_ENV_VAR:-default}
-    private static String resolveEnvVar(String envVarName, String mode) {
+    private static String resolveEnvVar(String envVarName, String mode, boolean bc) {
         final String envVarValue = System.getenv(envVarName);
         if(envVarValue == null || envVarValue.isEmpty()) {
             if(mode != null && mode.startsWith(":-") && mode.length() > 2) {
-                return mode.substring(2);
+                return bc?Hasher.hash(mode.substring(2).toCharArray()):mode.substring(2);
             } else {
                 return null;
             }
         } else {
-            return envVarValue;
+            return bc?Hasher.hash(envVarValue.toCharArray()):envVarValue;
         }
     }
 }

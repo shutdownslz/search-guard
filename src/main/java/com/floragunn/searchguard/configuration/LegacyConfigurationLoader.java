@@ -17,8 +17,8 @@
 
 package com.floragunn.searchguard.configuration;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.SearchGuardDeprecationHandler;
+import com.floragunn.searchguard.support.SgUtils;
 
 class LegacyConfigurationLoader {
 
@@ -182,8 +183,10 @@ class LegacyConfigurationLoader {
             }
             
             parser.nextToken();
-            
-            return new Tuple<Long, Settings>(version, Settings.builder().loadFromStream("dummy.json", new ByteArrayInputStream(parser.binaryValue()), true).build());
+
+            final byte[] content = parser.binaryValue();
+
+            return new Tuple<Long, Settings>(version, Settings.builder().loadFromSource(SgUtils.replaceEnvVars(new String(content, StandardCharsets.UTF_8)), XContentType.JSON).build());
         } catch (final IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {

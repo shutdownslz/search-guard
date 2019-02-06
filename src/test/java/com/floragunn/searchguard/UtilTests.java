@@ -24,6 +24,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.util.Map;
 
+import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -91,8 +92,11 @@ public class UtilTests {
     @Test
     public void testEnvReplace() {
         Assert.assertEquals("abv${env.MYENV}xyz", SgUtils.replaceEnvVars("abv${env.MYENV}xyz"));
+        Assert.assertEquals("abv${envbc.MYENV}xyz", SgUtils.replaceEnvVars("abv${envbc.MYENV}xyz"));
         Assert.assertEquals("abvtTtxyz", SgUtils.replaceEnvVars("abv${env.MYENV:-tTt}xyz"));
+        Assert.assertTrue(OpenBSDBCrypt.checkPassword(SgUtils.replaceEnvVars("${envbc.MYENV:-tTt}"), "tTt".toCharArray()));
         Assert.assertEquals("abvtTtxyzxxx", SgUtils.replaceEnvVars("abv${env.MYENV:-tTt}xyz${env.MYENV:-xxx}"));
+        Assert.assertTrue(SgUtils.replaceEnvVars("abv${env.MYENV:-tTt}xyz${envbc.MYENV:-xxx}").startsWith("abvtTtxyz$2y$"));
         Assert.assertEquals("abv${env.MYENV:tTt}xyz", SgUtils.replaceEnvVars("abv${env.MYENV:tTt}xyz"));
         Assert.assertEquals("abv${env.MYENV-tTt}xyz", SgUtils.replaceEnvVars("abv${env.MYENV-tTt}xyz"));
         Map<String, String> env = System.getenv();
@@ -105,6 +109,7 @@ public class UtilTests {
             Assert.assertEquals("abv"+val+"xyz", SgUtils.replaceEnvVars("abv${env."+k+":-k182765ggh}xyz"));
             Assert.assertEquals("abv"+val+"xyzabv"+val+"xyz", SgUtils.replaceEnvVars("abv${env."+k+"}xyzabv${env."+k+"}xyz"));
             Assert.assertEquals("abv"+val+"xyz", SgUtils.replaceEnvVars("abv${env."+k+":-k182765ggh}xyz"));
+            Assert.assertTrue(OpenBSDBCrypt.checkPassword(SgUtils.replaceEnvVars("${envbc."+k+"}"), val.toCharArray()));
         }
     }
 }
