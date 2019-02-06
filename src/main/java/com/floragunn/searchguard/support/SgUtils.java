@@ -28,6 +28,7 @@ import java.util.regex.Pattern;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.Settings;
 
 import com.floragunn.searchguard.tools.Hasher;
 
@@ -105,8 +106,12 @@ public final class SgUtils {
         return map;
     }
     
-    public static String replaceEnvVars(String in) {
+    public static String replaceEnvVars(String in, Settings settings) {
         if(in == null || in.isEmpty()) {
+            return in;
+        }
+        
+        if(settings == null || settings.getAsBoolean(ConfigConstants.SEARCHGUARD_DISABLE_ENVVAR_REPLACEMENT, false)) {
             return in;
         }
         
