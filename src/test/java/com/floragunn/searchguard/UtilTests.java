@@ -17,7 +17,6 @@
 
 package com.floragunn.searchguard;
 
-import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -102,6 +101,8 @@ public class UtilTests {
         Assert.assertTrue(SgUtils.replaceEnvVars("abv${env.MYENV:-tTt}xyz${envbc.MYENV:-xxx}",settings).startsWith("abvtTtxyz$2y$"));
         Assert.assertEquals("abv${env.MYENV:tTt}xyz", SgUtils.replaceEnvVars("abv${env.MYENV:tTt}xyz",settings));
         Assert.assertEquals("abv${env.MYENV-tTt}xyz", SgUtils.replaceEnvVars("abv${env.MYENV-tTt}xyz",settings));
+        //Assert.assertEquals("abvabcdefgxyz", SgUtils.replaceEnvVars("abv${envbase64.B64TEST}xyz",settings));
+
         Map<String, String> env = System.getenv();
         Assert.assertTrue(env.size() > 0);
         

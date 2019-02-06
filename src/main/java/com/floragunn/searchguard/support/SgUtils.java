@@ -17,7 +17,9 @@
 
 package com.floragunn.searchguard.support;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -37,6 +39,7 @@ public final class SgUtils {
     protected final static Logger log = LogManager.getLogger(SgUtils.class);
     private static final Pattern ENV_PATTERN = Pattern.compile("\\$\\{env\\.([\\w]+)((\\:\\-)?[\\w]*)\\}");
     private static final Pattern ENVBC_PATTERN = Pattern.compile("\\$\\{envbc\\.([\\w]+)((\\:\\-)?[\\w]*)\\}");
+    private static final Pattern ENVBASE64_PATTERN = Pattern.compile("\\$\\{envbase64\\.([\\w]+)((\\:\\-)?[\\w]*)\\}");
     public static Locale EN_Locale = forEN();
     
     private SgUtils() {
@@ -115,7 +118,7 @@ public final class SgUtils {
             return in;
         }
         
-        return replaceEnvVarsBC(replaceEnvVarsNonBC(in));
+        return replaceEnvVarsBC(replaceEnvVarsNonBC(replaceEnvVarsBase64(in)));
     }
     
     private static String replaceEnvVarsNonBC(String in) {
@@ -142,6 +145,21 @@ public final class SgUtils {
             final String replacement = resolveEnvVar(matcher.group(1), matcher.group(2), true);
             if(replacement != null) {
                 matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
+            }
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
+    }
+    
+    private static String replaceEnvVarsBase64(String in) {
+        //${envbc.MY_ENV_VAR}
+        //${envbc.MY_ENV_VAR:-default}
+        Matcher matcher = ENVBASE64_PATTERN.matcher(in);
+        StringBuffer sb = new StringBuffer();
+        while(matcher.find()) {
+            final String replacement = resolveEnvVar(matcher.group(1), matcher.group(2), false);
+            if(replacement != null) {
+                matcher.appendReplacement(sb, (Matcher.quoteReplacement(new String(Base64.getDecoder().decode(replacement), StandardCharsets.UTF_8))));
             }
         }
         matcher.appendTail(sb);
