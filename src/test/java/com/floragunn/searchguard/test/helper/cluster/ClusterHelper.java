@@ -306,7 +306,7 @@ public final class ClusterHelper {
 	// @formatter:off
 	private Settings.Builder getMinimumNonSgNodeSettingsBuilder(final int nodenum, final boolean masterNode,
 			final boolean dataNode, final boolean tribeNode, int nodeCount, SortedSet<Integer> masterTcpPorts, /*SortedSet<Integer> nonMasterTcpPorts,*/ int tcpPort, int httpPort) {
-
+	    
 		return Settings.builder()
 		        .put("node.name", "node_"+clustername+ "_num" + nodenum)
 		        .put("node.data", dataNode)
@@ -315,12 +315,12 @@ public final class ClusterHelper {
 				.put("path.data", "data/"+clustername+"/data")
 				.put("path.logs", "data/"+clustername+"/logs")
 				.put("node.max_local_storage_nodes", nodeCount)
-				.put("discovery.zen.minimum_master_nodes", minMasterNodes(masterTcpPorts.size()))
+				//.put("discovery.zen.minimum_master_nodes", minMasterNodes(masterTcpPorts.size()))
 				.putList("cluster.initial_master_nodes", masterTcpPorts.stream().map(s->"127.0.0.1:"+s).collect(Collectors.toList()))
-				.put("discovery.zen.no_master_block", "all")
-				.put("discovery.zen.fd.ping_timeout", "5s")
+				//.put("discovery.zen.no_master_block", "all")
+				//.put("discovery.zen.fd.ping_timeout", "5s")
 				.put("discovery.initial_state_timeout","8s")
-				.putList("discovery.zen.ping.unicast.hosts", masterTcpPorts.stream().map(s->"127.0.0.1:"+s).collect(Collectors.toList()))
+				.putList("discovery.seed_hosts", masterTcpPorts.stream().map(s->"127.0.0.1:"+s).collect(Collectors.toList()))
 				.put("transport.tcp.port", tcpPort)
 				.put("http.port", httpPort)
 				//.put("http.enabled", true)
@@ -330,12 +330,12 @@ public final class ClusterHelper {
 	}
 	// @formatter:on
 	
-	private int minMasterNodes(int masterEligibleNodes) {
+	/*private int minMasterNodes(int masterEligibleNodes) {
 	    if(masterEligibleNodes <= 0) {
 	        throw new IllegalArgumentException("no master eligible nodes");
 	    }
 	    
 	    return (masterEligibleNodes/2) + 1;
 	    	    
-	}
+	}*/
 }
