@@ -134,7 +134,7 @@ public class HttpIntegrationTests extends SingleClusterTest {
             Assert.assertEquals(HttpStatus.SC_OK, rh.executeGetRequest("kirk/type01/_search?pretty",encodeBasicHeader("kirk", "kirk")).getStatusCode());
 
     //all  
-            Assert.assertEquals(HttpStatus.SC_FORBIDDEN, rh.executePutRequest("_mapping/config","{\"i\" : [\"4\"]}",encodeBasicHeader("worf", "worf")).getStatusCode());
+            Assert.assertEquals(HttpStatus.SC_FORBIDDEN, rh.executePutRequest("_mapping/config?include_type_name=true","{\"i\" : [\"4\"]}",encodeBasicHeader("worf", "worf")).getStatusCode());
             Assert.assertEquals(HttpStatus.SC_FORBIDDEN, rh.executePostRequest("searchguard/_mget","{\"ids\" : [\"0\"]}",encodeBasicHeader("worf", "worf")).getStatusCode());
             
             Assert.assertEquals(HttpStatus.SC_OK, rh.executeGetRequest("starfleet/ships/_search?pretty", encodeBasicHeader("worf", "worf")).getStatusCode());
