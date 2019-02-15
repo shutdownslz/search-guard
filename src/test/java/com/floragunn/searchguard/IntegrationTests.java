@@ -116,7 +116,7 @@ public class IntegrationTests extends SingleClusterTest {
             Assert.assertFalse(wres.toString(), wres.isNodeCertificateRequest());
         }
         
-        HttpResponse res = rh.executePutRequest("test/_mapping/type1?pretty", "{\"properties\": {\"name\":{\"type\":\"text\"}}}", encodeBasicHeader("writer", "writer"));
+        HttpResponse res = rh.executePutRequest("test/_mapping?pretty", "{\"properties\": {\"name\":{\"type\":\"text\"}}}", encodeBasicHeader("writer", "writer"));
         Assert.assertEquals(HttpStatus.SC_FORBIDDEN, res.getStatusCode());  
         
         res = rh.executePostRequest("_cluster/reroute", "{}", encodeBasicHeader("writer", "writer"));

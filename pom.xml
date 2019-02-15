@@ -36,7 +36,7 @@
   <properties>
     <sgssl.version>7.x-HEAD-SNAPSHOT</sgssl.version>
     <enterprise-modules.version>7.x-enterprise-HEAD-SNAPSHOT</enterprise-modules.version>
-    <elasticsearch.version>7.0.0-alpha2</elasticsearch.version>
+    <elasticsearch.version>7.0.0-beta1</elasticsearch.version>
     
     <!-- deps -->
     <netty-native.version>2.0.20.Final</netty-native.version>
@@ -59,10 +59,19 @@
     <repository>
       <id>elastic-lucene-snapshots</id>
       <name>Elastic Lucene Snapshots</name>
-      <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/774e9aefbc</url>
+      <url>http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/83f9835</url>
       <releases><enabled>true</enabled></releases>
       <snapshots><enabled>false</enabled></snapshots>
     </repository>
+    
+     <repository>
+      <id>sg-intermediate</id>
+      <name>sg intermediate</name>
+      <url>https://oss.sonatype.org/service/local/repositories/comfloragunn-1528/content</url>
+      <releases><enabled>true</enabled></releases>
+      <snapshots><enabled>false</enabled></snapshots>
+    </repository>
+     
   </repositories>
 
   <scm>
@@ -189,6 +198,31 @@
     <dependency>
       <groupId>org.elasticsearch.plugin</groupId>
       <artifactId>reindex-client</artifactId>
+      <version>${elasticsearch.version}</version>
+      <scope>test</scope>
+      <exclusions>
+      <exclusion>
+      <groupId>org.elasticsearch</groupId>
+      <artifactId>elasticsearch-ssl-config</artifactId>
+      </exclusion>
+      <exclusion>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+      </exclusion>
+      
+      </exclusions>
+    </dependency>
+    
+    <dependency>
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpclient</artifactId>
+      <version>4.5.2</version>
+      <scope>test</scope>
+    </dependency>
+    
+     <dependency>
+      <groupId>com.floragunn</groupId>
+      <artifactId>elasticsearch-ssl-config</artifactId>
       <version>${elasticsearch.version}</version>
       <scope>test</scope>
     </dependency>

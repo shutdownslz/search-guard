@@ -80,7 +80,7 @@ public final class SearchGuardLicense implements Writeable {
         out.writeOptionalVInt(majorVersion);
         out.writeString(clusterName);
         out.writeInt(allowedNodeCount);
-        out.writeStringList(msgs);
+        out.writeStringCollection(msgs);
         out.writeLong(expiresInDays);
         out.writeBoolean(isExpired);
         out.writeBoolean(valid);
