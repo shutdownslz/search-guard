@@ -15,9 +15,10 @@
 package com.floragunn.searchguard;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 public class DefaultObjectMapper {
     public static final ObjectMapper objectMapper = new ObjectMapper();
-    //public static final ObjectMapper objectMapper = new ObjectMapper();
+    public static final ObjectMapper objectMapperYaml = new ObjectMapper(new YAMLFactory());
 }
 

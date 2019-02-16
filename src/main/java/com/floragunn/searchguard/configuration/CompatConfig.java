@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
 import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.support.ConfigConstants;
 
 
@@ -54,7 +55,7 @@ public class CompatConfig implements ConfigurationChangeListener {
                 }
                 return false;
             } else {
-                final boolean restDynamicallyDisabled = dynamicSgConfig.getAsBoolean("searchguard.dynamic.disable_rest_auth", false);
+                final boolean restDynamicallyDisabled = dynamicSgConfig.getAsBoolean(DotPath.of("searchguard.dynamic.disable_rest_auth"), false);
                 if(log.isTraceEnabled()) {
                     log.trace("searchguard.dynamic.disable_rest_auth {}", restDynamicallyDisabled);
                 }
@@ -77,7 +78,7 @@ public class CompatConfig implements ConfigurationChangeListener {
                 }
                 return false;
             } else {
-                final boolean interClusterAuthDynamicallyDisabled = dynamicSgConfig.getAsBoolean("searchguard.dynamic.disable_intertransport_auth", false);
+                final boolean interClusterAuthDynamicallyDisabled = dynamicSgConfig.getAsBoolean(DotPath.of("searchguard.dynamic.disable_intertransport_auth"), false);
                 if(log.isTraceEnabled()) {
                     log.trace("searchguard.dynamic.disable_intertransport_auth {}", interClusterAuthDynamicallyDisabled);
                 }

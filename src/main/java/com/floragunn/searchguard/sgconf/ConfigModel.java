@@ -37,6 +37,7 @@ import org.elasticsearch.common.collect.Tuple;
 
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
 import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.support.WildcardMatcher;
@@ -68,15 +69,15 @@ public class ConfigModel {
 
             SgRole _sgRole = new SgRole(sgRole);
 
-            final DynamicConfiguration sgRoleSettings = settings.getByPrefix0(sgRole);
+            final DynamicConfiguration sgRoleSettings = settings.getByPrefix(DotPath.of(sgRole));
             if (sgRoleSettings.names().isEmpty()) {
                 continue;
             }
 
-            final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(Collections.emptyList(), "cluster"));
+            final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(DotPath.of("cluster")));
             _sgRole.addClusterPerms(permittedClusterActions);
 
-            DynamicConfiguration tenants = settings.getByPrefix0(sgRole,"tenants");
+            DynamicConfiguration tenants = settings.getByPrefix(DotPath.of(sgRole+".tenants"));
 
             if(tenants != null) {
                 for(String tenant: tenants.names()) {
@@ -85,7 +86,7 @@ public class ConfigModel {
                     //    continue;
                     //}
 
-                    if("RW".equalsIgnoreCase(tenants.getAsStringWithDefault("RO", tenant))) {
+                    if("RW".equalsIgnoreCase(tenants.get(DotPath.of(tenant), "RO"))) {
                         _sgRole.addTenant(new Tenant(tenant, true));
                     } else {
                         _sgRole.addTenant(new Tenant(tenant, false));
@@ -97,16 +98,16 @@ public class ConfigModel {
             }
 
 
-            final Map<String, DynamicConfiguration> permittedAliasesIndices = sgRoleSettings.getGroups0("indices");
+            final Map<String, DynamicConfiguration> permittedAliasesIndices = sgRoleSettings.getGroups(DotPath.of("indices"));
 
             for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
 
                 final String resolvedRole = sgRole;
                 final String indexPattern = permittedAliasesIndex;
 
-                final String dls = settings.getAsString(resolvedRole,"indices",indexPattern,"_dls_");
-                final List<String> fls = settings.getAsListWithEmptyDefault(resolvedRole,"indices",indexPattern,"_fls_");
-                final List<String> maskedFields = settings.getAsListWithEmptyDefault(resolvedRole,"indices",indexPattern,"_masked_fields_");
+                final String dls = settings.get(DotPath.of(resolvedRole+".indices."+indexPattern+"._dls_"));
+                final List<String> fls = settings.getAsList(DotPath.of(resolvedRole+".indices."+indexPattern+"._fls_"));
+                final List<String> maskedFields = settings.getAsList(DotPath.of(resolvedRole+".indices."+indexPattern+"._masked_fields_"));
 
                 IndexPattern _indexPattern = new IndexPattern(indexPattern);
                 _indexPattern.setDlsQuery(dls);
@@ -120,7 +121,7 @@ public class ConfigModel {
                     }
 
                     TypePerm typePerm = new TypePerm(type);
-                    final List<String> perms = settings.getAsListWithEmptyDefault(resolvedRole,"indices",indexPattern,type);
+                    final List<String> perms = settings.getAsList(DotPath.of(resolvedRole+".indices."+indexPattern+"."+type));
                     typePerm.addPerms(ah.resolvedActions(perms));
                     _indexPattern.addTypePerms(typePerm);
                 }

@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 
 import com.floragunn.searchguard.auth.BackendRegistry;
 import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardLicense;
@@ -113,7 +114,7 @@ TransportNodesAction<ConfigUpdateRequest, ConfigUpdateResponse, TransportConfigU
         String licenseText = null;
         
         if(setn.get("config") != null) {
-            licenseText = setn.get("config").get("searchguard.dynamic.license");
+            licenseText = setn.get("config").get(DotPath.of("searchguard.dynamic.license"));
         }
         
         if(licenseText != null && !licenseText.isEmpty()) {

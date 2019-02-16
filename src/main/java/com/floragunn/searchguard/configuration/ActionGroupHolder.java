@@ -22,9 +22,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.elasticsearch.common.settings.Settings;
-
 import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.support.ConfigConstants;
 
 public class ActionGroupHolder {
@@ -50,10 +49,10 @@ public class ActionGroupHolder {
 
         final Set<String> ret = new HashSet<String>();
         // SG5 format, plain array
-        List<String> en = actionGroups.getAsList(entry);
+        List<String> en = actionGroups.getAsList(DotPath.of(entry));
         if (en.isEmpty()) {
         	// try SG6 format including readonly and permissions key
-        	en = actionGroups.getAsList(entry +"." + ConfigConstants.CONFIGKEY_ACTION_GROUPS_PERMISSIONS);
+        	en = actionGroups.getAsList(DotPath.of(entry + "." + ConfigConstants.CONFIGKEY_ACTION_GROUPS_PERMISSIONS));
         }
         for (String string: en) {
             if (actionGroups.names().contains(string)) {

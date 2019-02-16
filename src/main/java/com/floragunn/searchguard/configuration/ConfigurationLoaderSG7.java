@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -34,7 +35,6 @@ import java.util.function.Function;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.bouncycastle.crypto.RuntimeCryptoException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
@@ -53,16 +53,22 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import com.fasterxml.jackson.core.JsonPointer;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.floragunn.searchguard.DefaultObjectMapper;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.SearchGuardDeprecationHandler;
 import com.google.common.collect.ImmutableSet;
 
 public class ConfigurationLoaderSG7 {
+
+    private static final TypeReference<HashMap<String,Object>> typeRefMSO = new TypeReference<HashMap<String,Object>>() {};
+    private static final TypeReference<HashMap<String,String>> typeRefMSS = new TypeReference<HashMap<String,String>>() {};
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     private final Client client;
@@ -174,7 +180,9 @@ public class ConfigurationLoaderSG7 {
     private DynamicConfiguration toConfig(GetResponse singleGetResponse) {
         final BytesReference ref = singleGetResponse.getSourceAsBytesRef();
         final String id = singleGetResponse.getId();
-        final long version = singleGetResponse.getVersion();
+        final long seqNo = singleGetResponse.getSeqNo();
+        final long primaryTerm = singleGetResponse.getPrimaryTerm();
+        
         
 
         if (ref == null || ref.length() == 0) {
@@ -198,7 +206,7 @@ public class ConfigurationLoaderSG7 {
             
             final JsonNode jsonNode = DefaultObjectMapper.objectMapper.readTree(new ByteArrayInputStream(parser.binaryValue()));
 
-            return new DynamicConfiguration(jsonNode, version, id);
+            return new DynamicConfiguration(jsonNode, seqNo, primaryTerm, id);
         } catch (final IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {
@@ -212,35 +220,182 @@ public class ConfigurationLoaderSG7 {
         }
     }
     
-    public static class DynamicConfiguration implements ToXContent{
+    public static class DotPath {
         
-        private static final TypeReference<HashMap<String,Object>> typeRefMSO = new TypeReference<HashMap<String,Object>>() {};
-        private static final TypeReference<HashMap<String,String>> typeRefMSS = new TypeReference<HashMap<String,String>>() {};
+        public static final DotPath ALL = new DotPath(null, "", null);
+        private final String path;
+        private String prepend;
+        private String append;
 
+        private DotPath(String prepend, String dotPath, String append) {
+            super();
+            this.path = dotPath;
+            this.prepend = prepend;
+            this.append = append;
+        }
+
+        public JsonPointer toJsonPointer() {
+
+            String ptr = path;
+
+            if(path.startsWith(".")) {
+                throw new RuntimeException(path+" must not start with a dot");
+            } else if(path.startsWith("/")) {
+                throw new RuntimeException(path+" must not start with a slash");
+            } else if(path.endsWith(".")) {
+                throw new RuntimeException(path+" must not end with a dot");
+            } else if(path.endsWith("/")) {
+                throw new RuntimeException(path+" must not end with a slash");
+            } else if(path.equals("")) {
+                ptr = "";
+            } else {
+                //rfc6901 escaping
+                ptr = "/"+path.replace("~", "~0").replace("/", "~1").replace('.', '/');
+            } 
+            
+            if(append != null) {
+                ptr += "/" + append.replace("~", "~0").replace("/", "~1");
+            }
+            
+            if(prepend != null) {
+                ptr = "/" + prepend.replace("~", "~0").replace("/", "~1")+ ptr;
+            }
+
+            return JsonPointer.compile(ptr);
+        }
+
+        public static DotPath of(String path) {
+            return new DotPath(null, path, null);
+        }
         
-        private final JsonNode jsonNode;
-        private final long version;
+        public static DotPath of(String prepend, String path, String append) {
+            return new DotPath(prepend, path, append);
+        }
+
+    }
+    
+    public static class MutableDynamicConfiguration implements ToXContent {
+                
+        private final ObjectNode objectNode;
+        private final long seqNo;
+        private final long primaryTerm;
         private final String type;
         
-        public DynamicConfiguration(JsonNode jsonNode, long version, String type) {
-            super();
-            this.jsonNode = jsonNode;
-            this.version = version;
+        public MutableDynamicConfiguration(JsonNode jsonNode, long seqNo, long primaryTerm, String type) {
+            objectNode = (ObjectNode) jsonNode.deepCopy();
+            this.seqNo = seqNo;
+            this.primaryTerm = primaryTerm;
             this.type = type;
             
-            if(isEmpty()) {
-                //throw new RuntimeException("empty config for: "+type);
-            }
-            
-            /*System.out.println(jsonNode.size()+" elements for "+jsonNode.getNodeType()+" and "+type);
-            
-            try {
-                System.out.println(DefaultObjectMapper.objectMapper.writeValueAsString(jsonNode));
+            /*try {
+                System.out.println("############################## mdc "+DefaultObjectMapper.objectMapper.writeValueAsString(objectNode));
+                new Exception().printStackTrace();
             } catch (JsonProcessingException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
+                throw new RuntimeException(e);
+            }*/
+            
+        }
+        
+        public DynamicConfiguration toDynamicConfiguration() {
+            return new DynamicConfiguration(objectNode, seqNo, primaryTerm, type);
+        }
+        
+        public void put(DotPath path, String key, String value) {
+            JsonPointer ptr = path.toJsonPointer();
+            JsonNode n = objectNode.at(ptr);
+            if(n.isMissingNode()) {
+                final ObjectNode tmp = JsonNodeFactory.instance.objectNode();
+            } else {
+               //String lastVal = ptr.last().toString();
+               ((ObjectNode) objectNode.at(ptr)).put(key, value);
             }
-            */
+        }
+
+        public void put(String key, String value) {
+            noDot(key);
+            objectNode.put(key, value);
+        }
+
+        public long getSeqNo() {
+            return seqNo;
+        }
+
+        public long getPrimaryTerm() {
+            return primaryTerm;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public boolean containsKey(String name) {
+            noDot(name);
+            return objectNode.has(name);
+        }
+
+        public void put(String name, JsonNode node) {
+            noDot(name);
+            objectNode.set(name, node);
+        }
+
+        public void remove(String name) {
+            noDot(name);
+            objectNode.remove(name);
+        }
+        
+        public Map<String, Object> getAsMap() {
+            Map<String, Object> map = DefaultObjectMapper.objectMapper.convertValue(objectNode, typeRefMSO);
+            return Collections.unmodifiableMap(map);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.map(getAsMap());
+            return builder;
+        }
+        
+        private static void noDot(String val) {
+            if(val!= null && val.contains(".")) {
+                System.out.println("exception: no dot");
+                new Exception().printStackTrace();
+                throw new IllegalArgumentException();
+            }
+        }
+        
+        @Override
+        public boolean isFragment() {
+            return false;
+        }
+        
+    }
+    
+    public static class DynamicConfiguration implements ToXContent{
+                
+        private final JsonNode jsonNode;
+        private final long seqNo;
+        private final long primaryTerm;
+        private final String type;
+        
+        public DynamicConfiguration(JsonNode jsonNode, long seqNo, long primaryTerm, String type) {
+            super();
+            this.jsonNode = Objects.requireNonNull(jsonNode);
+            this.seqNo = seqNo;
+            this.primaryTerm = primaryTerm;
+            this.type = type;
+        }
+        
+        
+        
+        @Override
+        public boolean isFragment() {
+            return !(jsonNode instanceof ObjectNode);
+        }
+
+
+
+        public MutableDynamicConfiguration copyToMutable() {
+            return new MutableDynamicConfiguration(jsonNode, seqNo, primaryTerm, type);
         }
 
         public static Function<String, String> checkKeyFunction() {
@@ -254,21 +409,21 @@ public class ConfigurationLoaderSG7 {
             };
         }
         
-        public String getAsStringWithDefault(String defaultValue, String... path) {
-            return jsonNode.at(toJsonPointer(path)).asText(defaultValue);
+        public String get(DotPath path, String defaultValue) {
+            return jsonNode.at(path.toJsonPointer()).asText(defaultValue);
         }
         
-        public String getAsString(String... path) {
-            return getAsStringWithDefault(null, path);
+        public String get(DotPath path) {
+            return get(path, null);
         }
 
-        public boolean getAsBoolean(boolean b, String... string) {
-            return jsonNode.at(toJsonPointer(string)).asBoolean(b);
+        public boolean getAsBoolean(DotPath path, boolean defaultVal) {
+            return jsonNode.at(path.toJsonPointer()).asBoolean(defaultVal);
         }
 
 
-        public List<String> getAsList(List<String> defaultList, String... string) {
-           JsonNode n = jsonNode.at(toJsonPointer(string));
+        public List<String> getAsList(DotPath path, List<String> defaultList) {
+           JsonNode n = jsonNode.at(path.toJsonPointer());
            
            if(n != null && n.isArray()) {
                List<String> ret = new ArrayList<String>(n.size());
@@ -283,20 +438,25 @@ public class ConfigurationLoaderSG7 {
         }
 
 
-        public List<String> getAsListWithEmptyDefault(String... entry) {
-            return getAsList(Collections.emptyList(), entry);
+        public List<String> getAsList(DotPath path) {
+            return getAsList(path, Collections.emptyList());
+        }
+        
+        public DynamicConfiguration getByPrefix0(String parent) {
+            final ObjectNode tmp = JsonNodeFactory.instance.objectNode();
+            return new DynamicConfiguration(tmp.set(parent, jsonNode.get(parent)), seqNo, primaryTerm, type);
         }
 
-        public DynamicConfiguration getByPrefix0(String... string) {
-            return new DynamicConfiguration(jsonNode.at(toJsonPointer(string)), version, type);
+        public DynamicConfiguration getByPrefix(DotPath path) {
+            return new DynamicConfiguration(jsonNode.at(path.toJsonPointer()), seqNo, primaryTerm, type);
         }
 
 
-        public Map<String, DynamicConfiguration> getGroups0(String... string) {
+        public Map<String, DynamicConfiguration> getGroups(DotPath path) {
             final Map<String, DynamicConfiguration> ret = new HashMap<>();
-            final JsonNode node = jsonNode.at(toJsonPointer(string));
+            final JsonNode node = jsonNode.at(path.toJsonPointer());
             for(String n: ImmutableSet.copyOf(node.fieldNames())) {
-                ret.put(n, new DynamicConfiguration(node.get(n), version, type));
+                ret.put(n, new DynamicConfiguration(node.get(n), seqNo, primaryTerm, type));
             }
             return Collections.unmodifiableMap(ret);
         }
@@ -311,71 +471,52 @@ public class ConfigurationLoaderSG7 {
            return ImmutableSet.copyOf(jsonNode.fieldNames());
         }
 
-
-        public String toDelimitedString0(char c) {
-            // TODO Auto-generated method stub
-            return null;
-        }
-
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.map(getAsMap(""));
+            builder.map(getAsMap(DotPath.ALL));
             return builder;
         }
 
 
-        public int getAsInt(int i, String... string) {
-            return jsonNode.at(toJsonPointer(string)).asInt(i);
+        public int getAsInt(DotPath path, int defaultVal) {
+            return jsonNode.at(path.toJsonPointer()).asInt(defaultVal);
         }
         
-        public Map<String, Object> getAsMap0(String... string) {
-            Map<String, Object> map = DefaultObjectMapper.objectMapper.convertValue(jsonNode.at(toJsonPointer(string)), typeRefMSO);
+        private Map<String, Object> getAsMap(DotPath path) {
+            Map<String, Object> map = DefaultObjectMapper.objectMapper.convertValue(jsonNode.at(path.toJsonPointer()), typeRefMSO);
             return map==null?null:Collections.unmodifiableMap(map);
         }
         
-        public Map<String, String> getAsStringMap0(String... string) {
-            Map<String, String> map = DefaultObjectMapper.objectMapper.convertValue(jsonNode.at(toJsonPointer(string)), typeRefMSS);
+        //TODO fails if children are objects/arrays
+        public Map<String, String> getAsStringMap(DotPath path) {
+            Map<String, String> map = DefaultObjectMapper.objectMapper.convertValue(jsonNode.at(path.toJsonPointer()), typeRefMSS);
             return map==null?Collections.emptyMap():Collections.unmodifiableMap(map);
-        }
-    
-        private String toJsonPointer(String[] in) {
-            if(in == null) {
-                return null;
-            }
-
-            if(in.startsWith(".")) {
-                
-                throw new RuntimeException(in+" must not start with a dot");
-                //return "/."+in.substring(1).replace('.', '/');
-            } else if(in.startsWith("/")) {
-                throw new RuntimeException(in+" must not start with a slash");
-                //return in.replace('.', '/');
-            } else if(in.endsWith(".")) {
-                
-                throw new RuntimeException(in+" must not end with a dot");
-                //return "/."+in.substring(1).replace('.', '/');
-            } else if(in.endsWith("/")) {
-                throw new RuntimeException(in+" must not end with a slash");
-                //return in.replace('.', '/');
-            } else {
-                //rfc6901 escaping
-                return "/"+in.replace("~", "~0").replace("/", "~1").replace('.', '/');
-            }
         }
 
         @Override
         public String toString() {
             try {
-                return "DynamicConfiguration [jsonNode=" + DefaultObjectMapper.objectMapper.writeValueAsString(jsonNode) + ", version=" + version + ", type=" + type + "]";
+                return "DynamicConfiguration [jsonNode=" + DefaultObjectMapper.objectMapper.writeValueAsString(jsonNode) + ", seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + ", type=" + type + "]";
             } catch (JsonProcessingException e) {
-                // TODO Auto-generated catch block
                 e.printStackTrace();
                 return e.getMessage();
             }
         }
 
-        
+
+        public long getSeqNo() {
+            return seqNo;
+        }
+
+
+        public long getPrimaryTerm() {
+            return primaryTerm;
+        }
+
+
+        public String getType() {
+            return type;
+        }
         
         
     }

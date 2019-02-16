@@ -28,11 +28,11 @@ import java.util.Map.Entry;
 
 import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.settings.Settings;
 
 import com.floragunn.searchguard.auth.AuthenticationBackend;
 import com.floragunn.searchguard.auth.AuthorizationBackend;
 import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.user.AuthCredentials;
@@ -55,14 +55,14 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
             return false;
         }
         
-        String hashed = cfg.get(user.getName() + ".hash");
+        String hashed = cfg.get(DotPath.of(user.getName() + ".hash"));
 
         if (hashed == null) {
             
             for(String username:cfg.names()) {
-                String u = cfg.get(username + ".username");
+                String u = cfg.get(DotPath.of(username + ".username"));
                 if(user.getName().equals(u)) {
-                    hashed = cfg.get(username+ ".hash");
+                    hashed = cfg.get(DotPath.of(username + ".hash"));
                     break;
                 }
             }
@@ -72,7 +72,7 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
             }
         }
         
-        final List<String> roles = cfg.getAsList(user.getName() + ".roles", Collections.emptyList());
+        final List<String> roles = cfg.getAsList(DotPath.of(user.getName() + ".roles"), Collections.emptyList());
         
         if(roles != null) {
             user.addRoles(roles);
@@ -89,19 +89,15 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
             throw new ElasticsearchSecurityException("Internal authentication backend not configured. May be Search Guard is not initialized. See http://docs.search-guard.com/v6/sgadmin");
 
         }
-
-        System.out.println(credentials);
         
-        String hashed = cfg.get(credentials.getUsername() + ".hash");
-        
-        System.out.println(hashed);
+        String hashed = cfg.get(DotPath.of(credentials.getUsername() + ".hash"));
 
         if (hashed == null) {
             
             for(String username:cfg.names()) {
-                String u = cfg.get(username + ".username");
+                String u = cfg.get(DotPath.of(username + ".username"));
                 if(credentials.getUsername().equals(u)) {
-                    hashed = cfg.get(username+ ".hash");
+                    hashed = cfg.get(DotPath.of(username + ".hash"));
                     break;
                 }
             }
@@ -126,8 +122,8 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
        
         try {
             if (OpenBSDBCrypt.checkPassword(hashed, array)) {
-                final List<String> roles = cfg.getAsList(credentials.getUsername() + ".roles", Collections.emptyList());
-                final Map<String, String> customAttributes = cfg.getAsStringMap(credentials.getUsername() + ".attributes");
+                final List<String> roles = cfg.getAsList(DotPath.of(credentials.getUsername() + ".roles"), Collections.emptyList());
+                final Map<String, String> customAttributes = cfg.getAsStringMap(DotPath.of(credentials.getUsername() + ".attributes"));
 
                 if(customAttributes != null) {
                     for(Entry<String, String> attributeName: customAttributes.entrySet()) {
@@ -162,7 +158,7 @@ public class InternalAuthenticationBackend implements AuthenticationBackend, Aut
             throw new ElasticsearchSecurityException("Internal authentication backend not configured. May be Search Guard is not initialized. See http://docs.search-guard.com/v6/sgadmin");
 
         }
-        final List<String> roles = cfg.getAsList(credentials.getUsername() + ".roles", Collections.emptyList());
+        final List<String> roles = cfg.getAsList(DotPath.of(credentials.getUsername() + ".roles"), Collections.emptyList());
         if(roles != null && !roles.isEmpty() && user != null) {
             user.addRoles(roles);
         }

@@ -55,6 +55,7 @@ import com.floragunn.searchguard.auth.internal.NoOpAuthorizationBackend;
 import com.floragunn.searchguard.configuration.AdminDNs;
 import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
 import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.http.HTTPBasicAuthenticator;
 import com.floragunn.searchguard.http.HTTPClientCertAuthenticator;
 import com.floragunn.searchguard.http.HTTPProxyAuthenticator;
@@ -191,19 +192,19 @@ public class BackendRegistry implements ConfigurationChangeListener {
         final Set<AuthorizationBackend> transportAuthorizers0 = new HashSet<>();
         final List<Destroyable> destroyableComponents0 = new LinkedList<>();
 
-        final Map<String, DynamicConfiguration> authzDyn = settings.getGroups("searchguard.dynamic.authz");
+        final Map<String, DynamicConfiguration> authzDyn = settings.getGroups(DotPath.of("searchguard.dynamic.authz"));
 
         for (final String ad : authzDyn.keySet()) {
             final DynamicConfiguration ads = authzDyn.get(ad);
-            final boolean enabled = ads.getAsBoolean(true, "enabled");
-            final boolean httpEnabled = enabled && ads.getAsBoolean(true, "http_enabled");
-            final boolean transportEnabled = enabled && ads.getAsBoolean(true, "transport_enabled");
+            final boolean enabled = ads.getAsBoolean(DotPath.of("enabled"), true);
+            final boolean httpEnabled = enabled && ads.getAsBoolean(DotPath.of("http_enabled"), true);
+            final boolean transportEnabled = enabled && ads.getAsBoolean(DotPath.of("transport_enabled"),true);
 
 
             if (httpEnabled || transportEnabled) {
                 try {
 
-                    final String authzBackendClazz = ads.getAsStringWithDefault("noop", "authorization_backend","type");
+                    final String authzBackendClazz = ads.get(DotPath.of("authorization_backend.type"), "noop");
                     final AuthorizationBackend authorizationBackend;
                     
                     if(authzBackendClazz.equals(InternalAuthenticationBackend.class.getName()) //NOSONAR
@@ -214,7 +215,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
                     } else {
                         authorizationBackend = newInstance(
                                 authzBackendClazz,"z",
-                                Settings.builder().put(esSettings).putProperties(ads.getAsStringMap("authorization_backend","config"), DynamicConfiguration.checkKeyFunction()).build(), configPath);
+                                Settings.builder().put(esSettings).putProperties(ads.getAsStringMap(DotPath.of("authorization_backend.config")), DynamicConfiguration.checkKeyFunction()).build(), configPath);
                     }
                     
                     if (httpEnabled) {
@@ -234,18 +235,18 @@ public class BackendRegistry implements ConfigurationChangeListener {
             }
         }
 
-        final Map<String, DynamicConfiguration> dyn = settings.getGroups("searchguard","dynamic","authc");
+        final Map<String, DynamicConfiguration> dyn = settings.getGroups(DotPath.of("searchguard.dynamic.authc"));
 
         for (final String ad : dyn.keySet()) {
             final DynamicConfiguration ads = dyn.get(ad);
-            final boolean enabled = ads.getAsBoolean(true, "enabled");
-            final boolean httpEnabled = enabled && ads.getAsBoolean(true, "http_enabled");
-            final boolean transportEnabled = enabled && ads.getAsBoolean(true, "transport_enabled");
+            final boolean enabled = ads.getAsBoolean(DotPath.of("enabled"), true);
+            final boolean httpEnabled = enabled && ads.getAsBoolean(DotPath.of("http_enabled"), true);
+            final boolean transportEnabled = enabled && ads.getAsBoolean(DotPath.of("transport_enabled"), true);
 
             if (httpEnabled || transportEnabled) {
                 try {
                     AuthenticationBackend authenticationBackend;
-                    final String authBackendClazz = ads.get("authentication_backend.type", InternalAuthenticationBackend.class.getName());
+                    final String authBackendClazz = ads.get(DotPath.of("authentication_backend.type"), InternalAuthenticationBackend.class.getName());
                     if(authBackendClazz.equals(InternalAuthenticationBackend.class.getName()) //NOSONAR
                             || authBackendClazz.equals("internal")
                             || authBackendClazz.equals("intern")) {
@@ -254,15 +255,15 @@ public class BackendRegistry implements ConfigurationChangeListener {
                     } else {
                         authenticationBackend = newInstance(
                                 authBackendClazz,"c",
-                                Settings.builder().put(esSettings).putProperties(ads.getAsStringMap("authentication_backend","config"), DynamicConfiguration.checkKeyFunction()).build(), configPath);
+                                Settings.builder().put(esSettings).putProperties(ads.getAsStringMap(DotPath.of("authentication_backend.config")), DynamicConfiguration.checkKeyFunction()).build(), configPath);
                     }
 
-                    String httpAuthenticatorType = ads.get("http_authenticator.type"); //no default
+                    String httpAuthenticatorType = ads.get(DotPath.of("http_authenticator.type")); //no default
                     HTTPAuthenticator httpAuthenticator = httpAuthenticatorType==null?null:  (HTTPAuthenticator) newInstance(httpAuthenticatorType,"h",
-                            Settings.builder().put(esSettings).putProperties(ads.getAsStringMap("http_authenticator","config"), DynamicConfiguration.checkKeyFunction()).build(), configPath);
+                            Settings.builder().put(esSettings).putProperties(ads.getAsStringMap(DotPath.of("http_authenticator.config")), DynamicConfiguration.checkKeyFunction()).build(), configPath);
 
                     final AuthDomain _ad = new AuthDomain(authenticationBackend, httpAuthenticator,
-                            ads.getAsBoolean("http_authenticator.challenge", true), ads.getAsInt(0, "order"));
+                            ads.getAsBoolean(DotPath.of("http_authenticator.challenge"), true), ads.getAsInt(DotPath.of("order"), 0));
 
                     if (httpEnabled && _ad.getHttpAuthenticator() != null) {
                         restAuthDomains0.add(_ad);
@@ -289,8 +290,8 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
         invalidateCache();
 
-        transportUsernameAttribute = settings.getAsString("searchguard","dynamic","transport_userrname_attribute");
-        anonymousAuthEnabled = settings.getAsBoolean(false, "searchguard","dynamic","http","anonymous_auth_enabled")
+        transportUsernameAttribute = settings.get(DotPath.of("searchguard.dynamic.transport_userrname_attribute"));
+        anonymousAuthEnabled = settings.getAsBoolean(DotPath.of("searchguard.dynamic.http.anonymous_auth_enabled"), false)
                 && !esSettings.getAsBoolean(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false);
 
         List<Destroyable> originalDestroyableComponents = destroyableComponents;

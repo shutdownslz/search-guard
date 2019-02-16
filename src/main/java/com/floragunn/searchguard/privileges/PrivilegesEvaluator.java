@@ -64,6 +64,7 @@ import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
 import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
@@ -203,8 +204,8 @@ public class PrivilegesEvaluator {
         }        
 
         final boolean dnfofEnabled =
-                getConfigSettings().getAsBoolean("searchguard.dynamic.kibana.do_not_fail_on_forbidden", false)
-                || getConfigSettings().getAsBoolean("searchguard.dynamic.do_not_fail_on_forbidden", false);
+                getConfigSettings().getAsBoolean(DotPath.of("searchguard.dynamic.kibana.do_not_fail_on_forbidden"), false)
+                || getConfigSettings().getAsBoolean(DotPath.of("searchguard.dynamic.do_not_fail_on_forbidden"), false);
         
         if(log.isTraceEnabled()) {
             log.trace("dnfof enabled? {}", dnfofEnabled);
@@ -359,7 +360,7 @@ public class PrivilegesEvaluator {
         //not bulk, mget, etc request here
         boolean permGiven = false;
 
-        if (config.getAsBoolean("searchguard.dynamic.multi_rolespan_enabled", false)) {
+        if (config.getAsBoolean(DotPath.of("searchguard.dynamic.multi_rolespan_enabled"), false)) {
             permGiven = sgRoles.impliesTypePermGlobal(requestedResolved, user, allIndexPermsRequiredA, resolver, clusterService);
         }  else {
             permGiven = sgRoles.get(requestedResolved, user, allIndexPermsRequiredA, resolver, clusterService);
@@ -405,19 +406,19 @@ public class PrivilegesEvaluator {
         if(rolesMapping != null && ((rolesMappingResolution == ConfigConstants.RolesMappingResolution.BOTH
                 || rolesMappingResolution == ConfigConstants.RolesMappingResolution.MAPPING_ONLY))) {
             for (final String roleMap : rolesMapping.names()) {
-                final DynamicConfiguration roleMapSettings = rolesMapping.getByPrefix(roleMap);
+                final DynamicConfiguration roleMapSettings = rolesMapping.getByPrefix(DotPath.of(roleMap));
 
-                if (WildcardMatcher.allPatternsMatched(roleMapSettings.getAsList("and_backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
+                if (WildcardMatcher.allPatternsMatched(roleMapSettings.getAsList(DotPath.of("and_backendroles"), Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
                     sgRoles.add(roleMap);
                     continue;
                 }
 
-                if (WildcardMatcher.matchAny(roleMapSettings.getAsList("backendroles", Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
+                if (WildcardMatcher.matchAny(roleMapSettings.getAsList(DotPath.of("backendroles"), Collections.emptyList()).toArray(new String[0]), user.getRoles().toArray(new String[0]))) {
                     sgRoles.add(roleMap);
                     continue;
                 }
 
-                if (WildcardMatcher.matchAny(roleMapSettings.getAsList("users"), user.getName())) {
+                if (WildcardMatcher.matchAny(roleMapSettings.getAsList(DotPath.of("users")), user.getName())) {
                     sgRoles.add(roleMap);
                     continue;
                 }
@@ -433,17 +434,17 @@ public class PrivilegesEvaluator {
                 if(caller != null) {
                     //IPV4 or IPv6 (compressed and without scope identifiers)
                     final String ipAddress = caller.getAddress();
-                    if (WildcardMatcher.matchAny(roleMapSettings.getAsList("hosts"), ipAddress)) {
+                    if (WildcardMatcher.matchAny(roleMapSettings.getAsList(DotPath.of("hosts")), ipAddress)) {
                         sgRoles.add(roleMap);
                         continue;
                     }
     
-                    final String hostResolverMode = getConfigSettings().get("searchguard.dynamic.hosts_resolver_mode","ip-only");
+                    final String hostResolverMode = getConfigSettings().get(DotPath.of("searchguard.dynamic.hosts_resolver_mode"),"ip-only");
                     
                     if(caller.address() != null && (hostResolverMode.equalsIgnoreCase("ip-hostname") || hostResolverMode.equalsIgnoreCase("ip-hostname-lookup"))){
                         final String hostName = caller.address().getHostString();
         
-                        if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), hostName)) {
+                        if (WildcardMatcher.matchAny(roleMapSettings.getAsList(DotPath.of("hosts")), hostName)) {
                             sgRoles.add(roleMap);
                             continue;
                         }
@@ -453,7 +454,7 @@ public class PrivilegesEvaluator {
     
                         final String resolvedHostName = caller.address().getHostName();
              
-                        if (WildcardMatcher.matchAny(roleMapSettings.getAsList(".hosts"), resolvedHostName)) {
+                        if (WildcardMatcher.matchAny(roleMapSettings.getAsList(DotPath.of("hosts")), resolvedHostName)) {
                             sgRoles.add(roleMap);
                             continue;
                         }
@@ -476,7 +477,7 @@ public class PrivilegesEvaluator {
         result.put(user.getName(), true);
 
         for(String sgRole: mapSgRoles(user, caller)) {
-            DynamicConfiguration tenants = getRolesSettings().getByPrefix(sgRole+".tenants");
+            DynamicConfiguration tenants = getRolesSettings().getByPrefix(DotPath.of(sgRole+".tenants"));
 
             if(tenants != null) {
                 for(String tenant: tenants.names()) {
@@ -485,7 +486,7 @@ public class PrivilegesEvaluator {
                         continue;
                     }
 
-                    if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
+                    if("RW".equalsIgnoreCase(tenants.get(DotPath.of(tenant), "RO"))) {
                         result.put(tenant, true);
                     } else {
                         if(!result.containsKey(tenant)) { //RW outperforms RO
@@ -510,7 +511,7 @@ public class PrivilegesEvaluator {
     	
     	final Set<String> configuredTenants = new HashSet<>();
     	for(String sgRole: roles.names()) {
-    	    DynamicConfiguration tenants = roles.getByPrefix(sgRole+".tenants");
+    	    DynamicConfiguration tenants = roles.getByPrefix(DotPath.of(sgRole + ".tenants"));
 
             if(tenants != null) {
                 configuredTenants.addAll(tenants.names());
@@ -523,20 +524,20 @@ public class PrivilegesEvaluator {
 
     public boolean multitenancyEnabled() {
         return privilegesInterceptor.getClass() != PrivilegesInterceptor.class
-                && getConfigSettings().getAsBoolean("searchguard.dynamic.kibana.multitenancy_enabled", true);
+                && getConfigSettings().getAsBoolean(DotPath.of("searchguard.dynamic.kibana.multitenancy_enabled"), true);
     }
 
     public boolean notFailOnForbiddenEnabled() {
         return privilegesInterceptor.getClass() != PrivilegesInterceptor.class
-                && getConfigSettings().getAsBoolean("searchguard.dynamic.kibana.do_not_fail_on_forbidden", false);
+                && getConfigSettings().getAsBoolean(DotPath.of("searchguard.dynamic.kibana.do_not_fail_on_forbidden"), false);
     }
 
     public String kibanaIndex() {
-        return getConfigSettings().get("searchguard.dynamic.kibana.index",".kibana");
+        return getConfigSettings().get(DotPath.of("searchguard.dynamic.kibana.index"),".kibana");
     }
 
     public String kibanaServerUsername() {
-        return getConfigSettings().get("searchguard.dynamic.kibana.server_username","kibanaserver");
+        return getConfigSettings().get(DotPath.of("searchguard.dynamic.kibana.server_username"),"kibanaserver");
     }
 
     private Set<String> evaluateAdditionalIndexPermissions(final ActionRequest request, final String originalAction) {
@@ -657,7 +658,7 @@ public class PrivilegesEvaluator {
 
             if(filteredAliases.size() > 1 && WildcardMatcher.match("indices:data/read/*search*", action)) {
                 //TODO add queries as dls queries (works only if dls module is installed)
-                final String faMode = getConfigSettings().get("searchguard.dynamic.filtered_alias_mode","warn");
+                final String faMode = getConfigSettings().get(DotPath.of("searchguard.dynamic.filtered_alias_mode"),"warn");
 
                 if(faMode.equals("warn")) {
                     log.warn("More than one ({}) filtered alias found for same index ({}). This is currently not recommended. Aliases: {}", filteredAliases.size(), requestAliasOrIndex, toString(filteredAliases));

@@ -51,7 +51,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -66,6 +65,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.compliance.ComplianceConfig;
 import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.ConfigHelper;
@@ -453,7 +453,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
             return null;
         }
 
-        String licenseText = getConfiguration("config").get("searchguard.dynamic.license");
+        String licenseText = getConfiguration("config").get(DotPath.of("searchguard.dynamic.license"));
 
         if(licenseText == null || licenseText.isEmpty()) {
             if(effectiveLicense != null) {
