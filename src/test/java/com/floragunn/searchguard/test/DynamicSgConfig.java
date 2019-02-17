@@ -24,7 +24,7 @@ import java.util.List;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 
-import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.configuration.CType;
 import com.floragunn.searchguard.test.helper.file.FileHelper;
 
 public class DynamicSgConfig {
@@ -83,33 +83,33 @@ public class DynamicSgConfig {
         
         ret.add(new IndexRequest(searchGuardIndexName)
                .type("sg")
-               .id(ConfigConstants.CONFIGNAME_CONFIG)
+               .id(CType.CONFIG.toLCString())
                .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-               .source(ConfigConstants.CONFIGNAME_CONFIG, sgConfigAsYamlString==null?FileHelper.readYamlContent(prefix+sgConfig):FileHelper.readYamlContentFromString(sgConfigAsYamlString)));
+               .source(CType.CONFIG.toLCString(), sgConfigAsYamlString==null?FileHelper.readYamlContent(prefix+sgConfig):FileHelper.readYamlContentFromString(sgConfigAsYamlString)));
         
         ret.add(new IndexRequest(searchGuardIndexName)
         .type("sg")
-        .id(ConfigConstants.CONFIGNAME_ACTION_GROUPS)
+        .id(CType.ACTIONGROUPS.toLCString())
         .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-        .source(ConfigConstants.CONFIGNAME_ACTION_GROUPS, FileHelper.readYamlContent(prefix+sgActionGroups)));
+        .source(CType.ACTIONGROUPS.toLCString(), FileHelper.readYamlContent(prefix+sgActionGroups)));
  
         ret.add(new IndexRequest(searchGuardIndexName)
         .type("sg")
-        .id(ConfigConstants.CONFIGNAME_INTERNAL_USERS)
+        .id(CType.INTERNALUSERS.toLCString())
         .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-        .source(ConfigConstants.CONFIGNAME_INTERNAL_USERS, FileHelper.readYamlContent(prefix+sgInternalUsers)));
+        .source(CType.INTERNALUSERS.toLCString(), FileHelper.readYamlContent(prefix+sgInternalUsers)));
  
         ret.add(new IndexRequest(searchGuardIndexName)
         .type("sg")
-        .id(ConfigConstants.CONFIGNAME_ROLES)
+        .id(CType.ROLES.toLCString())
         .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-        .source(ConfigConstants.CONFIGNAME_ROLES, FileHelper.readYamlContent(prefix+sgRoles)));
+        .source(CType.ROLES.toLCString(), FileHelper.readYamlContent(prefix+sgRoles)));
  
         ret.add(new IndexRequest(searchGuardIndexName)
         .type("sg")
-        .id(ConfigConstants.CONFIGNAME_ROLES_MAPPING)
+        .id(CType.ROLESMAPPING.toLCString())
         .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
-        .source(ConfigConstants.CONFIGNAME_ROLES_MAPPING, FileHelper.readYamlContent(prefix+sgRolesMapping)));
+        .source(CType.ROLESMAPPING.toLCString(), FileHelper.readYamlContent(prefix+sgRolesMapping)));
  
         
         return Collections.unmodifiableList(ret);

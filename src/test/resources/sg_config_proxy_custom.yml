@@ -11,8 +11,8 @@ searchguard:
       authentication_domain_proxy:
         enabled: true
         order: 0
-        challenge: false
         http_authenticator:
+          challenge: false
           type: proxy
           config:
             user_header: "user"

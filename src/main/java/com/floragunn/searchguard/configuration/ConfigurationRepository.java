@@ -23,8 +23,6 @@ import java.util.Map;
 
 import org.elasticsearch.common.settings.Settings;
 
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
-
 /**
  * Abstraction layer over search guard configuration repository
  */
@@ -39,7 +37,7 @@ public interface ConfigurationRepository {
      * @throws NullPointerException if specified configuration type is null or empty
      */
     
-    DynamicConfiguration getConfiguration(String configurationType);
+    SgDynamicConfiguration<?> getConfiguration(CType configurationType);
 
     /**
      * Bulk load configuration from persistence layer
@@ -63,7 +61,7 @@ public interface ConfigurationRepository {
      * they will be absent in result map
      * @throws NullPointerException if specified collection with type null or contain null or empty types
      */
-    Map<String, DynamicConfiguration> reloadConfiguration(Collection<String> configTypes);
+    Map<CType, SgDynamicConfiguration<?>> reloadConfiguration(Collection<CType> configTypes);
 
     /**
      * Save changed configuration in persistence layer. After save, changes will be available for
@@ -73,7 +71,7 @@ public interface ConfigurationRepository {
      * @param settings          not null configuration that need persist
      * @throws NullPointerException if specified configuration is null or configuration type is null or empty
      */
-    void persistConfiguration(String configurationType, DynamicConfiguration settings);
+    void persistConfiguration(String CType, SgDynamicConfiguration<?> settings);
 
     /**
      * Subscribe on configuration change
@@ -82,5 +80,5 @@ public interface ConfigurationRepository {
      * @param listener          not null callback function that will be execute when specified type will modify
      * @throws NullPointerException if specified configuration type is null or empty, or callback function is null
      */
-    void subscribeOnChange(String configurationType, ConfigurationChangeListener listener);
+    void subscribeOnChange(CType cType, ConfigurationChangeListener listener);
 }

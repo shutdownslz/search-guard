@@ -18,14 +18,10 @@
 package com.floragunn.searchguard.configuration;
 
 import org.elasticsearch.action.get.MultiGetResponse.Failure;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 
 public interface ConfigCallback {
     
-    void success(DynamicConfiguration dConf);
+    void success(SgDynamicConfiguration<?> dConf);
     void noData(String id);
     void singleFailure(Failure failure);
     void failure(Throwable t);

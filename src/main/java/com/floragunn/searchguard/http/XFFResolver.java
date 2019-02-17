@@ -22,17 +22,16 @@ import java.net.InetSocketAddress;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.Netty4HttpChannel;
-import org.elasticsearch.http.netty4.Netty4HttpRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import com.floragunn.searchguard.configuration.CType;
+import com.floragunn.searchguard.configuration.Config;
 import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
+import com.floragunn.searchguard.configuration.SgDynamicConfiguration;
 import com.floragunn.searchguard.support.ConfigConstants;
 
 public class XFFResolver implements ConfigurationChangeListener {
@@ -83,14 +82,15 @@ public class XFFResolver implements ConfigurationChangeListener {
     }
 
     @Override
-    public void onChange(final DynamicConfiguration settings) {
-        enabled = settings.getAsBoolean(DotPath.of("searchguard.dynamic.http.xff.enabled"), true);
+    public void onChange(final CType cType, final SgDynamicConfiguration<?> sdc) {
+        Config config = CType.getConfig(sdc);
+        enabled = config.dynamic.http.xff.enabled;
         if(enabled) {
             detector = new RemoteIpDetector();
-            detector.setInternalProxies(settings.get(DotPath.of("searchguard.dynamic.http.xff.internalProxies"), detector.getInternalProxies()));
-            detector.setProxiesHeader(settings.get(DotPath.of("searchguard.dynamic.http.xff.proxiesHeader"), detector.getProxiesHeader()));
-            detector.setRemoteIpHeader(settings.get(DotPath.of("searchguard.dynamic.http.xff.remoteIpHeader"), detector.getRemoteIpHeader()));
-            detector.setTrustedProxies(settings.get(DotPath.of("searchguard.dynamic.http.xff.trustedProxies"), detector.getTrustedProxies()));
+            detector.setInternalProxies(config.dynamic.http.xff.internalProxies);
+            detector.setProxiesHeader(config.dynamic.http.xff.proxiesHeader);
+            detector.setRemoteIpHeader(config.dynamic.http.xff.remoteIpHeader);
+            detector.setTrustedProxies(config.dynamic.http.xff.trustedProxies);
         } else {
             detector = null;
         }

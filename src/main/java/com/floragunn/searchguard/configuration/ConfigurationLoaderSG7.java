@@ -17,21 +17,13 @@
 
 package com.floragunn.searchguard.configuration;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Function;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,59 +38,43 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import com.fasterxml.jackson.core.JsonPointer;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.floragunn.searchguard.DefaultObjectMapper;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.SearchGuardDeprecationHandler;
-import com.google.common.collect.ImmutableSet;
 
 public class ConfigurationLoaderSG7 {
 
-    private static final TypeReference<HashMap<String,Object>> typeRefMSO = new TypeReference<HashMap<String,Object>>() {};
-    private static final TypeReference<HashMap<String,String>> typeRefMSS = new TypeReference<HashMap<String,String>>() {};
-
     protected final Logger log = LogManager.getLogger(this.getClass());
     private final Client client;
-	//private final ThreadContext threadContext;
     private final String searchguardIndex;
     
     ConfigurationLoaderSG7(final Client client, ThreadPool threadPool, final Settings settings) {
         super();
         this.client = client;
-        //this.threadContext = threadPool.getThreadContext();
         this.searchguardIndex = settings.get(ConfigConstants.SEARCHGUARD_CONFIG_INDEX_NAME, ConfigConstants.SG_DEFAULT_CONFIG_INDEX);
         log.debug("Index is: {}", searchguardIndex);
     }
     
-    Map<String, DynamicConfiguration> load(final String[] events, long timeout, TimeUnit timeUnit) throws InterruptedException, TimeoutException {
+    Map<CType, SgDynamicConfiguration<?>> load(final CType[] events, long timeout, TimeUnit timeUnit) throws InterruptedException, TimeoutException {
         final CountDownLatch latch = new CountDownLatch(events.length);
-        final Map<String, DynamicConfiguration> rs = new HashMap<String, DynamicConfiguration>(events.length);
+        final Map<CType, SgDynamicConfiguration<?>> rs = new HashMap<>(events.length);
         
         loadAsync(events, new ConfigCallback() {
             
             @Override
-            public void success(DynamicConfiguration dConf) {
+            public void success(SgDynamicConfiguration<?> dConf) {
                 if(latch.getCount() <= 0) {
-                    log.error("Latch already counted down (for {} of {})  (index={})", dConf.type, Arrays.toString(events), searchguardIndex);
+                    log.error("Latch already counted down (for {} of {})  (index={})", dConf.getCType().toLCString(), Arrays.toString(events), searchguardIndex);
                 }
                 
-                rs.put(dConf.type, dConf);
+                rs.put(dConf.getCType(), dConf);
                 latch.countDown();
                 if(log.isDebugEnabled()) {
-                    log.debug("Received config for {} (of {}) with current latch value={}", dConf.type, Arrays.toString(events), latch.getCount());
+                    log.debug("Received config for {} (of {}) with current latch value={}", dConf.getCType().toLCString(), Arrays.toString(events), latch.getCount());
                 }
             }
             
@@ -126,7 +102,7 @@ public class ConfigurationLoaderSG7 {
         return rs;
     }
     
-    void loadAsync(final String[] events, final ConfigCallback callback) {
+    void loadAsync(final CType[] events, final ConfigCallback callback) {
         if(events == null || events.length == 0) {
             log.warn("No config events requested to load");
             return;
@@ -135,7 +111,7 @@ public class ConfigurationLoaderSG7 {
         final MultiGetRequest mget = new MultiGetRequest();
 
         for (int i = 0; i < events.length; i++) {
-            final String event = events[i];
+            final String event = events[i].toLCString();
             mget.add(searchguardIndex, event);
         }
         
@@ -152,11 +128,16 @@ public class ConfigurationLoaderSG7 {
                         GetResponse singleGetResponse = singleResponse.getResponse();
                         if(singleGetResponse.isExists() && !singleGetResponse.isSourceEmpty()) {
                             //success
-                            final DynamicConfiguration dConf = toConfig(singleGetResponse);
-                            if(dConf != null) {
-                                callback.success(dConf);
-                            } else {
-                                log.error("Cannot parse settings for "+singleGetResponse.getId());
+                            try {
+                                final SgDynamicConfiguration<?> dConf = toConfig(singleGetResponse);
+                                if(dConf != null) {
+                                    callback.success(dConf);
+                                } else {
+                                    log.error("Cannot parse settings for "+singleGetResponse.getId());
+                                }
+                            } catch (Exception e) {
+                                log.error(e.toString(),e);
+                                callback.failure(e);
                             }
                         } else {
                             //does not exist or empty source
@@ -177,7 +158,7 @@ public class ConfigurationLoaderSG7 {
         
     }
 
-    private DynamicConfiguration toConfig(GetResponse singleGetResponse) {
+    private SgDynamicConfiguration<?> toConfig(GetResponse singleGetResponse) {
         final BytesReference ref = singleGetResponse.getSourceAsBytesRef();
         final String id = singleGetResponse.getId();
         final long seqNo = singleGetResponse.getSeqNo();
@@ -203,10 +184,18 @@ public class ConfigurationLoaderSG7 {
             }
             
             parser.nextToken();
-            
-            final JsonNode jsonNode = DefaultObjectMapper.objectMapper.readTree(new ByteArrayInputStream(parser.binaryValue()));
 
-            return new DynamicConfiguration(jsonNode, seqNo, primaryTerm, id);
+            if (CType.ACTIONGROUPS.toLCString().equals(id)) {
+
+                try {
+                    return SgDynamicConfiguration.fromJson(new String(parser.binaryValue(), "UTF-8"), CType.fromString(id), 1, seqNo, primaryTerm);
+                } catch (Exception e) {
+                    return SgDynamicConfiguration.fromJson(new String(parser.binaryValue(), "UTF-8"), CType.fromString(id), 0, seqNo, primaryTerm);
+                }
+            }
+
+            return SgDynamicConfiguration.fromJson(new String(parser.binaryValue(), "UTF-8"), CType.fromString(id), 1, seqNo, primaryTerm);
+
         } catch (final IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {
@@ -220,7 +209,7 @@ public class ConfigurationLoaderSG7 {
         }
     }
     
-    public static class DotPath {
+    /*public static class DotPath {
         
         public static final DotPath ALL = new DotPath(null, "", null);
         private final String path;
@@ -287,13 +276,7 @@ public class ConfigurationLoaderSG7 {
             this.primaryTerm = primaryTerm;
             this.type = type;
             
-            /*try {
-                System.out.println("############################## mdc "+DefaultObjectMapper.objectMapper.writeValueAsString(objectNode));
-                new Exception().printStackTrace();
-            } catch (JsonProcessingException e) {
-                e.printStackTrace();
-                throw new RuntimeException(e);
-            }*/
+            
             
         }
         
@@ -521,7 +504,5 @@ public class ConfigurationLoaderSG7 {
         
     }
     
-    public enum ConfigType {
-        
-    }
+    */
 }

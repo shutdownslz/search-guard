@@ -22,10 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
-import com.floragunn.searchguard.support.ConfigConstants;
-
 public class ActionGroupHolder {
 
     final ConfigurationRepository configurationRepository;
@@ -34,34 +30,59 @@ public class ActionGroupHolder {
         this.configurationRepository = configurationRepository;
     }
 
-    public Set<String> getGroupMembers(final String groupname) {
+    private Set<String> getGroupMembers(final String groupname) {
 
-        final DynamicConfiguration actionGroups = getSettings();
-        
+        SgDynamicConfiguration<?> actionGroups = (SgDynamicConfiguration<ActionGroups>) configurationRepository.getConfiguration(CType.ACTIONGROUPS);
+
         if (actionGroups == null) {
             return Collections.emptySet();
         }
 
-        return resolve(actionGroups, groupname);
+        return Collections.unmodifiableSet(resolve(actionGroups, groupname));
     }
 
-    private Set<String> resolve(final DynamicConfiguration actionGroups, final String entry) {
+    private Set<String> resolve(final SgDynamicConfiguration<?> actionGroups, final String entry) {
 
-        final Set<String> ret = new HashSet<String>();
+        
         // SG5 format, plain array
-        List<String> en = actionGroups.getAsList(DotPath.of(entry));
-        if (en.isEmpty()) {
+        //List<String> en = actionGroups.getAsList(DotPath.of(entry));
+        //if (en.isEmpty()) {
         	// try SG6 format including readonly and permissions key
-        	en = actionGroups.getAsList(DotPath.of(entry + "." + ConfigConstants.CONFIGKEY_ACTION_GROUPS_PERMISSIONS));
+        // 	en = actionGroups.getAsList(DotPath.of(entry + "." + ConfigConstants.CONFIGKEY_ACTION_GROUPS_PERMISSIONS));
+        	//}
+        
+        if(!actionGroups.getCEntries().containsKey(entry)) {
+            return Collections.emptySet();
         }
-        for (String string: en) {
-            if (actionGroups.names().contains(string)) {
-                ret.addAll(resolve(actionGroups,string));
-            } else {
-                ret.add(string);
+        
+        final Set<String> ret = new HashSet<String>();
+        
+        final Object actionGroupAsObject = actionGroups.getCEntries().get(entry);
+        
+        if(actionGroupAsObject != null && actionGroupAsObject instanceof List) {
+            
+            for (final String perm: ((List<String>) actionGroupAsObject)) {
+                if (actionGroups.getCEntries().keySet().contains(perm)) {
+                    ret.addAll(resolve(actionGroups,perm));
+                } else {
+                    ret.add(perm);
+                }
             }
+            
+            
+        } else if(actionGroupAsObject != null &&  actionGroupAsObject instanceof ActionGroups) {
+            for (final String perm: ((ActionGroups) actionGroupAsObject).getPermissions()) {
+                if (actionGroups.getCEntries().keySet().contains(perm)) {
+                    ret.addAll(resolve(actionGroups,perm));
+                } else {
+                    ret.add(perm);
+                }
+            }
+        } else {
+            throw new RuntimeException("Unable to handle "+actionGroupAsObject);
         }
-        return ret;
+        
+        return Collections.unmodifiableSet(ret);
     }
     
     public Set<String> resolvedActions(final List<String> actions) {
@@ -75,10 +96,6 @@ public class ActionGroupHolder {
             }
         }
 
-        return resolvedActions;
-    }
-
-    private DynamicConfiguration getSettings() {
-        return configurationRepository.getConfiguration(ConfigConstants.CONFIGNAME_ACTION_GROUPS);
+        return Collections.unmodifiableSet(resolvedActions);
     }
 }

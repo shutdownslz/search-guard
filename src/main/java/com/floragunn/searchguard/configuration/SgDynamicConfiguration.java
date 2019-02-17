@@ -25,12 +25,16 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     
     private CType ctype;
 
-    public static <T> SgDynamicConfiguration<T> parse(String json) throws IOException {
-        return DefaultObjectMapper.objectMapper.readValue(json, SgDynamicConfiguration.class);
+    public static <T> SgDynamicConfiguration<T> fromJson(String json, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
+        SgDynamicConfiguration<T> sdc = DefaultObjectMapper.objectMapperYaml.readValue(json, DefaultObjectMapper.objectMapperYaml.getTypeFactory().constructParametricType(SgDynamicConfiguration.class, ctype.getImplementationClass().get(version)));
+        sdc.ctype = ctype;
+        sdc.seqNo = seqNo;
+        sdc.primaryTerm = primaryTerm;
+        return sdc;
     }
     
-    public static <T> SgDynamicConfiguration<T> parse(File json, CType ctype, long seqNo, long primaryTerm) throws IOException {
-        SgDynamicConfiguration<T> sdc = DefaultObjectMapper.objectMapperYaml.readValue(json, DefaultObjectMapper.objectMapperYaml.getTypeFactory().constructParametricType(SgDynamicConfiguration.class, ctype.getImplementationClass()));
+    public static <T> SgDynamicConfiguration<T> parseYmlFile(File json, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
+        SgDynamicConfiguration<T> sdc = DefaultObjectMapper.objectMapperYaml.readValue(json, DefaultObjectMapper.objectMapperYaml.getTypeFactory().constructParametricType(SgDynamicConfiguration.class, ctype.getImplementationClass().get(version)));
         sdc.ctype = ctype;
         sdc.seqNo = seqNo;
         sdc.primaryTerm = primaryTerm;
@@ -50,7 +54,7 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     }
     
     @JsonAnyGetter
-    Map<String, T> getCEntries() {
+    public Map<String, T> getCEntries() {
         return centries;
     }
     
@@ -95,27 +99,8 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     }
 
     @JsonIgnore
-    public CType getCtype() {
+    public CType getCType() {
         return ctype;
-    }
-
-    public static void main(String[] args) throws IOException {
-        SgDynamicConfiguration<InternalUsers> a = parse(new File("/Users/salyh/sgdev/search-guard/sgconfig/sg_internal_users.yml"), CType.INTERNAL_USERS, 1,1);
-        System.out.println(a.toString());
-        System.out.println(Strings.toString(a));
-        SgDynamicConfiguration<RoleMappings> b = parse(new File("/Users/salyh/sgdev/search-guard/sgconfig/sg_roles_mapping.yml"), CType.ROLE_MAPPINGS, 1,1);
-        System.out.println(b.toString());
-        System.out.println(Strings.toString(b));
-        SgDynamicConfiguration<ActionGroups> c = parse(new File("/Users/salyh/sgdev/search-guard/sgconfig/sg_action_groups.yml"), CType.ACTION_GROUPS, 1,1);
-        System.out.println(c.toString());
-        System.out.println(Strings.toString(c));
-        SgDynamicConfiguration<ActionGroups> d = parse(new File("/Users/salyh/sgdev/search-guard/sgconfig/sg_roles.yml"), CType.ROLES, 1,1);
-        System.out.println(d.toString());
-        System.out.println(Strings.toString(d));
-        SgDynamicConfiguration<Config> e = parse(new File("/Users/salyh/sgdev/search-guard/sgconfig/sg_config.yml"), CType.CONFIG, 1,1);
-        System.out.println(e.toString());
-        System.out.println(Strings.toString(e));
-        
     }
     
 }

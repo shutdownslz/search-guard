@@ -36,21 +36,21 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
+import com.floragunn.searchguard.configuration.CType;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
+import com.floragunn.searchguard.configuration.Role;
+import com.floragunn.searchguard.configuration.Role.Index;
+import com.floragunn.searchguard.configuration.SgDynamicConfiguration;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.user.User;
 import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 public class ConfigModel {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
-    private static final Set<String> IGNORED_TYPES = ImmutableSet.of("_dls_", "_fls_","_masked_fields_");
     private final ActionGroupHolder ah;
     private final ConfigurationRepository configurationRepository;
 
@@ -62,66 +62,57 @@ public class ConfigModel {
     }
 
     public SgRoles load() {
-        final DynamicConfiguration settings = configurationRepository.getConfiguration("roles");
+        final SgDynamicConfiguration<Role> settings = (SgDynamicConfiguration<Role>) configurationRepository.getConfiguration(CType.ROLES);
         SgRoles _sgRoles = new SgRoles();
-        Set<String> sgRoles = settings.names();
-        for(String sgRole: sgRoles) {
+        for(Entry<String, Role> sgRole: settings.getCEntries().entrySet()) {
 
-            SgRole _sgRole = new SgRole(sgRole);
-
-            final DynamicConfiguration sgRoleSettings = settings.getByPrefix(DotPath.of(sgRole));
-            if (sgRoleSettings.names().isEmpty()) {
+            SgRole _sgRole = new SgRole(sgRole.getKey());
+            
+            if(sgRole.getValue() == null) {
                 continue;
             }
 
-            final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(DotPath.of("cluster")));
+            final Set<String> permittedClusterActions = ah.resolvedActions(sgRole.getValue().getCluster());
             _sgRole.addClusterPerms(permittedClusterActions);
 
-            DynamicConfiguration tenants = settings.getByPrefix(DotPath.of(sgRole+".tenants"));
-
-            if(tenants != null) {
-                for(String tenant: tenants.names()) {
+            //if(tenants != null) {
+                for(Entry<String, String> tenant: sgRole.getValue().getTenants().entrySet()) {
 
                     //if(tenant.equals(user.getName())) {
                     //    continue;
                     //}
 
-                    if("RW".equalsIgnoreCase(tenants.get(DotPath.of(tenant), "RO"))) {
-                        _sgRole.addTenant(new Tenant(tenant, true));
+                    if("RW".equalsIgnoreCase(tenant.getValue())) {
+                        _sgRole.addTenant(new Tenant(tenant.getKey(), true));
                     } else {
-                        _sgRole.addTenant(new Tenant(tenant, false));
+                        _sgRole.addTenant(new Tenant(tenant.getKey(), false));
                         //if(_sgRole.tenants.stream().filter(t->t.tenant.equals(tenant)).count() > 0) { //RW outperforms RO
                         //    _sgRole.addTenant(new Tenant(tenant, false));
                         //}
                     }
                 }
-            }
+            //}
 
 
-            final Map<String, DynamicConfiguration> permittedAliasesIndices = sgRoleSettings.getGroups(DotPath.of("indices"));
+            //final Map<String, DynamicConfiguration> permittedAliasesIndices = sgRoleSettings.getGroups(DotPath.of("indices"));
 
-            for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
+            for (final Entry<String, Index> permittedAliasesIndex : sgRole.getValue().getIndices().entrySet()) {
 
-                final String resolvedRole = sgRole;
-                final String indexPattern = permittedAliasesIndex;
+                //final String resolvedRole = sgRole;
+                //final String indexPattern = permittedAliasesIndex;
 
-                final String dls = settings.get(DotPath.of(resolvedRole+".indices."+indexPattern+"._dls_"));
-                final List<String> fls = settings.getAsList(DotPath.of(resolvedRole+".indices."+indexPattern+"._fls_"));
-                final List<String> maskedFields = settings.getAsList(DotPath.of(resolvedRole+".indices."+indexPattern+"._masked_fields_"));
+                final String dls = permittedAliasesIndex.getValue().get_dls_();
+                final List<String> fls = permittedAliasesIndex.getValue().get_fls_();
+                final List<String> maskedFields = permittedAliasesIndex.getValue().get_masked_fields_();
 
-                IndexPattern _indexPattern = new IndexPattern(indexPattern);
+                IndexPattern _indexPattern = new IndexPattern(permittedAliasesIndex.getKey());
                 _indexPattern.setDlsQuery(dls);
                 _indexPattern.addFlsFields(fls);
                 _indexPattern.addMaskedFields(maskedFields);
 
-                for(String type: permittedAliasesIndices.get(indexPattern).names()) {
-
-                    if(IGNORED_TYPES.contains(type)) {
-                        continue;
-                    }
-
-                    TypePerm typePerm = new TypePerm(type);
-                    final List<String> perms = settings.getAsList(DotPath.of(resolvedRole+".indices."+indexPattern+"."+type));
+                for(Entry<String, List<String>> type: permittedAliasesIndex.getValue().getTypes().entrySet()) {
+                    TypePerm typePerm = new TypePerm(type.getKey());
+                    final List<String> perms = type.getValue();
                     typePerm.addPerms(ah.resolvedActions(perms));
                     _indexPattern.addTypePerms(typePerm);
                 }
@@ -644,9 +635,9 @@ public class ConfigModel {
         private TypePerm(String typePattern) {
             super();
             this.typePattern = Objects.requireNonNull(typePattern);
-            if(IGNORED_TYPES.contains(typePattern)) {
+            /*if(IGNORED_TYPES.contains(typePattern)) {
                 throw new RuntimeException("typepattern '"+typePattern+"' not allowed");
-            }
+            }*/
         }
 
         private TypePerm addPerms(Collection<String> perms) {

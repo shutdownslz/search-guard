@@ -126,13 +126,12 @@ import com.floragunn.searchguard.compliance.ComplianceConfig;
 import com.floragunn.searchguard.compliance.ComplianceIndexingOperationListener;
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
 import com.floragunn.searchguard.configuration.AdminDNs;
+import com.floragunn.searchguard.configuration.CType;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
 import com.floragunn.searchguard.configuration.CompatConfig;
-import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
 import com.floragunn.searchguard.configuration.DlsFlsRequestValve;
 import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardIndexSearcherWrapper;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
 import com.floragunn.searchguard.filter.SearchGuardFilter;
 import com.floragunn.searchguard.filter.SearchGuardRestFilter;
 import com.floragunn.searchguard.http.SearchGuardHttpServerTransport;
@@ -769,17 +768,17 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         //final PrincipalExtractor pe = new DefaultPrincipalExtractor();
         cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService, auditLog, complianceConfig);
         cr.subscribeOnLicenseChange(complianceConfig);
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, irr);
+        cr.subscribeOnChange(CType.CONFIG, irr);
         final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);
         final XFFResolver xffResolver = new XFFResolver(threadPool);
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, xffResolver);
+        cr.subscribeOnChange(CType.CONFIG, xffResolver);
         backendRegistry = new BackendRegistry(settings, configPath, adminDns, xffResolver, iab, auditLog, threadPool);
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
+        cr.subscribeOnChange(CType.CONFIG, backendRegistry);
         final ActionGroupHolder ah = new ActionGroupHolder(cr);
         evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih, irr);
         
         final CompatConfig compatConfig = new CompatConfig(environment);
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, compatConfig);
+        cr.subscribeOnChange(CType.CONFIG, compatConfig);
         
         sgf = new SearchGuardFilter(evaluator, adminDns, dlsFlsValve, auditLog, threadPool, cs, complianceConfig, compatConfig);
 
@@ -796,13 +795,6 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                 interClusterRequestEvaluator, cs, Objects.requireNonNull(sslExceptionHandler), Objects.requireNonNull(cih));
         components.add(principalExtractor);
 
-        cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, new ConfigurationChangeListener() {
-
-            @Override
-            public void onChange(DynamicConfiguration unused) {
-                //auditLog.logExternalConfig(settings, environment);
-            }
-        });
 
         components.add(adminDns);
         //components.add(auditLog);

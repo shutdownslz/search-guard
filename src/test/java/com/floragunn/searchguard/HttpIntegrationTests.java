@@ -211,7 +211,7 @@ public class HttpIntegrationTests extends SingleClusterTest {
             Assert.assertTrue(PrivilegesInterceptorImpl.count > 0);
             
             res = rh.executeGetRequest("v2/_search", encodeBasicHeader("custattr", "nagilum"));
-            Assert.assertEquals(HttpStatus.SC_OK, res.getStatusCode());
+            Assert.assertEquals(res.getBody(), HttpStatus.SC_OK, res.getStatusCode());
             
             res = rh.executeGetRequest("v3/_search", encodeBasicHeader("custattr", "nagilum"));
             Assert.assertEquals(HttpStatus.SC_FORBIDDEN, res.getStatusCode());

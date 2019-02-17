@@ -49,8 +49,8 @@ searchguard:
         http_authenticator:
           type: proxy
           config:
-          user_header: "x-proxy-user"
-          roles_header: "x-proxy-roles"
+            user_header: "x-proxy-user"
+            roles_header: "x-proxy-roles"
         authentication_backend:
           type: noop
       authentication_domain_kerb:

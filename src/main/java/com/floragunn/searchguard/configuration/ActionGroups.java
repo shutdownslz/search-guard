@@ -1,5 +1,6 @@
 package com.floragunn.searchguard.configuration;
 
+import java.util.Collections;
 import java.util.List;
 
 public class ActionGroups {
@@ -7,10 +8,8 @@ public class ActionGroups {
    
     private boolean readonly;
     private boolean hidden;
-    private List<String> permissions;
-    
-    
-    
+    private List<String> permissions = Collections.emptyList();
+
     public ActionGroups() {
         super();
     }
@@ -32,7 +31,4 @@ public class ActionGroups {
     public void setPermissions(List<String> permissions) {
         this.permissions = permissions;
     }
-    
-    
-
 }

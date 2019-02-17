@@ -1,26 +1,39 @@
 package com.floragunn.searchguard.configuration;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class InternalUsers {
+public class InternalUser {
         
         private String hash;
         private boolean readonly;
         private boolean hidden;
-        private List<String> roles;
-        private Map<String, String> attributes;
+        private List<String> roles = Collections.emptyList();
+        private Map<String, String> attributes = Collections.emptyMap();
+        private String username;
 
-        public InternalUsers(String hash, boolean readonly, boolean hidden, List<String> roles, Map<String, String> attributes) {
+        
+
+        public InternalUser(String hash, boolean readonly, boolean hidden, List<String> roles, Map<String, String> attributes, String username) {
             super();
             this.hash = hash;
             this.readonly = readonly;
             this.hidden = hidden;
             this.roles = roles;
             this.attributes = attributes;
+            this.username = username;
         }
 
-        public InternalUsers() {
+        public String getUsername() {
+            return username;
+        }
+
+        public void setUsername(String username) {
+            this.username = username;
+        }
+
+        public InternalUser() {
             super();
             //default constructor
         }

@@ -87,10 +87,10 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportRequest;
 
 import com.floragunn.searchguard.SearchGuardPlugin;
+import com.floragunn.searchguard.configuration.CType;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
 import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
+import com.floragunn.searchguard.configuration.SgDynamicConfiguration;
 import com.floragunn.searchguard.support.SnapshotRestoreHelper;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.google.common.collect.Sets;
@@ -911,7 +911,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
     }
 
     @Override
-    public void onChange(DynamicConfiguration dynamicSgConfig) {
-        respectRequestIndicesOptions = dynamicSgConfig.getAsBoolean(DotPath.of("searchguard.dynamic.respect_request_indices_options"), false);
+    public void onChange(CType cType, SgDynamicConfiguration<?> dynamicSgConfig) {
+        respectRequestIndicesOptions = CType.getConfig(dynamicSgConfig).dynamic.respect_request_indices_options;
     }
 }

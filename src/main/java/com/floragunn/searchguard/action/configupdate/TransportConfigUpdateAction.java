@@ -18,7 +18,6 @@
 package com.floragunn.searchguard.action.configupdate;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -38,11 +37,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import com.floragunn.searchguard.auth.BackendRegistry;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
+import com.floragunn.searchguard.configuration.CType;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardLicense;
+import com.floragunn.searchguard.configuration.SgDynamicConfiguration;
 import com.floragunn.searchguard.support.LicenseHelper;
 
 public class TransportConfigUpdateAction
@@ -110,11 +109,11 @@ TransportNodesAction<ConfigUpdateRequest, ConfigUpdateResponse, TransportConfigU
 	
     @Override
     protected ConfigUpdateNodeResponse nodeOperation(final NodeConfigUpdateRequest request) {
-        final Map<String, DynamicConfiguration> setn = configurationRepository.reloadConfiguration(Arrays.asList(request.request.getConfigTypes()));
+        final Map<CType, SgDynamicConfiguration<?>> setn = configurationRepository.reloadConfiguration(CType.fromStringValues((request.request.getConfigTypes())));
         String licenseText = null;
         
-        if(setn.get("config") != null) {
-            licenseText = setn.get("config").get(DotPath.of("searchguard.dynamic.license"));
+        if(setn.containsKey(CType.CONFIG)) {
+            licenseText = CType.getConfig(setn.get(CType.CONFIG)).dynamic.license;
         }
         
         if(licenseText != null && !licenseText.isEmpty()) {
@@ -132,6 +131,6 @@ TransportNodesAction<ConfigUpdateRequest, ConfigUpdateResponse, TransportConfigU
         }
 
         backendRegistry.get().invalidateCache();
-        return new ConfigUpdateNodeResponse(clusterService.localNode(), setn.keySet().toArray(new String[0]), null); 
+        return new ConfigUpdateNodeResponse(clusterService.localNode(), CType.lcStringValues().toArray(new String[0]), null); 
     }
 }

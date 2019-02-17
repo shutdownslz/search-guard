@@ -1,5 +1,6 @@
 package com.floragunn.searchguard.configuration;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -10,11 +11,12 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class Role {
 
+    //private static final Set<String> IGNORED_TYPES = ImmutableSet.of("_dls_", "_fls_","_masked_fields_");
     private boolean readonly;
     private boolean hidden;
-    private List<String> cluster;
-    private Map<String, String> tenants;
-    private Map<String, Index> indices;
+    private List<String> cluster = Collections.emptyList();
+    private Map<String, String> tenants = Collections.emptyMap();
+    private Map<String, Index> indices = Collections.emptyMap();
 
     public static class Index {
 
@@ -22,13 +24,31 @@ public class Role {
         private final Map<String, List<String>> types = new HashMap<>();
 
         @JsonAnySetter
-        void setTypes(String key, List<String> value) {
+        void setTypes0(String key, List<String> value) {
             types.put(key, value);
         }
 
         @JsonAnyGetter
-        Map<String, List<String>> getTypes() {
+        public Map<String, List<String>> getTypes() {
             return types;
+        }
+        
+        private String _dls_;
+        private List<String> _fls_;
+        private List<String> _masked_fields_;
+
+        
+        
+        public String get_dls_() {
+            return _dls_;
+        }
+
+        public List<String> get_fls_() {
+            return _fls_;
+        }
+
+        public List<String> get_masked_fields_() {
+            return _masked_fields_;
         }
 
         @Override

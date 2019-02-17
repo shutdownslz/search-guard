@@ -23,11 +23,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
+import com.floragunn.searchguard.configuration.Config;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.user.User;
 
@@ -46,7 +45,7 @@ public class PrivilegesInterceptor {
         this.threadPool = threadPool;
     }
 
-    public Boolean replaceKibanaIndex(final ActionRequest request, final String action, final User user, final DynamicConfiguration config, final Resolved requestedResolved, final Map<String, Boolean> tenants) { 
+    public Boolean replaceKibanaIndex(final ActionRequest request, final String action, final User user, final Config config, final Resolved requestedResolved, final Map<String, Boolean> tenants) { 
         throw new RuntimeException("not implemented");
     }
     

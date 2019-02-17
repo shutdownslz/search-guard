@@ -64,8 +64,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.compliance.ComplianceConfig;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.ConfigHelper;
@@ -82,8 +80,8 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
 
     private final String searchguardIndex;
     private final Client client;
-    private final ConcurrentMap<String, DynamicConfiguration> typeToConfig;
-    private final Multimap<String, ConfigurationChangeListener> configTypeToChancheListener;
+    private final ConcurrentMap<CType, SgDynamicConfiguration<?>> typeToConfig;
+    private final Multimap<CType, ConfigurationChangeListener> configTypeToChancheListener;
     private final List<LicenseChangeListener> licenseChangeListener;
     private final ConfigurationLoaderSG7 cl;
     private final Settings settings;
@@ -183,7 +181,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
                             while(true) {
                                 try {
                                     LOGGER.debug("Try to load config ...");
-                                    reloadConfiguration(Arrays.asList(new String[] { "config", "roles", "rolesmapping", "internalusers", "actiongroups"} ));
+                                    reloadConfiguration(Arrays.asList(CType.values()));
                                     break;
                                 } catch (Exception e) {
                                     LOGGER.debug("Unable to load configuration due to {}", String.valueOf(ExceptionUtils.getRootCause(e)));
@@ -262,22 +260,22 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
     @Override
-    public DynamicConfiguration getConfiguration(String configurationType) {
+    public SgDynamicConfiguration<?> getConfiguration(CType configurationType) {
 
-        DynamicConfiguration result = typeToConfig.get(configurationType);
+        SgDynamicConfiguration<?> result = typeToConfig.get(configurationType);
         
         if (result != null) {
             return result;
         }
 
-        Map<String, DynamicConfiguration> loaded = loadConfigurations(Collections.singleton(configurationType), false);
+        Map<CType, SgDynamicConfiguration<?>> loaded = loadConfigurations(Collections.singleton(configurationType), false);
 
         result = loaded.get(configurationType);
 
         return putSettingsToCache(configurationType, result);
     }
 
-    private DynamicConfiguration putSettingsToCache(String configurationType, DynamicConfiguration result) {
+    private SgDynamicConfiguration<?> putSettingsToCache(CType configurationType, SgDynamicConfiguration<?> result) {
         if (result != null) {
             typeToConfig.putIfAbsent(configurationType, result);
         }
@@ -286,9 +284,9 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
     @Override
-    public Map<String, DynamicConfiguration> reloadConfiguration(Collection<String> configTypes) {
-        Map<String, DynamicConfiguration> loaded = loadConfigurations(configTypes, false);
-        Map<String, DynamicConfiguration> loaded0 = loaded.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
+    public Map<CType, SgDynamicConfiguration<?>> reloadConfiguration(Collection<CType> configTypes) {
+        Map<CType, SgDynamicConfiguration<?>> loaded = loadConfigurations(configTypes, false);
+        Map<CType, SgDynamicConfiguration<?>> loaded0 = loaded.entrySet().stream().collect(Collectors.toMap(x -> x.getKey(), x -> x.getValue()));
         typeToConfig.keySet().removeAll(loaded0.keySet());
         typeToConfig.putAll(loaded0);
         notifyAboutChanges(loaded0);
@@ -320,13 +318,13 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
     @Override
-    public void persistConfiguration(String configurationType,  DynamicConfiguration settings) {
+    public void persistConfiguration(String configurationType, SgDynamicConfiguration<?> settings) {
         //TODO should be use from com.floragunn.searchguard.tools.SearchGuardAdmin
         throw new UnsupportedOperationException("Not implemented yet");
     }
 
     @Override
-    public synchronized void subscribeOnChange(String configurationType,  ConfigurationChangeListener listener) {
+    public synchronized void subscribeOnChange(CType configurationType,  ConfigurationChangeListener listener) {
         LOGGER.debug("Subscribe on configuration changes by type {} with listener {}", configurationType, listener);
         configTypeToChancheListener.put(configurationType, listener);
     }
@@ -344,12 +342,12 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
         }
     }
 
-    private synchronized void notifyAboutChanges(Map<String, DynamicConfiguration> typeToConfig) {
-        for (Map.Entry<String, ConfigurationChangeListener> entry : configTypeToChancheListener.entries()) {
-            String type = entry.getKey();
+    private synchronized void notifyAboutChanges(Map<CType, SgDynamicConfiguration<?>> typeToConfig) {
+        for (Map.Entry<CType, ConfigurationChangeListener> entry : configTypeToChancheListener.entries()) {
+            CType type = entry.getKey();
             ConfigurationChangeListener listener = entry.getValue();
 
-            DynamicConfiguration settings = typeToConfig.get(type);
+            SgDynamicConfiguration<?> settings = typeToConfig.get(type);
 
             if (settings == null) {
                 continue;
@@ -357,7 +355,7 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
 
             try {
                 LOGGER.debug("Notify {} listener about change configuration with type {}", listener, type);
-                listener.onChange(settings);
+                listener.onChange(type, settings);
             } catch (Exception e) {
                 LOGGER.error("{} listener errored: "+e, listener, e);
                 throw ExceptionsHelper.convertToElastic(e);
@@ -366,10 +364,10 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
     }
 
 
-    public Map<String, DynamicConfiguration> loadConfigurations(Collection<String> configTypes, boolean logComplianceEvent) {
+    public Map<CType, SgDynamicConfiguration<?>> loadConfigurations(Collection<CType> configTypes, boolean logComplianceEvent) {
 
             final ThreadContext threadContext = threadPool.getThreadContext();
-            final Map<String, DynamicConfiguration> retVal = new HashMap<String, DynamicConfiguration>();
+            final Map<CType, SgDynamicConfiguration<?>> retVal = new HashMap<>();
 
             try(StoredContext ctx = threadContext.stashContext()) {
                 threadContext.putHeader(ConfigConstants.SG_CONF_REQUEST_HEADER, "true");
@@ -384,12 +382,12 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
                     //    retVal.putAll(validate(legacycl.loadLegacy(configTypes.toArray(new String[0]), 5, TimeUnit.SECONDS), configTypes.size()));
                     //} else {
                         LOGGER.debug("sg index exists and was created with ES 6 (new layout)");
-                        retVal.putAll(validate(cl.load(configTypes.toArray(new String[0]), 5, TimeUnit.SECONDS), configTypes.size()));
+                        retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
                     //}
                 } else {
                     //wait (and use new layout)
                     LOGGER.debug("sg index not exists (yet)");
-                    retVal.putAll(validate(cl.load(configTypes.toArray(new String[0]), 30, TimeUnit.SECONDS), configTypes.size()));
+                    retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 30, TimeUnit.SECONDS), configTypes.size()));
                 }
 
             } catch (Exception e) {
@@ -397,16 +395,16 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
             }
             
             if(logComplianceEvent && complianceConfig.isEnabled()) {
-                String configurationType = configTypes.iterator().next();
+                CType configurationType = configTypes.iterator().next();
                 Map<String, String> fields = new HashMap<String, String>();
-                fields.put(configurationType, Strings.toString(retVal.get(configurationType)));
-                auditLog.logDocumentRead(this.searchguardIndex, configurationType, null, fields, complianceConfig);
+                fields.put(configurationType.toLCString(), Strings.toString(retVal.get(configurationType)));
+                auditLog.logDocumentRead(this.searchguardIndex, configurationType.toLCString(), null, fields, complianceConfig);
             }
             
             return retVal;
     }
 
-    private Map<String, DynamicConfiguration> validate(Map<String, DynamicConfiguration> conf, int expectedSize) throws InvalidConfigException {
+    private Map<CType, SgDynamicConfiguration<?>> validate(Map<CType, SgDynamicConfiguration<?>> conf, int expectedSize) throws InvalidConfigException {
 
         if(conf == null || conf.size() != expectedSize) {
             throw new InvalidConfigException("Retrieved only partial configuration");
@@ -453,8 +451,8 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
             return null;
         }
 
-        String licenseText = getConfiguration("config").get(DotPath.of("searchguard.dynamic.license"));
-
+        String licenseText = CType.getConfig(getConfiguration(CType.CONFIG)).dynamic.license;
+        
         if(licenseText == null || licenseText.isEmpty()) {
             if(effectiveLicense != null) {
                 return effectiveLicense;

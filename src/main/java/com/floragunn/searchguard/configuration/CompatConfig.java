@@ -21,17 +21,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DynamicConfiguration;
-import com.floragunn.searchguard.configuration.ConfigurationLoaderSG7.DotPath;
 import com.floragunn.searchguard.support.ConfigConstants;
-
 
 public class CompatConfig implements ConfigurationChangeListener {
 
     private final Logger log = LogManager.getLogger(getClass());
     private final Settings staticSettings;
-    private DynamicConfiguration dynamicSgConfig;
+    private Config dynamicSgConfig;
 
     public CompatConfig(final Environment environment) {
         super();
@@ -39,8 +35,8 @@ public class CompatConfig implements ConfigurationChangeListener {
     }
     
     @Override
-    public void onChange(final DynamicConfiguration dynamicSgConfig) {
-        this.dynamicSgConfig = dynamicSgConfig;
+    public void onChange(final CType cType, final SgDynamicConfiguration<?> dynamicSgConfig) {
+        this.dynamicSgConfig = CType.getConfig(dynamicSgConfig);
         log.debug("dynamicSgConfig updated?: {}", (dynamicSgConfig != null));
     }
     
@@ -55,7 +51,7 @@ public class CompatConfig implements ConfigurationChangeListener {
                 }
                 return false;
             } else {
-                final boolean restDynamicallyDisabled = dynamicSgConfig.getAsBoolean(DotPath.of("searchguard.dynamic.disable_rest_auth"), false);
+                final boolean restDynamicallyDisabled = dynamicSgConfig.dynamic.disable_rest_auth;
                 if(log.isTraceEnabled()) {
                     log.trace("searchguard.dynamic.disable_rest_auth {}", restDynamicallyDisabled);
                 }
@@ -78,7 +74,7 @@ public class CompatConfig implements ConfigurationChangeListener {
                 }
                 return false;
             } else {
-                final boolean interClusterAuthDynamicallyDisabled = dynamicSgConfig.getAsBoolean(DotPath.of("searchguard.dynamic.disable_intertransport_auth"), false);
+                final boolean interClusterAuthDynamicallyDisabled = dynamicSgConfig.dynamic.disable_intertransport_auth;
                 if(log.isTraceEnabled()) {
                     log.trace("searchguard.dynamic.disable_intertransport_auth {}", interClusterAuthDynamicallyDisabled);
                 }

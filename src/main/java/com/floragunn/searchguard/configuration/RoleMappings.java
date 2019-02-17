@@ -1,5 +1,6 @@
 package com.floragunn.searchguard.configuration;
 
+import java.util.Collections;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -8,10 +9,10 @@ public class RoleMappings {
 
     private boolean readonly;
     private boolean hidden;
-    private List<String> backendroles;
-    private List<String> hosts;
-    private List<String> users;
-    private List<String> andBackendroles;
+    private List<String> backendroles = Collections.emptyList();
+    private List<String> hosts= Collections.emptyList();
+    private List<String> users= Collections.emptyList();
+    private List<String> andBackendroles= Collections.emptyList();
     
     
     
