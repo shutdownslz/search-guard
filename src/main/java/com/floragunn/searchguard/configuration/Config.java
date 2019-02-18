@@ -5,12 +5,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-import org.elasticsearch.common.xcontent.XContentHelper;
-
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.floragunn.searchguard.DefaultObjectMapper;
 import com.floragunn.searchguard.auth.internal.InternalAuthenticationBackend;
@@ -113,7 +110,7 @@ public class Config {
         @JsonIgnore
         public String configAsJson() {
             try {
-                return DefaultObjectMapper.objectMapper.writeValueAsString(config);
+                return DefaultObjectMapper.writeValueAsString(config);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
@@ -127,7 +124,7 @@ public class Config {
         @JsonIgnore
         public String configAsJson() {
             try {
-                return DefaultObjectMapper.objectMapper.writeValueAsString(config);
+                return DefaultObjectMapper.writeValueAsString(config);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
@@ -141,7 +138,7 @@ public class Config {
         @JsonIgnore
         public String configAsJson() {
             try {
-                return DefaultObjectMapper.objectMapper.writeValueAsString(config);
+                return DefaultObjectMapper.writeValueAsString(config);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }

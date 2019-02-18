@@ -1,8 +1,6 @@
 package com.floragunn.searchguard.configuration;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.StringWriter;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -28,7 +26,7 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     private int version;
 
     public static <T> SgDynamicConfiguration<T> fromJson(String json, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
-        SgDynamicConfiguration<T> sdc = DefaultObjectMapper.objectMapper.readValue(json, DefaultObjectMapper.objectMapper.getTypeFactory().constructParametricType(SgDynamicConfiguration.class, ctype.getImplementationClass().get(version)));
+        SgDynamicConfiguration<T> sdc = DefaultObjectMapper.readValue(json, DefaultObjectMapper.getTypeFactory().constructParametricType(SgDynamicConfiguration.class, ctype.getImplementationClass().get(version)));
         sdc.ctype = ctype;
         sdc.seqNo = seqNo;
         sdc.primaryTerm = primaryTerm;
@@ -37,16 +35,7 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     }
     
     public static <T> SgDynamicConfiguration<T> fromNode(JsonNode json, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
-        return fromJson(DefaultObjectMapper.objectMapper.writeValueAsString(json), ctype, version, seqNo, primaryTerm);
-    }
-    
-    public static <T> SgDynamicConfiguration<T> parseYmlFile(File json, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
-        SgDynamicConfiguration<T> sdc = DefaultObjectMapper.objectMapperYaml.readValue(json, DefaultObjectMapper.objectMapperYaml.getTypeFactory().constructParametricType(SgDynamicConfiguration.class, ctype.getImplementationClass().get(version)));
-        sdc.ctype = ctype;
-        sdc.seqNo = seqNo;
-        sdc.primaryTerm = primaryTerm;
-        sdc.version = version;
-        return sdc;
+        return fromJson(DefaultObjectMapper.writeValueAsString(json), ctype, version, seqNo, primaryTerm);
     }
     
     public SgDynamicConfiguration() {
@@ -124,9 +113,7 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     @Override
     @JsonIgnore
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        StringWriter sw = new StringWriter();
-        DefaultObjectMapper.objectMapper.writeValue(sw, this);
-        return builder.map(DefaultObjectMapper.objectMapper.readValue(sw.toString(), typeRefMSO));
+        return builder.map(DefaultObjectMapper.readValue(DefaultObjectMapper.writeValueAsString(this), typeRefMSO));
     }
     
     @Override
@@ -163,7 +150,7 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     @JsonIgnore
     public SgDynamicConfiguration<T> deepClone() {
         try {
-            return fromJson(DefaultObjectMapper.objectMapper.writeValueAsString(this), ctype, version, seqNo, primaryTerm);
+            return fromJson(DefaultObjectMapper.writeValueAsString(this), ctype, version, seqNo, primaryTerm);
         } catch (Exception e) {
             throw ExceptionsHelper.convertToElastic(e);
         }
