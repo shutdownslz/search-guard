@@ -4,7 +4,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class InternalUser {
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+public class InternalUser implements Hideable, Hashed {
         
         private String hash;
         private boolean readonly;
@@ -74,5 +76,13 @@ public class InternalUser {
             return "SgInternalUser [hash=" + hash + ", readonly=" + readonly + ", hidden=" + hidden + ", roles=" + roles + ", attributes="
                     + attributes + "]";
         }
+
+        @Override
+        @JsonIgnore
+        public void clearHash() {
+            hash = "";
+        }
+        
+        
 
     }

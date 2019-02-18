@@ -3,7 +3,7 @@ package com.floragunn.searchguard.configuration;
 import java.util.Collections;
 import java.util.List;
 
-public class ActionGroups {
+public class ActionGroups implements Hideable {
 
    
     private boolean readonly;
@@ -31,4 +31,10 @@ public class ActionGroups {
     public void setPermissions(List<String> permissions) {
         this.permissions = permissions;
     }
+    @Override
+    public String toString() {
+        return "ActionGroups [readonly=" + readonly + ", hidden=" + hidden + ", permissions=" + permissions + "]";
+    }
+    
+    
 }

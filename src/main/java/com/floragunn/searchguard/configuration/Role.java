@@ -9,7 +9,7 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
-public class Role {
+public class Role implements Hideable {
 
     //private static final Set<String> IGNORED_TYPES = ImmutableSet.of("_dls_", "_fls_","_masked_fields_");
     private boolean readonly;
@@ -53,8 +53,10 @@ public class Role {
 
         @Override
         public String toString() {
-            return "Index [types=" + types + "]";
+            return "Index [types=" + types + ", _dls_=" + _dls_ + ", _fls_=" + _fls_ + ", _masked_fields_=" + _masked_fields_ + "]";
         }
+
+        
 
     }
 

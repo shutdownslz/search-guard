@@ -5,7 +5,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-public class RoleMappings {
+public class RoleMappings implements Hideable {
 
     private boolean readonly;
     private boolean hidden;
@@ -59,6 +59,13 @@ public class RoleMappings {
     public void setAndBackendroles(List<String> andBackendroles) {
         this.andBackendroles = andBackendroles;
     }
+
+    @Override
+    public String toString() {
+        return "RoleMappings [readonly=" + readonly + ", hidden=" + hidden + ", backendroles=" + backendroles + ", hosts=" + hosts + ", users="
+                + users + ", andBackendroles=" + andBackendroles + "]";
+    }
+    
     
 
 }
