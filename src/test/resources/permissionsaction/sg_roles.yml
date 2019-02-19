@@ -1,11 +1,11 @@
 sg_so_read:
   applications:
-    - kibana:saved_objects/*/read
+    - searchguard:dings/*/bums
     - kibana:foo/bar
 
 sg_so_readwrite:
   applications:
-    - kibana:saved_objects/*
+    - searchguard:dings/*
     - kibana:foo/bar
 
 sg_vg_all:

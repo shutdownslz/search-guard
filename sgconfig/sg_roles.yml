@@ -111,7 +111,8 @@ sg_kibana_user:
         - indices:data/read/xpack/rollup*
         - indices:admin/mappings/get*
         - indices:admin/get
-
+  applications:
+    - kibana:ui:navLinks/*
 # For the kibana server
 sg_kibana_server:
   readonly: true

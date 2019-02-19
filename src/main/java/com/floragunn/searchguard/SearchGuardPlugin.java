@@ -189,13 +189,14 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
     @Override
     public void close() throws IOException {
-        //TODO implement close
+        // TODO implement close
         super.close();
     }
 
     private final SslExceptionHandler evaluateSslExceptionHandler() {
         if (client || tribeNodeClient || disabled || sslOnly) {
-            return new SslExceptionHandler(){};
+            return new SslExceptionHandler() {
+            };
         }
 
         return Objects.requireNonNull(sslExceptionHandler);
@@ -204,17 +205,17 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
     private static boolean isDisabled(final Settings settings) {
         return settings.getAsBoolean(ConfigConstants.SEARCHGUARD_DISABLED, false);
     }
-    
+
     private static boolean isSslOnlyMode(final Settings settings) {
         return settings.getAsBoolean(ConfigConstants.SEARCHGUARD_SSL_ONLY, false);
     }
-    
+
     public SearchGuardPlugin(final Settings settings, final Path configPath) {
         super(settings, configPath, isDisabled(settings));
 
         disabled = isDisabled(settings);
 
-        if(disabled) {
+        if (disabled) {
             this.tribeNodeClient = false;
             this.dlsFlsAvailable = false;
             this.dlsFlsConstructor = null;
@@ -224,10 +225,10 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             log.warn("Search Guard plugin installed but disabled. This can expose your configuration (including passwords) to the public.");
             return;
         }
-        
+
         sslOnly = isSslOnlyMode(settings);
-        
-        if(sslOnly) {
+
+        if (sslOnly) {
             this.tribeNodeClient = false;
             this.dlsFlsAvailable = false;
             this.dlsFlsConstructor = null;
@@ -236,7 +237,6 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             log.warn("Search Guard plugin run in ssl only mode. No authentication or authorization is performed");
             return;
         }
-        
 
         demoCertHashes.add("54a92508de7a39d06242a0ffbf59414d7eb478633c719e6af03938daf6de8a1a");
         demoCertHashes.add("742e4659c79d7cad89ea86aab70aea490f23bbfc7e72abd5f0a5d3fb4c84d212");
@@ -247,7 +247,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         demoCertHashes.add("7a355f42c90e7543a267fbe3976c02f619036f5a34ce712995a22b342d83c3ce");
         demoCertHashes.add("a9b5eca1399ec8518081c0d4a21a34eec4589087ce64c04fb01a488f9ad8edc9");
 
-        //new certs 04/2018
+        // new certs 04/2018
         demoCertHashes.add("d14aefe70a592d7a29e14f3ff89c3d0070c99e87d21776aa07d333ee877e758f");
         demoCertHashes.add("54a70016e0837a2b0c5658d1032d7ca32e432c62c55f01a2bf5adcb69a0a7ba9");
         demoCertHashes.add("bdc141ab2272c779d0f242b79063152c49e1b06a2af05e0fd90d505f2b44d5f5");
@@ -263,7 +263,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         AccessController.doPrivileged(new PrivilegedAction<Object>() {
             @Override
             public Object run() {
-                if(Security.getProvider("BC") == null) {
+                if (Security.getProvider("BC") == null) {
                     Security.addProvider(new BouncyCastleProvider());
                 }
                 return null;
@@ -272,25 +272,26 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
         enterpriseModulesEnabled = settings.getAsBoolean(ConfigConstants.SEARCHGUARD_ENTERPRISE_MODULES_ENABLED, true);
         ReflectionHelper.init(enterpriseModulesEnabled);
-        
+
         ReflectionHelper.registerMngtRestApiHandler(settings);
 
-        log.info("Clustername: {}", settings.get("cluster.name","elasticsearch"));
+        log.info("Clustername: {}", settings.get("cluster.name", "elasticsearch"));
 
-        if(!transportSSLEnabled) {
-            throw new IllegalStateException(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLED+" must be set to 'true'");
+        if (!transportSSLEnabled) {
+            throw new IllegalStateException(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_ENABLED + " must be set to 'true'");
         }
 
-        if(log.isDebugEnabled() && this.settings.getByPrefix("tribe").size() > 0) {
+        if (log.isDebugEnabled() && this.settings.getByPrefix("tribe").size() > 0) {
             log.debug("Tribe configuration detected: {}", this.settings);
         }
 
         boolean tribeNode = this.settings.get("tribe.name", null) == null && this.settings.getByPrefix("tribe").size() > 0;
         tribeNodeClient = this.settings.get("tribe.name", null) != null;
 
-        log.debug("This node [{}] is a transportClient: {}/tribeNode: {}/tribeNodeClient: {}", settings.get("node.name"), client, tribeNode, tribeNodeClient);
+        log.debug("This node [{}] is a transportClient: {}/tribeNode: {}/tribeNodeClient: {}", settings.get("node.name"), client, tribeNode,
+                tribeNodeClient);
 
-        if(!client) {
+        if (!client) {
             dlsFlsConstructor = ReflectionHelper.instantiateDlsFlsConstructor();
             dlsFlsAvailable = dlsFlsConstructor != null;
         } else {
@@ -298,17 +299,14 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             dlsFlsConstructor = null;
         }
 
-        if(!client && !tribeNodeClient) {
+        if (!client && !tribeNodeClient) {
             final List<Path> filesWithWrongPermissions = AccessController.doPrivileged(new PrivilegedAction<List<Path>>() {
                 @Override
                 public List<Path> run() {
-                  final Path confPath = new Environment(settings, configPath).configFile().toAbsolutePath();
-                    if(Files.isDirectory(confPath, LinkOption.NOFOLLOW_LINKS)) {
+                    final Path confPath = new Environment(settings, configPath).configFile().toAbsolutePath();
+                    if (Files.isDirectory(confPath, LinkOption.NOFOLLOW_LINKS)) {
                         try (Stream<Path> s = Files.walk(confPath)) {
-                            return s
-                            .distinct()
-                            .filter(p->checkFilePermissions(p))
-                            .collect(Collectors.toList());
+                            return s.distinct().filter(p -> checkFilePermissions(p)).collect(Collectors.toList());
                         } catch (Exception e) {
                             log.error(e);
                             return null;
@@ -319,29 +317,26 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                 }
             });
 
-            if(filesWithWrongPermissions != null && filesWithWrongPermissions.size() > 0) {
-                for(final Path p: filesWithWrongPermissions) {
-                    if(Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
-                        log.warn("Directory "+p+" has insecure file permissions (should be 0700)");
+            if (filesWithWrongPermissions != null && filesWithWrongPermissions.size() > 0) {
+                for (final Path p : filesWithWrongPermissions) {
+                    if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
+                        log.warn("Directory " + p + " has insecure file permissions (should be 0700)");
                     } else {
-                        log.warn("File "+p+" has insecure file permissions (should be 0600)");
+                        log.warn("File " + p + " has insecure file permissions (should be 0600)");
                     }
                 }
             }
         }
 
-        if(!client && !tribeNodeClient && !settings.getAsBoolean(ConfigConstants.SEARCHGUARD_ALLOW_UNSAFE_DEMOCERTIFICATES, false)) {
-            //check for demo certificates
+        if (!client && !tribeNodeClient && !settings.getAsBoolean(ConfigConstants.SEARCHGUARD_ALLOW_UNSAFE_DEMOCERTIFICATES, false)) {
+            // check for demo certificates
             final List<String> files = AccessController.doPrivileged(new PrivilegedAction<List<String>>() {
                 @Override
                 public List<String> run() {
-                  final Path confPath = new Environment(settings, configPath).configFile().toAbsolutePath();
-                    if(Files.isDirectory(confPath, LinkOption.NOFOLLOW_LINKS)) {
+                    final Path confPath = new Environment(settings, configPath).configFile().toAbsolutePath();
+                    if (Files.isDirectory(confPath, LinkOption.NOFOLLOW_LINKS)) {
                         try (Stream<Path> s = Files.walk(confPath)) {
-                            return s
-                            .distinct()
-                            .map(p->sha256(p))
-                            .collect(Collectors.toList());
+                            return s.distinct().map(p -> sha256(p)).collect(Collectors.toList());
                         } catch (Exception e) {
                             log.error(e);
                             return null;
@@ -352,12 +347,12 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                 }
             });
 
-            if(files != null) {
+            if (files != null) {
                 demoCertHashes.retainAll(files);
-                if(!demoCertHashes.isEmpty()) {
-                    log.error("Demo certificates found but "+ConfigConstants.SEARCHGUARD_ALLOW_UNSAFE_DEMOCERTIFICATES+" is set to false."
+                if (!demoCertHashes.isEmpty()) {
+                    log.error("Demo certificates found but " + ConfigConstants.SEARCHGUARD_ALLOW_UNSAFE_DEMOCERTIFICATES + " is set to false."
                             + "See http://docs.search-guard.com/latest/demo-installer-generated-artefacts#allow-demo-certificates-and-auto-initialization");
-                    throw new RuntimeException("Demo certificates found "+demoCertHashes);
+                    throw new RuntimeException("Demo certificates found " + demoCertHashes);
                 }
             } else {
                 throw new RuntimeException("Unable to look for demo certificates");
@@ -368,22 +363,22 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
     private String sha256(Path p) {
 
-        if(!Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) {
+        if (!Files.isRegularFile(p, LinkOption.NOFOLLOW_LINKS)) {
             return "";
         }
-        
-        if(!Files.isReadable(p)) {
-            log.debug("Unreadable file "+p+" found");
+
+        if (!Files.isReadable(p)) {
+            log.debug("Unreadable file " + p + " found");
             return "";
         }
 
         try {
             MessageDigest digester = MessageDigest.getInstance("SHA256");
             final String hash = org.bouncycastle.util.encoders.Hex.toHexString(digester.digest(Files.readAllBytes(p)));
-            log.debug(hash +" :: "+p);
+            log.debug(hash + " :: " + p);
             return hash;
         } catch (Exception e) {
-            throw new ElasticsearchSecurityException("Unable to digest file "+p, e);
+            throw new ElasticsearchSecurityException("Unable to digest file " + p, e);
         }
     }
 
@@ -393,70 +388,70 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             return false;
         }
 
-
         Set<PosixFilePermission> perms;
 
         try {
             perms = Files.getPosixFilePermissions(p, LinkOption.NOFOLLOW_LINKS);
         } catch (Exception e) {
-            if(log.isDebugEnabled()) {
+            if (log.isDebugEnabled()) {
                 log.debug("Cannot determine posix file permissions for {} due to {}", p, e);
             }
-            //ignore, can happen on windows
+            // ignore, can happen on windows
             return false;
         }
 
-        if(Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
+        if (Files.isDirectory(p, LinkOption.NOFOLLOW_LINKS)) {
             if (perms.contains(PosixFilePermission.OTHERS_EXECUTE)) {
                 // no x for others must be set
                 return true;
             }
         } else {
-            if (perms.contains(PosixFilePermission.OWNER_EXECUTE)
-                    || perms.contains(PosixFilePermission.GROUP_EXECUTE)
+            if (perms.contains(PosixFilePermission.OWNER_EXECUTE) || perms.contains(PosixFilePermission.GROUP_EXECUTE)
                     || perms.contains(PosixFilePermission.OTHERS_EXECUTE)) {
                 // no x must be set
                 return true;
             }
         }
 
-
         if (perms.contains(PosixFilePermission.OTHERS_READ) || perms.contains(PosixFilePermission.OTHERS_WRITE)) {
             // no permissions for "others" allowed
             return true;
         }
 
-        //if (perms.contains(PosixFilePermission.GROUP_READ) || perms.contains(PosixFilePermission.GROUP_WRITE)) {
-        //    // no permissions for "group" allowed
-        //    return true;
-        //}
+        // if (perms.contains(PosixFilePermission.GROUP_READ) ||
+        // perms.contains(PosixFilePermission.GROUP_WRITE)) {
+        // // no permissions for "group" allowed
+        // return true;
+        // }
 
         return false;
     }
 
-
     @Override
     public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<DiscoveryNodes> nodesInCluster) {
 
         final List<RestHandler> handlers = new ArrayList<RestHandler>(1);
 
         if (!client && !tribeNodeClient && !disabled) {
 
-            handlers.addAll(super.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter, indexNameExpressionResolver, nodesInCluster));
+            handlers.addAll(super.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
+                    indexNameExpressionResolver, nodesInCluster));
 
-            if(!sslOnly) {
-                handlers.add(new SearchGuardInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool)));
-                handlers.add(new KibanaInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool)));
+            if (!sslOnly) {
+                handlers.add(
+                        new SearchGuardInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool)));
+                handlers.add(new KibanaInfoAction(settings, restController, Objects.requireNonNull(evaluator), cr, Objects.requireNonNull(threadPool),
+                        Objects.requireNonNull(adminDns)));
                 handlers.add(new SearchGuardLicenseAction(settings, restController));
                 handlers.add(new SearchGuardHealthAction(settings, restController, Objects.requireNonNull(backendRegistry)));
-                handlers.add(new TenantInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool), 
-                		Objects.requireNonNull(cs), Objects.requireNonNull(adminDns)));    
+                handlers.add(new TenantInfoAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool),
+                        Objects.requireNonNull(cs), Objects.requireNonNull(adminDns)));
                 handlers.add(new PermissionAction(settings, restController, Objects.requireNonNull(evaluator), Objects.requireNonNull(threadPool)));
-                
-                Collection<RestHandler> apiHandler = ReflectionHelper
-                        .instantiateMngtRestApiHandler(settings, configPath, restController, localClient, adminDns, cr, cs, Objects.requireNonNull(principalExtractor),  evaluator, threadPool, Objects.requireNonNull(auditLog));
+
+                Collection<RestHandler> apiHandler = ReflectionHelper.instantiateMngtRestApiHandler(settings, configPath, restController, localClient,
+                        adminDns, cr, cs, Objects.requireNonNull(principalExtractor), evaluator, threadPool, Objects.requireNonNull(auditLog));
                 handlers.addAll(apiHandler);
                 log.debug("Added {} management rest handler(s)", apiHandler.size());
             }
@@ -469,7 +464,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {
 
-        if(client || disabled || sslOnly) {
+        if (client || disabled || sslOnly) {
             return (rh) -> rh;
         }
 
@@ -479,7 +474,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>(1);
-        if(!tribeNodeClient && !disabled && !sslOnly) {
+        if (!tribeNodeClient && !disabled && !sslOnly) {
             actions.add(new ActionHandler<>(ConfigUpdateAction.INSTANCE, TransportConfigUpdateAction.class));
             actions.add(new ActionHandler<>(LicenseInfoAction.INSTANCE, TransportLicenseInfoAction.class));
             actions.add(new ActionHandler<>(WhoAmIAction.INSTANCE, TransportWhoAmIAction.class));
@@ -487,37 +482,35 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         return actions;
     }
 
-    private IndexSearcherWrapper loadFlsDlsIndexSearcherWrapper(final IndexService indexService,
-            final ComplianceIndexingOperationListener ciol, final ComplianceConfig complianceConfig) {
+    private IndexSearcherWrapper loadFlsDlsIndexSearcherWrapper(final IndexService indexService, final ComplianceIndexingOperationListener ciol,
+            final ComplianceConfig complianceConfig) {
         try {
-            IndexSearcherWrapper flsdlsWrapper = (IndexSearcherWrapper) dlsFlsConstructor
-                    .newInstance(indexService, settings, Objects.requireNonNull(adminDns),
-                            Objects.requireNonNull(cs),
-                            Objects.requireNonNull(auditLog),
-                            Objects.requireNonNull(ciol),
-                            Objects.requireNonNull(complianceConfig));
-            if(log.isDebugEnabled()) {
+            IndexSearcherWrapper flsdlsWrapper = (IndexSearcherWrapper) dlsFlsConstructor.newInstance(indexService, settings,
+                    Objects.requireNonNull(adminDns), Objects.requireNonNull(cs), Objects.requireNonNull(auditLog), Objects.requireNonNull(ciol),
+                    Objects.requireNonNull(complianceConfig));
+            if (log.isDebugEnabled()) {
                 log.debug("FLS/DLS enabled for index {}", indexService.index().getName());
             }
             return flsdlsWrapper;
-        } catch(Exception ex) {
+        } catch (Exception ex) {
             throw new RuntimeException("Failed to enable FLS/DLS", ex);
         }
     }
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        //called for every index!
+        // called for every index!
 
         if (!disabled && !client && !sslOnly) {
-            log.debug("Handle complianceConfig="+complianceConfig+"/dlsFlsAvailable: "+dlsFlsAvailable+"/auditLog="+auditLog.getClass()+" for onIndexModule() of index "+indexModule.getIndex().getName());
+            log.debug("Handle complianceConfig=" + complianceConfig + "/dlsFlsAvailable: " + dlsFlsAvailable + "/auditLog=" + auditLog.getClass()
+                    + " for onIndexModule() of index " + indexModule.getIndex().getName());
             if (dlsFlsAvailable) {
 
                 final ComplianceIndexingOperationListener ciol;
 
-                assert complianceConfig!=null:"compliance config must not be null here";
-                
-                if(complianceConfig.writeHistoryEnabledForIndex(indexModule.getIndex().getName())) {
+                assert complianceConfig != null : "compliance config must not be null here";
+
+                if (complianceConfig.writeHistoryEnabledForIndex(indexModule.getIndex().getName())) {
                     ciol = ReflectionHelper.instantiateComplianceListener(complianceConfig, Objects.requireNonNull(auditLog));
                     indexModule.addIndexOperationListener(ciol);
                 } else {
@@ -525,7 +518,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                 }
 
                 indexModule.setSearcherWrapper(indexService -> loadFlsDlsIndexSearcherWrapper(indexService, ciol, complianceConfig));
-                indexModule.forceQueryCacheProvider((indexSettings,nodeCache)->new QueryCache() {
+                indexModule.forceQueryCacheProvider((indexSettings, nodeCache) -> new QueryCache() {
 
                     @Override
                     public Index index() {
@@ -544,31 +537,31 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
                     @Override
                     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
-                        final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper.deserializeSafeFromHeader(threadPool.getThreadContext(),
-                                ConfigConstants.SG_FLS_FIELDS_HEADER);
-                        
-                        if(SgUtils.evalMap(allowedFlsFields, index().getName()) != null) {
+                        final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper
+                                .deserializeSafeFromHeader(threadPool.getThreadContext(), ConfigConstants.SG_FLS_FIELDS_HEADER);
+
+                        if (SgUtils.evalMap(allowedFlsFields, index().getName()) != null) {
                             return weight;
                         } else {
-                            
-                            final Map<String, Set<String>> maskedFieldsMap = (Map<String, Set<String>>) HeaderHelper.deserializeSafeFromHeader(threadPool.getThreadContext(),
-                                    ConfigConstants.SG_MASKED_FIELD_HEADER);
-                            
-                            if(SgUtils.evalMap(maskedFieldsMap, index().getName()) != null) {
+
+                            final Map<String, Set<String>> maskedFieldsMap = (Map<String, Set<String>>) HeaderHelper
+                                    .deserializeSafeFromHeader(threadPool.getThreadContext(), ConfigConstants.SG_MASKED_FIELD_HEADER);
+
+                            if (SgUtils.evalMap(maskedFieldsMap, index().getName()) != null) {
                                 return weight;
                             } else {
                                 return nodeCache.doCache(weight, policy);
                             }
                         }
-                        
+
                     }
                 });
             } else {
-                
-                assert complianceConfig==null:"compliance config must be null here";
-                
-                indexModule.setSearcherWrapper(indexService -> new SearchGuardIndexSearcherWrapper(indexService, settings, Objects
-                        .requireNonNull(adminDns)));
+
+                assert complianceConfig == null : "compliance config must be null here";
+
+                indexModule.setSearcherWrapper(
+                        indexService -> new SearchGuardIndexSearcherWrapper(indexService, settings, Objects.requireNonNull(adminDns)));
             }
 
             indexModule.addSearchOperationListener(new SearchOperationListener() {
@@ -578,18 +571,17 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
                     final ScrollContext scrollContext = context.scrollContext();
 
-                    if(scrollContext != null) {
+                    if (scrollContext != null) {
 
                         final boolean interClusterRequest = HeaderHelper.isInterClusterRequest(threadPool.getThreadContext());
-                        if(Origin.LOCAL.toString().equals(threadPool.getThreadContext().getTransient(ConfigConstants.SG_ORIGIN))
+                        if (Origin.LOCAL.toString().equals(threadPool.getThreadContext().getTransient(ConfigConstants.SG_ORIGIN))
                                 && (interClusterRequest || HeaderHelper.isDirectRequest(threadPool.getThreadContext()))
 
-                        ){
+                        ) {
                             scrollContext.putInContext("_sg_scroll_auth_local", Boolean.TRUE);
 
                         } else {
-                            scrollContext.putInContext("_sg_scroll_auth", threadPool.getThreadContext()
-                                    .getTransient(ConfigConstants.SG_USER));
+                            scrollContext.putInContext("_sg_scroll_auth", threadPool.getThreadContext().getTransient(ConfigConstants.SG_USER));
                         }
                     }
                 }
@@ -598,19 +590,18 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                 public void validateSearchContext(SearchContext context, TransportRequest transportRequest) {
 
                     final ScrollContext scrollContext = context.scrollContext();
-                    if(scrollContext != null) {
+                    if (scrollContext != null) {
                         final Object _isLocal = scrollContext.getFromContext("_sg_scroll_auth_local");
                         final Object _user = scrollContext.getFromContext("_sg_scroll_auth");
-                        if(_user != null && (_user instanceof User)) {
+                        if (_user != null && (_user instanceof User)) {
                             final User scrollUser = (User) _user;
-                            final User currentUser = threadPool.getThreadContext()
-                                    .getTransient(ConfigConstants.SG_USER);
-                            if(!scrollUser.equals(currentUser)) {
+                            final User currentUser = threadPool.getThreadContext().getTransient(ConfigConstants.SG_USER);
+                            if (!scrollUser.equals(currentUser)) {
                                 auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest, context.getTask());
                                 log.error("Wrong user {} in scroll context, expected {}", scrollUser, currentUser);
                                 throw new ElasticsearchSecurityException("Wrong user in scroll context", RestStatus.FORBIDDEN);
                             }
-                        } else if(_isLocal != Boolean.TRUE) {
+                        } else if (_isLocal != Boolean.TRUE) {
                             auditLog.logMissingPrivileges(SearchScrollAction.NAME, transportRequest, context.getTask());
                             throw new ElasticsearchSecurityException("No user in scroll context", RestStatus.FORBIDDEN);
                         }
@@ -661,8 +652,8 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                     return new AsyncSender() {
 
                         @Override
-                        public <T extends TransportResponse> void sendRequest(Connection connection, String action,
-                                TransportRequest request, TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                        public <T extends TransportResponse> void sendRequest(Connection connection, String action, TransportRequest request,
+                                TransportRequestOptions options, TransportResponseHandler<T> handler) {
                             sgi.sendRequestDecorate(sender, connection, action, request, options, handler);
                         }
                     };
@@ -675,63 +666,63 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
     @Override
     public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-            PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService,
-            NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
+            PageCacheRecycler pageCacheRecycler, CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
+            NetworkService networkService) {
         Map<String, Supplier<Transport>> transports = new HashMap<String, Supplier<Transport>>();
-        
-        if(sslOnly) {
-            return super.getTransports(settings, threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService);
+
+        if (sslOnly) {
+            return super.getTransports(settings, threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry,
+                    networkService);
         }
-        
+
         if (transportSSLEnabled) {
-            transports.put("com.floragunn.searchguard.ssl.http.netty.SearchGuardSSLNettyTransport",
-                    () -> new SearchGuardSSLNettyTransport(settings, threadPool, networkService, bigArrays, namedWriteableRegistry,
-                            circuitBreakerService, sgks, evaluateSslExceptionHandler()));
+            transports.put("com.floragunn.searchguard.ssl.http.netty.SearchGuardSSLNettyTransport", () -> new SearchGuardSSLNettyTransport(settings,
+                    threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService, sgks, evaluateSslExceptionHandler()));
         }
         return transports;
     }
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-            NamedXContentRegistry xContentRegistry, NetworkService networkService, Dispatcher dispatcher) {
+            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry, NamedXContentRegistry xContentRegistry,
+            NetworkService networkService, Dispatcher dispatcher) {
 
-        if(sslOnly) {
-            return super.getHttpTransports(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, dispatcher);
+        if (sslOnly) {
+            return super.getHttpTransports(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry,
+                    networkService, dispatcher);
         }
-        
+
         Map<String, Supplier<HttpServerTransport>> httpTransports = new HashMap<String, Supplier<HttpServerTransport>>(1);
 
-        if(!disabled) {
+        if (!disabled) {
             if (!client && httpSSLEnabled && !tribeNodeClient) {
 
-                final ValidatingDispatcher validatingDispatcher = new ValidatingDispatcher(threadPool.getThreadContext(), dispatcher,
-                        settings, configPath, evaluateSslExceptionHandler());
-                //TODO close sghst
-                final SearchGuardHttpServerTransport sghst = new SearchGuardHttpServerTransport(settings, networkService, bigArrays,
-                        threadPool, sgks, evaluateSslExceptionHandler(), xContentRegistry, validatingDispatcher);
+                final ValidatingDispatcher validatingDispatcher = new ValidatingDispatcher(threadPool.getThreadContext(), dispatcher, settings,
+                        configPath, evaluateSslExceptionHandler());
+                // TODO close sghst
+                final SearchGuardHttpServerTransport sghst = new SearchGuardHttpServerTransport(settings, networkService, bigArrays, threadPool, sgks,
+                        evaluateSslExceptionHandler(), xContentRegistry, validatingDispatcher);
 
-                httpTransports.put("com.floragunn.searchguard.http.SearchGuardHttpServerTransport",
-                        () -> sghst);
+                httpTransports.put("com.floragunn.searchguard.http.SearchGuardHttpServerTransport", () -> sghst);
             } else if (!client && !tribeNodeClient) {
                 httpTransports.put("com.floragunn.searchguard.http.SearchGuardHttpServerTransport",
-                        () -> new SearchGuardNonSslHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
+                        () -> new SearchGuardNonSslHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry,
+                                dispatcher));
             }
         }
         return httpTransports;
     }
-
-
 
     @Override
     public Collection<Object> createComponents(Client localClient, ClusterService clusterService, ThreadPool threadPool,
             ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry) {
 
-        if(sslOnly) {
-            return super.createComponents(localClient, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry);
+        if (sslOnly) {
+            return super.createComponents(localClient, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry,
+                    environment, nodeEnvironment, namedWriteableRegistry);
         }
-        
+
         this.threadPool = threadPool;
         this.cs = clusterService;
         this.localClient = localClient;
@@ -749,28 +740,31 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         final IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(settings);
         irr = new IndexResolverReplacer(resolver, clusterService, cih);
         auditLog = ReflectionHelper.instantiateAuditLog(settings, configPath, localClient, threadPool, resolver, clusterService);
-        complianceConfig = (dlsFlsAvailable && (auditLog.getClass() != NullAuditLog.class))?new ComplianceConfig(environment, Objects.requireNonNull(irr), auditLog):null;
-        log.debug("Compliance config is "+complianceConfig+" because of dlsFlsAvailable: "+dlsFlsAvailable+" and auditLog="+auditLog.getClass());
+        complianceConfig = (dlsFlsAvailable && (auditLog.getClass() != NullAuditLog.class))
+                ? new ComplianceConfig(environment, Objects.requireNonNull(irr), auditLog)
+                : null;
+        log.debug("Compliance config is " + complianceConfig + " because of dlsFlsAvailable: " + dlsFlsAvailable + " and auditLog="
+                + auditLog.getClass());
         auditLog.setComplianceConfig(complianceConfig);
-        
+
         sslExceptionHandler = new AuditLogSslExceptionHandler(auditLog);
 
         final String DEFAULT_INTERCLUSTER_REQUEST_EVALUATOR_CLASS = DefaultInterClusterRequestEvaluator.class.getName();
         InterClusterRequestEvaluator interClusterRequestEvaluator = new DefaultInterClusterRequestEvaluator(settings);
 
-
-        final String className = settings.get(ConfigConstants.SG_INTERCLUSTER_REQUEST_EVALUATOR_CLASS,
-                DEFAULT_INTERCLUSTER_REQUEST_EVALUATOR_CLASS);
+        final String className = settings.get(ConfigConstants.SG_INTERCLUSTER_REQUEST_EVALUATOR_CLASS, DEFAULT_INTERCLUSTER_REQUEST_EVALUATOR_CLASS);
         log.debug("Using {} as intercluster request evaluator class", className);
         if (!DEFAULT_INTERCLUSTER_REQUEST_EVALUATOR_CLASS.equals(className)) {
             interClusterRequestEvaluator = ReflectionHelper.instantiateInterClusterRequestEvaluator(className, settings);
         }
 
-        final PrivilegesInterceptor privilegesInterceptor = ReflectionHelper.instantiatePrivilegesInterceptorImpl(resolver, clusterService, localClient, threadPool);
+        final PrivilegesInterceptor privilegesInterceptor = ReflectionHelper.instantiatePrivilegesInterceptorImpl(resolver, clusterService,
+                localClient, threadPool);
 
         adminDns = new AdminDNs(settings);
-        //final PrincipalExtractor pe = new DefaultPrincipalExtractor();
-        cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService, auditLog, complianceConfig);
+        // final PrincipalExtractor pe = new DefaultPrincipalExtractor();
+        cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, this.configPath, threadPool, localClient,
+                clusterService, auditLog, complianceConfig);
         cr.subscribeOnLicenseChange(complianceConfig);
         final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);
         final XFFResolver xffResolver = new XFFResolver(threadPool);
@@ -779,35 +773,34 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
         final ActionGroupHolder ah = new ActionGroupHolder(cr);
         evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih);
-        
+
         final CompatConfig compatConfig = new CompatConfig(environment);
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, compatConfig);
-        
-        sgf = new SearchGuardFilter(evaluator, adminDns, dlsFlsValve, auditLog, threadPool, cs, complianceConfig, compatConfig);
 
+        sgf = new SearchGuardFilter(evaluator, adminDns, dlsFlsValve, auditLog, threadPool, cs, complianceConfig, compatConfig);
 
         final String principalExtractorClass = settings.get(SSLConfigConstants.SEARCHGUARD_SSL_TRANSPORT_PRINCIPAL_EXTRACTOR_CLASS, null);
 
-        if(principalExtractorClass == null) {
+        if (principalExtractorClass == null) {
             principalExtractor = new com.floragunn.searchguard.ssl.transport.DefaultPrincipalExtractor();
         } else {
             principalExtractor = ReflectionHelper.instantiatePrincipalExtractor(principalExtractorClass);
         }
 
-        sgi = new SearchGuardInterceptor(settings, threadPool, backendRegistry, auditLog, principalExtractor,
-                interClusterRequestEvaluator, cs, Objects.requireNonNull(sslExceptionHandler), Objects.requireNonNull(cih));
+        sgi = new SearchGuardInterceptor(settings, threadPool, backendRegistry, auditLog, principalExtractor, interClusterRequestEvaluator, cs,
+                Objects.requireNonNull(sslExceptionHandler), Objects.requireNonNull(cih));
         components.add(principalExtractor);
 
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, new ConfigurationChangeListener() {
 
             @Override
             public void onChange(Settings unused) {
-                //auditLog.logExternalConfig(settings, environment);
+                // auditLog.logExternalConfig(settings, environment);
             }
         });
 
         components.add(adminDns);
-        //components.add(auditLog);
+        // components.add(auditLog);
         components.add(cr);
         components.add(iab);
         components.add(xffResolver);
@@ -825,7 +818,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
     @Override
     public Settings additionalSettings() {
 
-        if(disabled) {
+        if (disabled) {
             return Settings.EMPTY;
         }
 
@@ -833,148 +826,221 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
         builder.put(super.additionalSettings());
 
-        if(!sslOnly){
-          builder.put(NetworkModule.TRANSPORT_TYPE_KEY, "com.floragunn.searchguard.ssl.http.netty.SearchGuardSSLNettyTransport");
-          builder.put(NetworkModule.HTTP_TYPE_KEY, "com.floragunn.searchguard.http.SearchGuardHttpServerTransport");
+        if (!sslOnly) {
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, "com.floragunn.searchguard.ssl.http.netty.SearchGuardSSLNettyTransport");
+            builder.put(NetworkModule.HTTP_TYPE_KEY, "com.floragunn.searchguard.http.SearchGuardHttpServerTransport");
         }
         return builder.build();
     }
+
     @Override
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<Setting<?>>();
         settings.addAll(super.getSettings());
-        
+
         settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_SSL_ONLY, false, Property.NodeScope, Property.Filtered));
 
-        if(!sslOnly) {
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_ADMIN_DN, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
-    
+        if (!sslOnly) {
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_ADMIN_DN, Collections.emptyList(), Function.identity(),
+                    Property.NodeScope)); // not filtered here
+
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_CONFIG_INDEX_NAME, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_IMPERSONATION_DN+".", Property.NodeScope)); //not filtered here
-    
+            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_IMPERSONATION_DN + ".", Property.NodeScope)); // not filtered here
+
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_CERT_OID, Property.NodeScope, Property.Filtered));
-    
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_CERT_INTERCLUSTER_REQUEST_EVALUATOR_CLASS, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_NODES_DN, Collections.emptyList(), Function.identity(), Property.NodeScope));//not filtered here
-    
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE, ConfigConstants.SG_DEFAULT_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE,
-                    Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_CHECK_SNAPSHOT_RESTORE_WRITE_PRIVILEGES, ConfigConstants.SG_DEFAULT_CHECK_SNAPSHOT_RESTORE_WRITE_PRIVILEGES,
-                    Property.NodeScope, Property.Filtered));
-    
+
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_CERT_INTERCLUSTER_REQUEST_EVALUATOR_CLASS, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_NODES_DN, Collections.emptyList(), Function.identity(), Property.NodeScope));// not filtered here
+
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE,
+                    ConfigConstants.SG_DEFAULT_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE, Property.NodeScope, Property.Filtered));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_CHECK_SNAPSHOT_RESTORE_WRITE_PRIVILEGES,
+                    ConfigConstants.SG_DEFAULT_CHECK_SNAPSHOT_RESTORE_WRITE_PRIVILEGES, Property.NodeScope, Property.Filtered));
+
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_DISABLED, false, Property.NodeScope, Property.Filtered));
-    
+
             settings.add(Setting.intSetting(ConfigConstants.SEARCHGUARD_CACHE_TTL_MINUTES, 60, 0, Property.NodeScope, Property.Filtered));
-    
-            //SG6
+
+            // SG6
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_ENTERPRISE_MODULES_ENABLED, true, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_ALLOW_UNSAFE_DEMOCERTIFICATES, false, Property.NodeScope, Property.Filtered));
+            settings.add(
+                    Setting.boolSetting(ConfigConstants.SEARCHGUARD_ALLOW_UNSAFE_DEMOCERTIFICATES, false, Property.NodeScope, Property.Filtered));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_ALLOW_DEFAULT_INIT_SGINDEX, false, Property.NodeScope, Property.Filtered));
-    
-            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_REST_IMPERSONATION_USERS+".", Property.NodeScope)); //not filtered here
-    
+
+            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_REST_IMPERSONATION_USERS + ".", Property.NodeScope)); // not filtered here
+
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_ROLES_MAPPING_RESOLUTION, Property.NodeScope, Property.Filtered));
-            //settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY, false, Property.NodeScope, Property.Filtered));
-    
-            //TODO remove searchguard.tribe.clustername?
-            //settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_TRIBE_CLUSTERNAME, Property.NodeScope, Property.Filtered));
-    
-            // SG6 - Audit        
+            // settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY,
+            // false, Property.NodeScope, Property.Filtered));
+
+            // TODO remove searchguard.tribe.clustername?
+            // settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_TRIBE_CLUSTERNAME,
+            // Property.NodeScope, Property.Filtered));
+
+            // SG6 - Audit
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_TYPE_DEFAULT, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_ROUTES + ".", Property.NodeScope)); 
-            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_ENDPOINTS + ".",  Property.NodeScope)); 
+            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_ROUTES + ".", Property.NodeScope));
+            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_ENDPOINTS + ".", Property.NodeScope));
             settings.add(Setting.intSetting(ConfigConstants.SEARCHGUARD_AUDIT_THREADPOOL_SIZE, 10, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.intSetting(ConfigConstants.SEARCHGUARD_AUDIT_THREADPOOL_MAX_QUEUE_LEN, 100*1000, Property.NodeScope, Property.Filtered));
+            settings.add(Setting.intSetting(ConfigConstants.SEARCHGUARD_AUDIT_THREADPOOL_MAX_QUEUE_LEN, 100 * 1000, Property.NodeScope,
+                    Property.Filtered));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_LOG_REQUEST_BODY, true, Property.NodeScope, Property.Filtered));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_RESOLVE_INDICES, true, Property.NodeScope, Property.Filtered));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_ENABLE_REST, true, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_ENABLE_TRANSPORT, true, Property.NodeScope, Property.Filtered));        
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_ENABLE_TRANSPORT, true, Property.NodeScope, Property.Filtered));
             final List<String> disabledCategories = new ArrayList<String>(2);
             disabledCategories.add("AUTHENTICATED");
             disabledCategories.add("GRANTED_PRIVILEGES");
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DISABLED_TRANSPORT_CATEGORIES, disabledCategories, Function.identity(), Property.NodeScope)); //not filtered here
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DISABLED_REST_CATEGORIES, disabledCategories, Function.identity(), Property.NodeScope)); //not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DISABLED_TRANSPORT_CATEGORIES, disabledCategories,
+                    Function.identity(), Property.NodeScope)); // not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DISABLED_REST_CATEGORIES, disabledCategories,
+                    Function.identity(), Property.NodeScope)); // not filtered here
             final List<String> ignoredUsers = new ArrayList<String>(2);
             ignoredUsers.add("kibanaserver");
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_IGNORE_USERS, ignoredUsers, Function.identity(), Property.NodeScope)); //not filtered here
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_IGNORE_REQUESTS, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_IGNORE_USERS, ignoredUsers, Function.identity(), Property.NodeScope)); // not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_IGNORE_REQUESTS, Collections.emptyList(), Function.identity(),
+                    Property.NodeScope)); // not filtered here
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_RESOLVE_BULK_REQUESTS, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_EXCLUDE_SENSITIVE_HEADERS, true, Property.NodeScope, Property.Filtered));
-    
-            
+            settings.add(
+                    Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_EXCLUDE_SENSITIVE_HEADERS, true, Property.NodeScope, Property.Filtered));
+
             // SG6 - Audit - Sink
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_ES_INDEX, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_ES_TYPE, Property.NodeScope, Property.Filtered));
-    
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_ES_INDEX,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_ES_TYPE,
+                    Property.NodeScope, Property.Filtered));
+
             // External ES
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_HTTP_ENDPOINTS, Lists.newArrayList("localhost:9200"), Function.identity(), Property.NodeScope)); //not filtered here
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_USERNAME, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PASSWORD, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLE_SSL, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_VERIFY_HOSTNAMES, true, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLE_SSL_CLIENT_AUTH, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMCERT_CONTENT, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMCERT_FILEPATH, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMKEY_CONTENT, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMKEY_FILEPATH, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMKEY_PASSWORD, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMTRUSTEDCAS_CONTENT, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMTRUSTEDCAS_FILEPATH, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_JKS_CERT_ALIAS, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLED_SSL_CIPHERS, Collections.emptyList(), Function.identity(), Property.NodeScope));//not filtered here
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLED_SSL_PROTOCOLS, Collections.emptyList(), Function.identity(), Property.NodeScope));//not filtered here
-    
+            settings.add(Setting.listSetting(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_HTTP_ENDPOINTS,
+                    Lists.newArrayList("localhost:9200"), Function.identity(), Property.NodeScope)); // not filtered
+                                                                                                                                                                                                                                                              // here
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_USERNAME,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PASSWORD,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.boolSetting(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLE_SSL, false,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.boolSetting(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_VERIFY_HOSTNAMES, true,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.boolSetting(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLE_SSL_CLIENT_AUTH,
+                    false, Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMCERT_CONTENT,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMCERT_FILEPATH,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMKEY_CONTENT,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMKEY_FILEPATH,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMKEY_PASSWORD,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMTRUSTEDCAS_CONTENT,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_PEMTRUSTEDCAS_FILEPATH,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_JKS_CERT_ALIAS,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.listSetting(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLED_SSL_CIPHERS,
+                    Collections.emptyList(), Function.identity(), Property.NodeScope));// not filtered here
+            settings.add(Setting.listSetting(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLED_SSL_PROTOCOLS,
+                    Collections.emptyList(), Function.identity(), Property.NodeScope));// not filtered here
+
             // Webhooks
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_URL, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_FORMAT, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_SSL_VERIFY, true, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_PEMTRUSTEDCAS_FILEPATH, Property.NodeScope, Property.Filtered));             
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_PEMTRUSTEDCAS_CONTENT, Property.NodeScope, Property.Filtered));
-            
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_URL,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(
+                    Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_FORMAT,
+                            Property.NodeScope, Property.Filtered));
+            settings.add(Setting.boolSetting(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_SSL_VERIFY, true,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_PEMTRUSTEDCAS_FILEPATH,
+                    Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_PEMTRUSTEDCAS_CONTENT,
+                    Property.NodeScope, Property.Filtered));
+
             // Log4j
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_LOG4J_LOGGER_NAME, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_LOG4J_LEVEL, Property.NodeScope, Property.Filtered));
-            
-    
+            settings.add(Setting.simpleString(
+                    ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_LOG4J_LOGGER_NAME, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_LOG4J_LEVEL,
+                    Property.NodeScope, Property.Filtered));
+
             // Kerberos
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_KERBEROS_KRB5_FILEPATH, Property.NodeScope, Property.Filtered));
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_KERBEROS_ACCEPTOR_KEYTAB_FILEPATH, Property.NodeScope, Property.Filtered));
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_KERBEROS_ACCEPTOR_PRINCIPAL, Property.NodeScope, Property.Filtered));
-    
-    
-            // SG6 - REST API
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_RESTAPI_ROLES_ENABLED, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
-            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_RESTAPI_ENDPOINTS_DISABLED + ".", Property.NodeScope));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_RESTAPI_ACCEPT_INVALID_LICENSE, false, Property.NodeScope, Property.Filtered));
-    
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_RESTAPI_PASSWORD_VALIDATION_REGEX, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_RESTAPI_PASSWORD_VALIDATION_ERROR_MESSAGE, Property.NodeScope, Property.Filtered));
 
-            
+            // SG6 - REST API
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_RESTAPI_ROLES_ENABLED, Collections.emptyList(), Function.identity(),
+                    Property.NodeScope)); // not filtered here
+            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_RESTAPI_ENDPOINTS_DISABLED + ".", Property.NodeScope));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_RESTAPI_ACCEPT_INVALID_LICENSE, false, Property.NodeScope,
+                    Property.Filtered));
+
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_RESTAPI_PASSWORD_VALIDATION_REGEX, Property.NodeScope, Property.Filtered));
+            settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_RESTAPI_PASSWORD_VALIDATION_ERROR_MESSAGE, Property.NodeScope,
+                    Property.Filtered));
+
             // Compliance
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_WATCHED_INDICES, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_WATCHED_FIELDS, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_METADATA_ONLY, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_METADATA_ONLY, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_LOG_DIFFS, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_EXTERNAL_CONFIG_ENABLED, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_IGNORE_USERS, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_IGNORE_USERS, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_IMMUTABLE_INDICES, Collections.emptyList(), Function.identity(), Property.NodeScope)); //not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_WATCHED_INDICES, Collections.emptyList(),
+                    Function.identity(), Property.NodeScope)); // not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_WATCHED_FIELDS, Collections.emptyList(),
+                    Function.identity(), Property.NodeScope)); // not filtered here
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_METADATA_ONLY, false, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_METADATA_ONLY, false, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_LOG_DIFFS, false, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_EXTERNAL_CONFIG_ENABLED, false, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_IGNORE_USERS, Collections.emptyList(),
+                    Function.identity(), Property.NodeScope)); // not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_IGNORE_USERS, Collections.emptyList(),
+                    Function.identity(), Property.NodeScope)); // not filtered here
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_IMMUTABLE_INDICES, Collections.emptyList(), Function.identity(),
+                    Property.NodeScope)); // not filtered here
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_COMPLIANCE_SALT, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_INTERNAL_CONFIG_ENABLED, false, Property.NodeScope, Property.Filtered));
-    
-            //compat
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_DISABLE_INTERTRANSPORT_AUTH_INITIALLY, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_DISABLE_REST_AUTH_INITIALLY, false, Property.NodeScope, Property.Filtered));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_INTERNAL_CONFIG_ENABLED, false, Property.NodeScope,
+                    Property.Filtered));
+
+            // compat
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_DISABLE_INTERTRANSPORT_AUTH_INITIALLY, false, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_DISABLE_REST_AUTH_INITIALLY, false, Property.NodeScope,
+                    Property.Filtered));
 
             // system integration
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_RESTORE_SGINDEX_ENABLED, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_INJECT_USER_ENABLED, false, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_INJECT_ADMIN_USER_ENABLED, false, Property.NodeScope, Property.Filtered));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_RESTORE_SGINDEX_ENABLED, false, Property.NodeScope,
+                    Property.Filtered));
+            settings.add(
+                    Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_INJECT_USER_ENABLED, false, Property.NodeScope, Property.Filtered));
+            settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_INJECT_ADMIN_USER_ENABLED, false, Property.NodeScope,
+                    Property.Filtered));
         }
-        
+
         return settings;
     }
 
@@ -982,23 +1048,25 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
     public List<String> getSettingsFilter() {
         List<String> settingsFilter = new ArrayList<>();
 
-        if(disabled) {
+        if (disabled) {
             return settingsFilter;
         }
 
         settingsFilter.add("searchguard.*");
         return settingsFilter;
     }
-    
+
     @Override
     public void onNodeStarted() {
         final Set<ModuleInfo> sgModules = ReflectionHelper.getModulesLoaded();
         log.info("{} Search Guard modules loaded so far: {}", sgModules.size(), sgModules);
     }
 
-    //below is a hack because it seems not possible to access RepositoriesService from a non guice class
-    //the way of how deguice is organized is really a mess - hope this can be fixed in later versions
-    //TODO check if this could be removed
+    // below is a hack because it seems not possible to access RepositoriesService
+    // from a non guice class
+    // the way of how deguice is organized is really a mess - hope this can be fixed
+    // in later versions
+    // TODO check if this could be removed
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
@@ -1014,13 +1082,14 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
     @Override
     public Function<String, Predicate<String>> getFieldFilter() {
-        
+
         return index -> {
-            
-            if(threadPool == null) {
+
+            if (threadPool == null) {
                 return field -> true;
             }
-            
+
+            @SuppressWarnings("unchecked")
             final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper
                     .deserializeSafeFromHeader(threadPool.getThreadContext(), ConfigConstants.SG_FLS_FIELDS_HEADER);
 
@@ -1053,10 +1122,10 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             }
         };
     }
-    
+
     private static String handleKeyword(final String field) {
-        if(field != null && field.endsWith(KEYWORD)) {
-            return field.substring(0, field.length()-KEYWORD.length());
+        if (field != null && field.endsWith(KEYWORD)) {
+            return field.substring(0, field.length() - KEYWORD.length());
         }
         return field;
     }
@@ -1067,8 +1136,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         private static RemoteClusterService remoteClusterService;
 
         @Inject
-        public GuiceHolder(final RepositoriesService repositoriesService,
-                final TransportService remoteClusterService) {
+        public GuiceHolder(final RepositoriesService repositoriesService, final TransportService remoteClusterService) {
             GuiceHolder.repositoriesService = repositoriesService;
             GuiceHolder.remoteClusterService = remoteClusterService.getRemoteClusterService();
         }
