@@ -131,7 +131,7 @@ public class ConfigurationLoaderSG7 {
                             try {
                                 final SgDynamicConfiguration<?> dConf = toConfig(singleGetResponse);
                                 if(dConf != null) {
-                                    callback.success(dConf);
+                                    callback.success(dConf.deepClone());
                                 } else {
                                     log.error("Cannot parse settings for "+singleGetResponse.getId());
                                 }

@@ -130,7 +130,7 @@ import com.floragunn.searchguard.configuration.CType;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
 import com.floragunn.searchguard.configuration.CompatConfig;
 import com.floragunn.searchguard.configuration.DlsFlsRequestValve;
-import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
+import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardIndexSearcherWrapper;
 import com.floragunn.searchguard.filter.SearchGuardFilter;
 import com.floragunn.searchguard.filter.SearchGuardRestFilter;
@@ -172,7 +172,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
     private volatile SearchGuardInterceptor sgi;
     private volatile PrivilegesEvaluator evaluator;
     private volatile ThreadPool threadPool;
-    private volatile IndexBaseConfigurationRepository cr;
+    private volatile ConfigurationRepository cr;
     private volatile AdminDNs adminDns;
     private volatile ClusterService cs;
     private volatile AuditLog auditLog;
@@ -766,7 +766,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
         adminDns = new AdminDNs(settings);
         //final PrincipalExtractor pe = new DefaultPrincipalExtractor();
-        cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService, auditLog, complianceConfig);
+        cr = (ConfigurationRepository) ConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService, auditLog, complianceConfig);
         cr.subscribeOnLicenseChange(complianceConfig);
         cr.subscribeOnChange(CType.CONFIG, irr);
         final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);

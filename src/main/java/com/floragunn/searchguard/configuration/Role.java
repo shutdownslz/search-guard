@@ -11,7 +11,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public class Role implements Hideable {
 
-    //private static final Set<String> IGNORED_TYPES = ImmutableSet.of("_dls_", "_fls_","_masked_fields_");
     private boolean readonly;
     private boolean hidden;
     private List<String> cluster = Collections.emptyList();

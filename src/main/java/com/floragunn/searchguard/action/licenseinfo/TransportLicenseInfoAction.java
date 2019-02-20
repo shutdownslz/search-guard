@@ -33,7 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
+import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardLicense;
 import com.floragunn.searchguard.support.ReflectionHelper;
 
@@ -41,12 +41,12 @@ public class TransportLicenseInfoAction
 extends
 TransportNodesAction<LicenseInfoRequest, LicenseInfoResponse, TransportLicenseInfoAction.NodeLicenseRequest, LicenseInfoNodeResponse> {
 
-    private final IndexBaseConfigurationRepository configurationRepository;
+    private final ConfigurationRepository configurationRepository;
     
     @Inject
     public TransportLicenseInfoAction(final Settings settings,
             final ThreadPool threadPool, final ClusterService clusterService, final TransportService transportService,
-            final IndexBaseConfigurationRepository configurationRepository, final ActionFilters actionFilters) {
+            final ConfigurationRepository configurationRepository, final ActionFilters actionFilters) {
         
         super(LicenseInfoAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 LicenseInfoRequest::new, TransportLicenseInfoAction.NodeLicenseRequest::new,

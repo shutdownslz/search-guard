@@ -46,7 +46,7 @@ import com.floragunn.searchguard.compliance.ComplianceConfig;
 import com.floragunn.searchguard.compliance.ComplianceIndexingOperationListener;
 import com.floragunn.searchguard.configuration.AdminDNs;
 import com.floragunn.searchguard.configuration.DlsFlsRequestValve;
-import com.floragunn.searchguard.configuration.IndexBaseConfigurationRepository;
+import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.privileges.PrivilegesEvaluator;
 import com.floragunn.searchguard.privileges.PrivilegesInterceptor;
 import com.floragunn.searchguard.ssl.transport.DefaultPrincipalExtractor;
@@ -90,7 +90,7 @@ public class ReflectionHelper {
 
     @SuppressWarnings("unchecked")
     public static Collection<RestHandler> instantiateMngtRestApiHandler(final Settings settings, final Path configPath, final RestController restController,
-            final Client localClient, final AdminDNs adminDns, final IndexBaseConfigurationRepository cr, final ClusterService cs, final PrincipalExtractor principalExtractor,
+            final Client localClient, final AdminDNs adminDns, final ConfigurationRepository cr, final ClusterService cs, final PrincipalExtractor principalExtractor,
             final PrivilegesEvaluator evaluator, final ThreadPool threadPool, final AuditLog auditlog) {
 
         if (enterpriseModulesDisabled()) {
@@ -100,7 +100,7 @@ public class ReflectionHelper {
         try {
             final Class<?> clazz = Class.forName("com.floragunn.searchguard.dlic.rest.api.SearchGuardRestApiActions");
             final Collection<RestHandler> ret = (Collection<RestHandler>) clazz
-                    .getDeclaredMethod("getHandler", Settings.class, Path.class, RestController.class, Client.class, AdminDNs.class, IndexBaseConfigurationRepository.class,
+                    .getDeclaredMethod("getHandler", Settings.class, Path.class, RestController.class, Client.class, AdminDNs.class, ConfigurationRepository.class,
                             ClusterService.class, PrincipalExtractor.class, PrivilegesEvaluator.class, ThreadPool.class, AuditLog.class)
                     .invoke(null, settings, configPath, restController, localClient, adminDns, cr, cs, principalExtractor, evaluator, threadPool, auditlog);
             addLoadedModule(clazz);

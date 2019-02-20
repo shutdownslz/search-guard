@@ -16,13 +16,13 @@ public enum CType {
     ROLES(toMap(1, Role.class)),
     ROLESMAPPING(toMap(1, RoleMappings.class));
     
-    private Map<Integer, Class> implementations;
+    private Map<Integer, Class<?>> implementations;
 
-    private CType(Map<Integer, Class> implementations) {
+    private CType(Map<Integer, Class<?>> implementations) {
         this.implementations = implementations;
     }
 
-    public Map<Integer, Class> getImplementationClass() {
+    public Map<Integer, Class<?>> getImplementationClass() {
         return Collections.unmodifiableMap(implementations);
     }
     
@@ -35,6 +35,7 @@ public enum CType {
     }
     
     public static Config getConfig(SgDynamicConfiguration<?> sdc) {
+        @SuppressWarnings("unchecked")
         SgDynamicConfiguration<Config> c = (SgDynamicConfiguration<Config>) sdc;
         return c.getCEntry("searchguard");
     }
@@ -47,10 +48,10 @@ public enum CType {
         return Arrays.stream(strings).map(c->CType.fromString(c)).collect(Collectors.toSet());
     }
     
-    private static Map<Integer, Class> toMap(Object... objects) {
-        Map<Integer, Class> map = new HashMap<Integer, Class>();
+    private static Map<Integer, Class<?>> toMap(Object... objects) {
+        Map<Integer, Class<?>> map = new HashMap<Integer, Class<?>>();
         for(int i=0; i<objects.length;i=i+2) {
-            map.put((Integer)objects[i], (Class)objects[i+1]);
+            map.put((Integer)objects[i], (Class<?>)objects[i+1]);
         }
         return Collections.unmodifiableMap(map);
     }
