@@ -166,7 +166,7 @@ public class ConfigModel {
                     + "Legacy style: " + oldStyleApplicationPermissions + "\n" //
                     + "New style: " + newStyleApplicationPermissions);
             _sgRoles.setFormatVersion(-1);
-        } else if (oldStyleApplicationPermissions.size() > 0) {
+        } else if (oldStyleApplicationPermissions.size() > 0 || !kibanaRoleHasApplicationsBlock) {
             _sgRoles.setFormatVersion(1);
         } else if (newStyleApplicationPermissions.size() > 0) {
             _sgRoles.setFormatVersion(2);
