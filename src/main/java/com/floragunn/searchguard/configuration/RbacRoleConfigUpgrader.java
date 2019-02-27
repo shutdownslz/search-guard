@@ -67,7 +67,7 @@ public class RbacRoleConfigUpgrader {
                 handleTenantsOfRole(sgRole, tenants, updatedSettingsBuilder);
             }
 
-            if ("sg_kibana_user".equals(sgRole) && existingSettings.getAsList(sgRole + ".applications") == null) {
+            if ("sg_kibana_user".equals(sgRole) && existingSettings.get(sgRole + ".applications") == null) {
                 handleSgKibanaUserRole(sgRole, existingSettings, updatedSettingsBuilder);
             }
         }
