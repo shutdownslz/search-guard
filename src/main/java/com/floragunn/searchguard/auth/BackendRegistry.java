@@ -90,10 +90,14 @@ public class BackendRegistry implements ConfigurationChangeListener {
     private final ThreadPool threadPool;
     private final UserInjector userInjector;
     private final int ttlInMin;
-    private Cache<AuthCredentials, User> userCache;
-    private Cache<String, User> userCacheTransport;
-    private Cache<AuthCredentials, User> authenticatedUserCacheTransport;
-    private Cache<String, User> restImpersonationCache;
+    private Cache<AuthCredentials, User> userCache; //rest standard
+    private Cache<String, User> restImpersonationCache; //used for rest impersonation
+    private Cache<String, User> userCacheTransport; //transport no creds, possibly impersonated
+    private Cache<AuthCredentials, User> authenticatedUserCacheTransport; //transport creds, no impersonation
+    
+    private Cache<User, Set<String>> transportRoleCache; //
+    private Cache<User, Set<String>> restRoleCache; //
+    
     private volatile String transportUsernameAttribute = null;
     
     private void createCaches() {
@@ -129,6 +133,26 @@ public class BackendRegistry implements ConfigurationChangeListener {
                 .removalListener(new RemovalListener<String, User>() {
                     @Override
                     public void onRemoval(RemovalNotification<String, User> notification) {
+                        log.debug("Clear user cache for {} due to {}", notification.getKey(), notification.getCause());
+                    }
+                }).build();
+        
+        
+        
+        transportRoleCache = CacheBuilder.newBuilder()
+                .expireAfterWrite(ttlInMin, TimeUnit.MINUTES)
+                .removalListener(new RemovalListener<User, Set<String>>() {
+                    @Override
+                    public void onRemoval(RemovalNotification<User, Set<String>> notification) {
+                        log.debug("Clear user cache for {} due to {}", notification.getKey(), notification.getCause());
+                    }
+                }).build();
+        
+        restRoleCache = CacheBuilder.newBuilder()
+                .expireAfterWrite(ttlInMin, TimeUnit.MINUTES)
+                .removalListener(new RemovalListener<User, Set<String>>() {
+                    @Override
+                    public void onRemoval(RemovalNotification<User, Set<String>> notification) {
                         log.debug("Clear user cache for {} due to {}", notification.getKey(), notification.getCause());
                     }
                 }).build();
@@ -179,6 +203,8 @@ public class BackendRegistry implements ConfigurationChangeListener {
         userCacheTransport.invalidateAll();
         authenticatedUserCacheTransport.invalidateAll();
         restImpersonationCache.invalidateAll();
+        restRoleCache.invalidateAll();
+        transportRoleCache.invalidateAll();
     }
 
     @Override
@@ -356,7 +382,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
             } else {
                  //auth credentials submitted
                 //impersonation not possible, if requested it will be ignored
-                authenticatedUser = authcz(authenticatedUserCacheTransport, creds, authDomain.getBackend(), transportAuthorizers);
+                authenticatedUser = authcz(authenticatedUserCacheTransport, transportRoleCache, creds, authDomain.getBackend(), transportAuthorizers);
             }
 
             if(authenticatedUser == null) {
@@ -494,7 +520,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
             }
 
             //http completed       
-            authenticatedUser = authcz(userCache, ac, authDomain.getBackend(), restAuthorizers);
+            authenticatedUser = authcz(userCache, restRoleCache, ac, authDomain.getBackend(), restAuthorizers);
 
             if(authenticatedUser == null) {
                 if(log.isDebugEnabled()) {
@@ -581,23 +607,15 @@ public class BackendRegistry implements ConfigurationChangeListener {
         }
 
         try {
-            return cache.get(user.getName(), new Callable<User>() {
+            return cache.get(user.getName(), new Callable<User>() { //no cache miss in case of noop
                 @Override
                 public User call() throws Exception {
                     if(log.isDebugEnabled()) {
                         log.debug(user.getName()+" not cached, return from "+authenticationBackend.getType()+" backend directly");
                     }
                     if(authenticationBackend.exists(user)) {
-                        for (final AuthorizationBackend ab : authorizers) {
-                            try {
-                                ab.fillRoles(user, new AuthCredentials(user.getName()));
-                            } catch (Exception e) {
-                                log.error("Cannot retrieve roles for {} from {} due to {}", user.getName(), ab.getType(), e.toString(), e);
-                            }
-                        }
-
-                    return user;
-
+                        authz(user, null, authorizers); //no role cache because no miss here in case of noop
+                        return user;
                     }
 
                     if(log.isDebugEnabled()) {
@@ -613,6 +631,43 @@ public class BackendRegistry implements ConfigurationChangeListener {
             return null;
         }
     }
+    
+    
+    private void authz(User authenticatedUser, Cache<User, Set<String>> roleCache, final Set<AuthorizationBackend> authorizers) {
+        
+        if(authenticatedUser == null) {
+            return;
+        }
+        
+        if(roleCache != null) {
+
+            final Set<String> cachedBackendRoles = roleCache.getIfPresent(authenticatedUser);
+            
+            if(cachedBackendRoles != null) {
+                authenticatedUser.addRoles(new HashSet<String>(cachedBackendRoles));
+                return;
+            }
+        }
+        
+        if(authorizers == null || authorizers.isEmpty()) {
+            return;
+        }
+        
+        for (final AuthorizationBackend ab : authorizers) {
+            try {
+                ab.fillRoles(authenticatedUser, new AuthCredentials(authenticatedUser.getName()));
+                new Exception().printStackTrace();
+            } catch (Exception e) {
+                log.error("Cannot retrieve roles for {} from {} due to {}", authenticatedUser, ab.getType(), e.toString(), e);
+            }
+        }
+        
+        if(roleCache != null) {
+             roleCache.put(authenticatedUser, new HashSet<String>(authenticatedUser.getRoles()));
+        }
+    }
+    
+    
     /**
      * no auditlog, throw no exception, does also authz for all authorizers
      *
@@ -621,7 +676,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
      * @param authDomain
      * @return null if user cannot b authenticated
      */
-    private User authcz(final Cache<AuthCredentials, User> cache, final AuthCredentials ac, final AuthenticationBackend authBackend, final Set<AuthorizationBackend> authorizers) {
+    private User authcz(final Cache<AuthCredentials, User> cache, Cache<User, Set<String>> roleCache, final AuthCredentials ac, final AuthenticationBackend authBackend, final Set<AuthorizationBackend> authorizers) {
         if(ac == null) {
             return null;
         }
@@ -643,13 +698,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
                         log.debug(ac.getUsername()+" not cached, return from "+authBackend.getType()+" backend directly");
                     }
                     final User authenticatedUser = authBackend.authenticate(ac);
-                    for (final AuthorizationBackend ab : authorizers) {
-                        try {
-                            ab.fillRoles(authenticatedUser, new AuthCredentials(authenticatedUser.getName()));
-                        } catch (Exception e) {
-                            log.error("Cannot retrieve roles for {} from {} due to {}", authenticatedUser, ab.getType(), e.toString(), e);
-                        }
-                    }
+                    authz(authenticatedUser, roleCache, authorizers);
 
                     return authenticatedUser;
                 }
