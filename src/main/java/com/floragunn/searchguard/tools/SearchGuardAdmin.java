@@ -135,13 +135,13 @@ public class SearchGuardAdmin {
             System.out.println();
             System.exit(-1);
         }
-        catch (Exception e) {
+        catch (Throwable e) {
             
             if (e instanceof ElasticsearchException 
                     && e.getMessage() != null 
                     && e.getMessage().contains("no permissions")) {
 
-                System.out.println("ERR: You try to connect with a TLS node certificate instead of an admin client certificate");                
+                System.out.println("ERR: You try to connect with a TLS node certificate instead of an admin client certificate");
                 System.out.println("For more information please look here: http://docs.search-guard.com/v6/troubleshooting-sgadmin");
                 System.out.println();
                 System.exit(-1);
