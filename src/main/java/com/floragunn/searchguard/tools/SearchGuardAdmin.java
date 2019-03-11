@@ -999,10 +999,6 @@ public class SearchGuardAdmin {
             System.out.println("WARN: It makes no sense to specify -cd as well as -f");
         }
         
-        if(line.hasOption("cd") && line.hasOption("r")) {
-            System.out.println("WARN: It makes no sense to specify -cd as well as -r");
-        }
-        
         if(line.hasOption("cn") && line.hasOption("icl")) {
             throw new ParseException("Only set one of -cn or -icl");
         }
