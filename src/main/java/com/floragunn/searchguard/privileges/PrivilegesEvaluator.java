@@ -366,7 +366,7 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
         }
 
         
-        // check snapshot/restore requests 
+        // check dlsfls 
         if (dlsFlsEvaluator.evaluate(clusterService, resolver, requestedResolved, user, sgRoles, presponse).isComplete()) {
             return presponse;
         }
