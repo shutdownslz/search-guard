@@ -119,7 +119,9 @@ public class SearchGuardInterceptor {
                             || k.startsWith(ConfigConstants.SG_INITIAL_ACTION_CLASS_HEADER)
                             )));
 
-            ensureCorrectHeaders(remoteAdress0, user0, origin0);
+            if(!action.startsWith("internal:")) {
+                ensureCorrectHeaders(remoteAdress0, user0, origin0);
+            }
 
             if(actionTrace.isTraceEnabled()) {
                 getThreadContext().putHeader("_sg_trace"+System.currentTimeMillis()+"#"+UUID.randomUUID().toString(), Thread.currentThread().getName()+" IC -> "+action+" "+getThreadContext().getHeaders().entrySet().stream().filter(p->!p.getKey().startsWith("_sg_trace")).collect(Collectors.toMap(p -> p.getKey(), p -> p.getValue())));
