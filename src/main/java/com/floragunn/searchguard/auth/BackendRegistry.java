@@ -452,8 +452,8 @@ public class BackendRegistry implements ConfigurationChangeListener {
         
         final TransportAddress remoteAddress = xffResolver.resolve(request);
         
-        if(log.isDebugEnabled()) {
-    		log.debug("Rest authentication request from {} [original: {}]", remoteAddress, request.getRemoteAddress());
+        if(log.isTraceEnabled()) {
+            log.trace("Rest authentication request from {} [original: {}]", remoteAddress, request.getRemoteAddress());
     	}
 
         threadContext.putTransient(ConfigConstants.SG_REMOTE_ADDRESS, remoteAddress);
