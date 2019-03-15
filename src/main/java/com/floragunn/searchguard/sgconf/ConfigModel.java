@@ -27,9 +27,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -60,7 +67,10 @@ public class ConfigModel implements ConfigurationChangeListener {
     @Override
     public void onChange(Settings rolesSettings) {
         final SgRoles tmp = reload(rolesSettings);
-        sgRoles = tmp;
+
+        if(tmp != null) {
+            sgRoles = tmp;
+        }
     }
 
     public SgRoles getSgRoles() {
@@ -68,76 +78,110 @@ public class ConfigModel implements ConfigurationChangeListener {
     }
 
     private SgRoles reload(Settings rolesSettings) {
-        SgRoles _sgRoles = new SgRoles();
-        Set<String> sgRoles = rolesSettings.names();
-        for(String sgRole: sgRoles) {
 
-            SgRole _sgRole = new SgRole(sgRole);
+        final Set<Future<SgRole>> futures = new HashSet<>(5000);
+        final ExecutorService execs = Executors.newFixedThreadPool(10);
+        
+        for(String sgRole: rolesSettings.names()) {
+            
+            Future<SgRole> future = execs.submit(new Callable<SgRole>() {
+                
+                @Override
+                public SgRole call() throws Exception {
+                    SgRole _sgRole = new SgRole(sgRole);
 
-            final Settings sgRoleSettings = rolesSettings.getByPrefix(sgRole);
-            if (sgRoleSettings.names().isEmpty()) {
-                continue;
-            }
-
-            final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
-            _sgRole.addClusterPerms(permittedClusterActions);
-
-            Settings tenants = rolesSettings.getByPrefix(sgRole+".tenants.");
-
-            if(tenants != null) {
-                for(String tenant: tenants.names()) {
-
-                    //if(tenant.equals(user.getName())) {
-                    //    continue;
-                    //}
-
-                    if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
-                        _sgRole.addTenant(new Tenant(tenant, true));
-                    } else {
-                        _sgRole.addTenant(new Tenant(tenant, false));
-                        //if(_sgRole.tenants.stream().filter(t->t.tenant.equals(tenant)).count() > 0) { //RW outperforms RO
-                        //    _sgRole.addTenant(new Tenant(tenant, false));
-                        //}
+                    final Settings sgRoleSettings = rolesSettings.getByPrefix(sgRole);
+                    if (!sgRoleSettings.names().isEmpty()) {
+                        final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
+                        _sgRole.addClusterPerms(permittedClusterActions);
+            
+                        Settings tenants = rolesSettings.getByPrefix(sgRole+".tenants.");
+            
+                        if(tenants != null) {
+                            for(String tenant: tenants.names()) {
+            
+                                //if(tenant.equals(user.getName())) {
+                                //    continue;
+                                //}
+            
+                                if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
+                                    _sgRole.addTenant(new Tenant(tenant, true));
+                                } else {
+                                    _sgRole.addTenant(new Tenant(tenant, false));
+                                    //if(_sgRole.tenants.stream().filter(t->t.tenant.equals(tenant)).count() > 0) { //RW outperforms RO
+                                    //    _sgRole.addTenant(new Tenant(tenant, false));
+                                    //}
+                                }
+                            }
+                        }
+            
+            
+                        final Map<String, Settings> permittedAliasesIndices = sgRoleSettings.getGroups(".indices");
+            
+                        for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
+            
+                            final String resolvedRole = sgRole;
+                            final String indexPattern = permittedAliasesIndex;
+            
+                            final String dls = rolesSettings.get(resolvedRole+".indices."+indexPattern+"._dls_");
+                            final List<String> fls = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"._fls_");
+                            final List<String> maskedFields = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"._masked_fields_");
+            
+                            IndexPattern _indexPattern = new IndexPattern(indexPattern);
+                            _indexPattern.setDlsQuery(dls);
+                            _indexPattern.addFlsFields(fls);
+                            _indexPattern.addMaskedFields(maskedFields);
+            
+                            for(String type: permittedAliasesIndices.get(indexPattern).names()) {
+            
+                                if(IGNORED_TYPES.contains(type)) {
+                                    continue;
+                                }
+            
+                                TypePerm typePerm = new TypePerm(type);
+                                final List<String> perms = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"."+type);
+                                typePerm.addPerms(ah.resolvedActions(perms));
+                                _indexPattern.addTypePerms(typePerm);
+                            }
+            
+                            _sgRole.addIndexPattern(_indexPattern);
+            
+                        }
+                        return _sgRole;
                     }
+                    
+                    return null;
                 }
-            }
-
-
-            final Map<String, Settings> permittedAliasesIndices = sgRoleSettings.getGroups(".indices");
-
-            for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
-
-                final String resolvedRole = sgRole;
-                final String indexPattern = permittedAliasesIndex;
-
-                final String dls = rolesSettings.get(resolvedRole+".indices."+indexPattern+"._dls_");
-                final List<String> fls = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"._fls_");
-                final List<String> maskedFields = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"._masked_fields_");
-
-                IndexPattern _indexPattern = new IndexPattern(indexPattern);
-                _indexPattern.setDlsQuery(dls);
-                _indexPattern.addFlsFields(fls);
-                _indexPattern.addMaskedFields(maskedFields);
-
-                for(String type: permittedAliasesIndices.get(indexPattern).names()) {
-
-                    if(IGNORED_TYPES.contains(type)) {
-                        continue;
-                    }
-
-                    TypePerm typePerm = new TypePerm(type);
-                    final List<String> perms = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"."+type);
-                    typePerm.addPerms(ah.resolvedActions(perms));
-                    _indexPattern.addTypePerms(typePerm);
-                }
-
-                _sgRole.addIndexPattern(_indexPattern);
-
-            }
-            _sgRoles.addSgRole(_sgRole);
+            });
+        
+            futures.add(future);
+        }
+        
+        
+        execs.shutdown();
+        try {
+            execs.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted (1) while loading roles");
+            return null;
         }
 
-        return _sgRoles;
+        try {
+            SgRoles _sgRoles = new SgRoles(futures.size());
+            for(Future<SgRole> future: futures) {
+                _sgRoles.addSgRole(future.get());
+            }
+            
+            return _sgRoles;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted (2) while loading roles");
+            return null;
+        } catch (ExecutionException e) {
+            log.error("Error while updating roles: {}",e.getCause(),e.getCause());
+            throw ExceptionsHelper.convertToElastic(e);
+        }
     }
 
     //beans
@@ -146,9 +190,10 @@ public class ConfigModel implements ConfigurationChangeListener {
 
         protected final Logger log = LogManager.getLogger(this.getClass());
 
-        final Set<SgRole> roles = new HashSet<>(100);
+        final Set<SgRole> roles;
 
-        private SgRoles() {
+        private SgRoles(int roleCount) {
+            roles = new HashSet<>(roleCount);
         }
 
         private SgRoles addSgRole(SgRole sgRole) {
@@ -193,7 +238,7 @@ public class ConfigModel implements ConfigurationChangeListener {
         }
 
         public SgRoles filter(Set<String> keep) {
-            final SgRoles retVal = new SgRoles();
+            final SgRoles retVal = new SgRoles(roles.size());
             for(SgRole sgr: roles) {
                 if(keep.contains(sgr.getName())) {
                     retVal.addSgRole(sgr);

@@ -27,10 +27,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -178,26 +185,68 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
 
         @Override
         public void onChange(Settings roles) {
-            final SetMultimap<String, Tuple<String, Boolean>> tenantsMM_ = SetMultimapBuilder.hashKeys().hashSetValues().build();
+            
+            final Set<Future<Tuple<String, Set<Tuple<String, Boolean>>>>> futures = new HashSet<>(roles.size());
+            
+            final ExecutorService execs = Executors.newFixedThreadPool(10);
+            
             for(String sgRole: roles.names()) {
-                final Settings tenants = getRolesSettings().getByPrefix(sgRole+".tenants.");
+                
+                Future<Tuple<String, Set<Tuple<String, Boolean>>>> future = execs.submit(new Callable<Tuple<String, Set<Tuple<String, Boolean>>>>() {
+                    @Override
+                    public Tuple<String, Set<Tuple<String, Boolean>>> call() throws Exception {
+                        final Set<Tuple<String, Boolean>> tuples = new HashSet<>();
+                        final Settings tenants = getRolesSettings().getByPrefix(sgRole+".tenants.");
 
-                if(tenants != null) {
-                    for(String tenant: tenants.names()) {
+                        if(tenants != null) {
+                            for(String tenant: tenants.names()) {
 
-                        if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
-                            //RW
-                            tenantsMM_.put(sgRole, new Tuple<String, Boolean>(tenant, true));
-                        } else {
-                            //RO
-                            //if(!tenantsMM.containsValue(value)) { //RW outperforms RO
-                                tenantsMM_.put(sgRole, new Tuple<String, Boolean>(tenant, false));
-                            //}
+                                if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
+                                    //RW
+                                    tuples.add(new Tuple<String, Boolean>(tenant, true));
+                                } else {
+                                    //RO
+                                    //if(!tenantsMM.containsValue(value)) { //RW outperforms RO
+                                    tuples.add(new Tuple<String, Boolean>(tenant, false));
+                                    //}
+                                }
+                            }
                         }
+                        
+                        return new Tuple<String, Set<Tuple<String, Boolean>>>(sgRole, tuples);
                     }
-                }
+                });
+                
+                futures.add(future);
+                
             }
-            tenantsMM = tenantsMM_;
+            
+            execs.shutdown();
+            try {
+                execs.awaitTermination(30, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Thread interrupted (1) while loading roles");
+                return;
+            }
+            
+            try {
+                final SetMultimap<String, Tuple<String, Boolean>> tenantsMM_ = SetMultimapBuilder.hashKeys(futures.size()).hashSetValues(16).build();
+                
+                for(Future<Tuple<String, Set<Tuple<String, Boolean>>>> future: futures) {
+                    Tuple<String, Set<Tuple<String, Boolean>>> result = future.get();
+                    tenantsMM_.putAll(result.v1(), result.v2());
+                }
+                
+                tenantsMM = tenantsMM_;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                log.error("Thread interrupted (2) while loading roles");
+                return;
+            } catch (ExecutionException e) {
+                log.error("Error while updating roles: {}",e.getCause(),e.getCause());
+                throw ExceptionsHelper.convertToElastic(e);
+            }
             
         }
     }
