@@ -20,8 +20,10 @@ package com.floragunn.searchguard.support;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
@@ -56,30 +58,24 @@ public final class SgUtils {
         return Locale.getDefault();
     }
 
-    public static String evalMap(final Map<String,Set<String>> map, final String index) {
+    public static Set<String> getIndexPatterns(final Map<String,Set<String>> map, final String concreteIndex) {
 
         if (map == null) {
             return null;
         }
 
-        if (map.get(index) != null) {
-            return index;
-        } else if (map.get("*") != null) {
-            return "*";
-        }
-        if (map.get("_all") != null) {
-            return "_all";
-        }
+        assert map.get("_all") == null;
 
+        final Set<String> ret = new HashSet<>(map.size()*3);
+        
         //regex
-        for(final String key: map.keySet()) {
-            if(WildcardMatcher.containsWildcard(key)
-                    && WildcardMatcher.match(key, index)) {
-                return key;
+        for(final Entry<String, Set<String>> entry: map.entrySet()) {
+            if(WildcardMatcher.match(entry.getKey(), concreteIndex)) {
+                ret.addAll(entry.getValue());
             }
         }
 
-        return null;
+        return ret.size()==0?null:Collections.unmodifiableSet(ret);
     }
     
     @SafeVarargs

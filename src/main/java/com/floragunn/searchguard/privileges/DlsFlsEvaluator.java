@@ -54,10 +54,10 @@ public class DlsFlsEvaluator {
     public PrivilegesEvaluatorResponse evaluate(final ClusterService clusterService, final IndexNameExpressionResolver resolver, final Resolved requestedResolved, final User user,
             final SgRoles sgRoles, final PrivilegesEvaluatorResponse presponse) {
 
-        ThreadContext threadContext = threadPool.getThreadContext();
+        final ThreadContext threadContext = threadPool.getThreadContext();
 
         // maskedFields
-        final Map<String, Set<String>> maskedFieldsMap = sgRoles.getMaskedFields(user, resolver, clusterService);
+        final Map<String, Set<String>> maskedFieldsMap = sgRoles.getMaskedFields(user, requestedResolved);
 
         if (maskedFieldsMap != null && !maskedFieldsMap.isEmpty()) {
             if (threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER) != null) {
@@ -90,8 +90,7 @@ public class DlsFlsEvaluator {
         
 
         // attach dls/fls map if not already done
-        // TODO do this only if enterprise module are loaded
-        final Tuple<Map<String, Set<String>>, Map<String, Set<String>>> dlsFls = sgRoles.getDlsFls(user, resolver, clusterService);
+        final Tuple<Map<String, Set<String>>, Map<String, Set<String>>> dlsFls = sgRoles.getDlsFls(user, requestedResolved);
         final Map<String, Set<String>> dlsQueries = dlsFls.v1();
         final Map<String, Set<String>> flsFields = dlsFls.v2();
 

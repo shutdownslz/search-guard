@@ -544,14 +544,14 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                         final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper.deserializeSafeFromHeader(threadPool.getThreadContext(),
                                 ConfigConstants.SG_FLS_FIELDS_HEADER);
                         
-                        if(SgUtils.evalMap(allowedFlsFields, index().getName()) != null) {
+                        if(SgUtils.getIndexPatterns(allowedFlsFields, index().getName()) != null) {
                             return weight;
                         } else {
                             
                             final Map<String, Set<String>> maskedFieldsMap = (Map<String, Set<String>>) HeaderHelper.deserializeSafeFromHeader(threadPool.getThreadContext(),
                                     ConfigConstants.SG_MASKED_FIELD_HEADER);
                             
-                            if(SgUtils.evalMap(maskedFieldsMap, index().getName()) != null) {
+                            if(SgUtils.getIndexPatterns(maskedFieldsMap, index().getName()) != null) {
                                 return weight;
                             } else {
                                 return nodeCache.doCache(weight, policy);
@@ -1022,13 +1022,13 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             final Map<String, Set<String>> allowedFlsFields = (Map<String, Set<String>>) HeaderHelper
                     .deserializeSafeFromHeader(threadPool.getThreadContext(), ConfigConstants.SG_FLS_FIELDS_HEADER);
 
-            final String eval = SgUtils.evalMap(allowedFlsFields, index);
+            final Set<String> eval = SgUtils.getIndexPatterns(allowedFlsFields, index);
 
             if (eval == null) {
                 return field -> true;
             } else {
 
-                final Set<String> includesExcludes = allowedFlsFields.get(eval);
+                final Set<String> includesExcludes = eval;
 
                 final Set<String> includesSet = new HashSet<>(includesExcludes.size());
                 final Set<String> excludesSet = new HashSet<>(includesExcludes.size());

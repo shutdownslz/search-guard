@@ -202,18 +202,24 @@ public class ConfigModel implements ConfigurationChangeListener {
             return retVal;
         }
 
-        public Map<String,Set<String>> getMaskedFields(User user, IndexNameExpressionResolver resolver, ClusterService cs) {
+        public Map<String,Set<String>> getMaskedFields(User user, Resolved requestResolved) {
             final Map<String,Set<String>> maskedFieldsMap = new HashMap<String, Set<String>>();
+            //final Set<String> nomaskedPatterns = new HashSet<>();
 
             for(SgRole sgr: roles) {
                 for(IndexPattern ip: sgr.getIpatterns()) {
                     final Set<String> maskedFields = ip.getMaskedFields();
-                    final String indexPattern = ip.getUnresolvedIndexPattern(user);
-                    String[] concreteIndices = new String[0];
-
-                    if((maskedFields != null && maskedFields.size() > 0)) {
-                        concreteIndices = ip.getResolvedIndexPattern(user, resolver, cs);
+                    String indexPattern = ip.getUnresolvedIndexPattern(user);
+                    
+                    if("_all".equals(indexPattern)) {
+                        indexPattern = "*";
                     }
+                    
+//                    String[] concreteIndices = new String[0];
+//
+//                    if((maskedFields != null && maskedFields.size() > 0)) {
+//                        concreteIndices = ip.getResolvedIndexPattern(user, resolver, cs);
+//                    }
 
                     if(maskedFields != null && maskedFields.size() > 0) {
 
@@ -224,36 +230,58 @@ public class ConfigModel implements ConfigurationChangeListener {
                             maskedFieldsMap.get(indexPattern).addAll(Sets.newHashSet(maskedFields));
                         }
 
-                        for (int i = 0; i < concreteIndices.length; i++) {
-                            final String ci = concreteIndices[i];
-                            if(maskedFieldsMap.containsKey(ci)) {
-                                maskedFieldsMap.get(ci).addAll(Sets.newHashSet(maskedFields));
-                            } else {
-                                maskedFieldsMap.put(ci, new HashSet<String>());
-                                maskedFieldsMap.get(ci).addAll(Sets.newHashSet(maskedFields));
-                            }
-                        }
+//                        for (int i = 0; i < concreteIndices.length; i++) {
+//                            final String ci = concreteIndices[i];
+//                            if(maskedFieldsMap.containsKey(ci)) {
+//                                maskedFieldsMap.get(ci).addAll(Sets.newHashSet(maskedFields));
+//                            } else {
+//                                maskedFieldsMap.put(ci, new HashSet<String>());
+//                                maskedFieldsMap.get(ci).addAll(Sets.newHashSet(maskedFields));
+//                            }
+//                        }
+                    } else {
+                        //nomaskedPatterns.add(indexPattern);
                     }
                 }
             }
-            return maskedFieldsMap;
+            
+            //Enable if we assume match all for any role not containing masked fields
+            //for(String nomaskedPattern: nomaskedPatterns) {
+                //WildcardMatcher.wildcardRemoveFromSet(maskedFieldsMap.keySet(), nomaskedPattern);
+            //}
+            
+            return Collections.unmodifiableMap(maskedFieldsMap);
         }
 
-        public Tuple<Map<String,Set<String>>,Map<String,Set<String>>> getDlsFls(User user, IndexNameExpressionResolver resolver, ClusterService cs) {
+        public Tuple<Map<String,Set<String>>,Map<String,Set<String>>> getDlsFls(User user, Resolved requestResolved/*, IndexNameExpressionResolver resolver, ClusterService cs*/) {
 
             final Map<String,Set<String>> dlsQueries = new HashMap<String, Set<String>>();
             final Map<String,Set<String>> flsFields = new HashMap<String, Set<String>>();
+            
+            //final Set<String> nodlsPatterns = new HashSet<>();
+            //final Set<String> noflsPatterns = new HashSet<>();
 
             for(SgRole sgr: roles) {
                 for(IndexPattern ip: sgr.getIpatterns()) {
+                    
+                    String indexPattern = ip.getUnresolvedIndexPattern(user);
+                    if("_all".equals(indexPattern)) {
+                        indexPattern = "*";
+                    }
+                    
+                    //if(!WildcardMatcher.matchAny(indexPattern, requestResolved.getAllIndices())) {
+                    //    continue;
+                    //}
+                    
+                    
                     final Set<String> fls = ip.getFls();
                     final String dls = ip.getDlsQuery(user);
-                    final String indexPattern = ip.getUnresolvedIndexPattern(user);
-                    String[] concreteIndices = new String[0];
+                    
+                    //String[] concreteIndices = new String[0];
 
-                    if((dls != null && dls.length() > 0) || (fls != null && fls.size() > 0)) {
-                        concreteIndices = ip.getResolvedIndexPattern(user, resolver, cs);
-                    }
+//                    if((dls != null && dls.length() > 0) || (fls != null && fls.size() > 0)) {
+//                        concreteIndices = ip.getResolvedIndexPattern(user, resolver, cs);
+//                    }
 
                     if(dls != null && dls.length() > 0) {
 
@@ -265,16 +293,18 @@ public class ConfigModel implements ConfigurationChangeListener {
                         }
 
 
-                        for (int i = 0; i < concreteIndices.length; i++) {
-                            final String ci = concreteIndices[i];
-                            if(dlsQueries.containsKey(ci)) {
-                                dlsQueries.get(ci).add(dls);
-                            } else {
-                                dlsQueries.put(ci, new HashSet<String>());
-                                dlsQueries.get(ci).add(dls);
-                            }
-                        }
+//                        for (int i = 0; i < concreteIndices.length; i++) {
+//                            final String ci = concreteIndices[i];
+//                            if(dlsQueries.containsKey(ci)) {
+//                                dlsQueries.get(ci).add(dls);
+//                            } else {
+//                                dlsQueries.put(ci, new HashSet<String>());
+//                                dlsQueries.get(ci).add(dls);
+//                            }
+//                        }
 
+                    } else {
+                        //nodlsPatterns.add(indexPattern);
                     }
 
                     if(fls != null && fls.size() > 0) {
@@ -286,20 +316,34 @@ public class ConfigModel implements ConfigurationChangeListener {
                             flsFields.get(indexPattern).addAll(Sets.newHashSet(fls));
                         }
 
-                        for (int i = 0; i < concreteIndices.length; i++) {
-                            final String ci = concreteIndices[i];
-                            if(flsFields.containsKey(ci)) {
-                                flsFields.get(ci).addAll(Sets.newHashSet(fls));
-                            } else {
-                                flsFields.put(ci, new HashSet<String>());
-                                flsFields.get(ci).addAll(Sets.newHashSet(fls));
-                            }
-                        }
+//                        for (int i = 0; i < concreteIndices.length; i++) {
+//                            final String ci = concreteIndices[i];
+//                            if(flsFields.containsKey(ci)) {
+//                                flsFields.get(ci).addAll(Sets.newHashSet(fls));
+//                            } else {
+//                                flsFields.put(ci, new HashSet<String>());
+//                                flsFields.get(ci).addAll(Sets.newHashSet(fls));
+//                            }
+//                        }
+                    } else {
+                        //noflsPatterns.add(indexPattern);
                     }
                 }
             }
+            
 
-            return new Tuple<Map<String,Set<String>>, Map<String,Set<String>>>(dlsQueries, flsFields);
+            //Enable if we assume match all for any role not containing dls
+            //for(String nodlsPattern: nodlsPatterns) {
+                //WildcardMatcher.wildcardRemoveFromSet(dlsQueries.keySet(), nodlsPattern);
+            //}
+            
+            //Enable if we assume match all for any role not containing fls
+            //for(String noflsPattern: noflsPatterns) {
+                //WildcardMatcher.wildcardRemoveFromSet(flsFields.keySet(), noflsPattern);
+            //}
+            
+
+            return new Tuple<Map<String,Set<String>>, Map<String,Set<String>>>(Collections.unmodifiableMap(dlsQueries), Collections.unmodifiableMap(flsFields));
 
         }
 
