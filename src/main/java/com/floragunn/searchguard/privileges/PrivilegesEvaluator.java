@@ -107,10 +107,11 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
     private final DlsFlsEvaluator dlsFlsEvaluator;
     private RoleMappingHolder roleMappingHolder = null;
     private TenantHolder tenantHolder = null;
+    private final boolean enterpriseModulesEnabled;
 
     public PrivilegesEvaluator(final ClusterService clusterService, final ThreadPool threadPool, final ConfigurationRepository configurationRepository, final ActionGroupHolder ah,
             final IndexNameExpressionResolver resolver, AuditLog auditLog, final Settings settings, final PrivilegesInterceptor privilegesInterceptor,
-            final ClusterInfoHolder clusterInfoHolder, final IndexResolverReplacer irr) {
+            final ClusterInfoHolder clusterInfoHolder, final IndexResolverReplacer irr, boolean enterpriseModulesEnabled) {
 
         super();
         this.configurationRepository = configurationRepository;
@@ -143,6 +144,7 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
         termsAggregationEvaluator = new TermsAggregationEvaluator();
         tenantHolder = new TenantHolder();
         configurationRepository.subscribeOnChange("roles", tenantHolder);
+        this.enterpriseModulesEnabled = enterpriseModulesEnabled;
     }
     
     private class TenantHolder implements ConfigurationChangeListener {
@@ -367,9 +369,15 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
 
         
         // check dlsfls 
-        if (dlsFlsEvaluator.evaluate(clusterService, resolver, requestedResolved, user, sgRoles, presponse).isComplete()) {
+        if (enterpriseModulesEnabled && dlsFlsEvaluator.evaluate(clusterService, resolver, requestedResolved, user, sgRoles, presponse).isComplete()) {
             return presponse;
         }
+        
+        if (requestedResolved == Resolved._EMPTY) {
+            presponse.allowed = true;
+            return presponse.markComplete();
+        }
+    
         
         // check snapshot/restore requests 
         if (snapshotRestoreEvaluator.evaluate(request, task, action0, clusterInfoHolder, presponse).isComplete()) {
