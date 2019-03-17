@@ -44,6 +44,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -434,6 +436,35 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
 
         client.index(ir.type(type).id(id).setRefreshPolicy(RefreshPolicy.IMMEDIATE).version(version).source(config, bytesRef),
                 new ConfigUpdatingActionListener<IndexResponse>(client, actionListener));
+    }
+
+    public void saveAndUpdateConfigurations(final Client client, Map<String, Tuple<Long, BytesReference>> config,
+            ActionListener<BulkResponse> actionListener) {
+        BulkRequest bulkRequest = new BulkRequest();
+        boolean legacy = false;
+
+        if (clusterService.state().metaData().index(this.searchguardIndex).mapping("config") != null) {
+            legacy = true;
+        }
+
+        for (Map.Entry<String, Tuple<Long, BytesReference>> entry : config.entrySet()) {
+            String type = "sg";
+            String id = entry.getKey();
+
+            if (legacy) {
+                type = entry.getKey();
+                id = "0";
+            }
+
+            bulkRequest.add(new IndexRequest(this.searchguardIndex).type(type).id(id).version(entry.getValue().v1()).source(entry.getKey(),
+                    entry.getValue().v2()));
+
+        }
+
+        bulkRequest.setRefreshPolicy(RefreshPolicy.IMMEDIATE);
+        
+        client.bulk(bulkRequest,
+                new ConfigUpdatingActionListener<BulkResponse>(client, new ConfigUpdatingActionListener<BulkResponse>(client, actionListener)));
     }
 
     private Map<String, Tuple<Long, Settings>> validate(Map<String, Tuple<Long, Settings>> conf, int expectedSize) throws InvalidConfigException {

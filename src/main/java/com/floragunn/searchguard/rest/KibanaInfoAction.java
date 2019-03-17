@@ -26,7 +26,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -160,10 +160,10 @@ public class KibanaInfoAction extends BaseRestHandler {
                 this.threadContext.putTransient(ConfigConstants.SG_ORIGIN, originalOrigin);
 
                 RbacRoleConfigUpgrader configUpgrader = new RbacRoleConfigUpgrader(client, indexBaseConfigurationRepository);
-                configUpgrader.handleUpgrade(new ActionListener<IndexResponse>() {
+                configUpgrader.handleUpgrade(new ActionListener<BulkResponse>() {
 
                     @Override
-                    public void onResponse(IndexResponse response) {
+                    public void onResponse(BulkResponse response) {
                         try {
                             handleGet(channel);
                         } catch (Exception e) {
@@ -173,6 +173,7 @@ public class KibanaInfoAction extends BaseRestHandler {
 
                     @Override
                     public void onFailure(Exception e) {
+                        log.error("Error while running RbacRoleConfigUpgrader", e);
                         channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, e.getMessage()));
                     }
                 });

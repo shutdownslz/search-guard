@@ -18,13 +18,16 @@
 package com.floragunn.searchguard.configuration;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -40,50 +43,93 @@ public class RbacRoleConfigUpgrader {
     private final IndexBaseConfigurationRepository indexBaseConfigurationRepository;
     private final NodeClient client;
 
-    private int updateCount = 0;
+    private int roleUpdateCount = 0;
+    private int roleMappingUpdateCount = 0;
+    private Settings.Builder updatedRoleSettingsBuilder;
+    private Settings.Builder updatedRoleMappingSettingsBuilder;
+    private Tuple<Long, Settings> versionedRoleSettings;
+    private Tuple<Long, Settings> versionedRoleMappingSettings;
 
     public RbacRoleConfigUpgrader(NodeClient client, IndexBaseConfigurationRepository indexBaseConfigurationRepository) {
         this.client = client;
         this.indexBaseConfigurationRepository = indexBaseConfigurationRepository;
     }
 
-    public void handleUpgrade(ActionListener<IndexResponse> actionListener) throws IOException {
+    public void handleUpgrade(ActionListener<BulkResponse> actionListener) throws IOException {
 
-        Tuple<Long, Settings> versionedExistingSettings = indexBaseConfigurationRepository
-                .loadConfigurations(Collections.singleton(ConfigConstants.CONFIGNAME_ROLES), false).get(ConfigConstants.CONFIGNAME_ROLES);
-        Settings existingSettings = versionedExistingSettings.v2();
+        Map<String, Tuple<Long, Settings>> versionedSettings = indexBaseConfigurationRepository
+                .loadConfigurations(Arrays.asList(ConfigConstants.CONFIGNAME_ROLES, ConfigConstants.CONFIGNAME_ROLES_MAPPING), false);
+
+        versionedRoleSettings = versionedSettings.get(ConfigConstants.CONFIGNAME_ROLES);
+        versionedRoleMappingSettings = versionedSettings.get(ConfigConstants.CONFIGNAME_ROLES_MAPPING);
+
+        Settings existingSettings = versionedRoleSettings.v2();
+
+        updatedRoleSettingsBuilder = Settings.builder();
+        updatedRoleSettingsBuilder.put(existingSettings);
+        updatedRoleMappingSettingsBuilder = Settings.builder();
+        updatedRoleMappingSettingsBuilder.put(versionedRoleMappingSettings.v2());
 
         Set<String> sgRoles = existingSettings.names();
-        Settings.Builder updatedSettingsBuilder = Settings.builder();
-        updatedSettingsBuilder.put(existingSettings);
 
-        log.info("Upgrading roles config:\n" + versionedExistingSettings);
+        boolean hasApplicationsSection = this.hasApplicationsSection(sgRoles, existingSettings);
+
+        log.info("Upgrading roles config:\nhasApplicationsSection: " + hasApplicationsSection + "\nversionedExistingSettings:\n"
+                + versionedRoleSettings);
 
         for (String sgRole : sgRoles) {
 
             Settings tenants = existingSettings.getByPrefix(sgRole + ".tenants.");
 
             if (tenants != null) {
-                handleTenantsOfRole(sgRole, tenants, updatedSettingsBuilder);
-            }
-
-            if ("sg_kibana_user".equals(sgRole) && existingSettings.get(sgRole + ".applications") == null) {
-                handleSgKibanaUserRole(sgRole, existingSettings, updatedSettingsBuilder);
+                handleTenantsOfRole(sgRole, tenants);
             }
         }
 
-        log.info("Upgraded roles config. " + updateCount + " changes.");
+        if (!hasApplicationsSection && !sgRoles.contains("sg_legacy_kibana_user")) {
+            createLegacyKibanaUserRole();
+        }
 
-        if (updateCount != 0) {
+        log.info("Upgraded roles config. " + roleUpdateCount + " changes.");
 
-            BytesReference updatedConfig = XContentHelper.toXContent(updatedSettingsBuilder.build(), XContentType.JSON, false);
+        if (roleUpdateCount != 0) {
 
-            this.indexBaseConfigurationRepository.saveAndUpdateConfigurations(client, ConfigConstants.CONFIGNAME_ROLES, updatedConfig, actionListener,
-                    versionedExistingSettings.v1());
+            Map<String, Tuple<Long, BytesReference>> updatedConfig = new HashMap<>();
+
+            updatedConfig.put(ConfigConstants.CONFIGNAME_ROLES,
+                    Tuple.tuple(versionedRoleSettings.v1(), XContentHelper.toXContent(updatedRoleSettingsBuilder.build(), XContentType.JSON, false)));
+
+            if (roleMappingUpdateCount != 0) {
+                updatedConfig.put(ConfigConstants.CONFIGNAME_ROLES_MAPPING, Tuple.tuple(versionedRoleMappingSettings.v1(),
+                        XContentHelper.toXContent(updatedRoleMappingSettingsBuilder.build(), XContentType.JSON, false)));
+
+            }
+
+            this.indexBaseConfigurationRepository.saveAndUpdateConfigurations(client, updatedConfig, actionListener);
         }
     }
 
-    private void handleTenantsOfRole(String sgRole, Settings tenants, Settings.Builder updatedSettingsBuilder) {
+    private void createLegacyKibanaUserRole() {
+        log.info("Creating sg_legacy_kibana_user");
+
+        updatedRoleSettingsBuilder.putList("sg_legacy_kibana_user.applications", Privileges.Defaults.DEFAULT_TENANT);
+        roleUpdateCount++;
+
+        updatedRoleMappingSettingsBuilder.putList("sg_legacy_kibana_user.users", Collections.singletonList("*"));
+        roleMappingUpdateCount++;
+    }
+
+    private boolean hasApplicationsSection(Set<String> sgRoles, Settings existingSettings) {
+        for (String sgRole : sgRoles) {
+            if (existingSettings.get(sgRole + ".applications") != null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void handleTenantsOfRole(String sgRole, Settings tenants) {
         for (String tenant : tenants.names()) {
 
             Settings tenantSettings = tenants.getAsSettings(tenant);
@@ -94,25 +140,21 @@ public class RbacRoleConfigUpgrader {
             } else {
                 // Legacy config
 
-                updatedSettingsBuilder.remove(sgRole + ".tenants." + tenant);
+                updatedRoleSettingsBuilder.remove(sgRole + ".tenants." + tenant);
 
                 // TODO check if used permissions are right
 
                 String legacyTenantConfig = tenants.get(tenant, "RO");
 
                 if ("RW".equalsIgnoreCase(legacyTenantConfig)) {
-                    updatedSettingsBuilder.putList(sgRole + ".tenants." + tenant + ".applications", Privileges.Defaults.TENANT_RW);
+                    updatedRoleSettingsBuilder.putList(sgRole + ".tenants." + tenant + ".applications", Privileges.Defaults.TENANT_RW);
                 } else {
-                    updatedSettingsBuilder.putList(sgRole + ".tenants." + tenant + ".applications", Privileges.Defaults.TENANT_RO);
+                    updatedRoleSettingsBuilder.putList(sgRole + ".tenants." + tenant + ".applications", Privileges.Defaults.TENANT_RO);
                 }
 
-                updateCount++;
+                roleUpdateCount++;
             }
         }
     }
 
-    private void handleSgKibanaUserRole(String sgRole, Settings existingSettings, Settings.Builder updatedSettingsBuilder) {
-        updatedSettingsBuilder.putList(sgRole + ".applications", Privileges.Defaults.DEFAULT_TENANT);
-        updateCount++;
-    }
 }

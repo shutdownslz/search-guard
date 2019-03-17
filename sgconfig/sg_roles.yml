@@ -51,8 +51,13 @@ sg_all_access:
     '*':
       '*':
         - UNLIMITED
+  applications:
+    - kibana:ui:navLinks/*        
   tenants:
-    admin_tenant: RW
+    admin_tenant: 
+      applications:
+        - searchguard:tenant/write
+        - kibana:ui:navLinks/*    
 
 # Read all, but no write permissions
 sg_readall:

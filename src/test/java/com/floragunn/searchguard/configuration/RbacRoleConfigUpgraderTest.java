@@ -40,10 +40,9 @@ public class RbacRoleConfigUpgraderTest extends SingleClusterTest {
         try (TransportClient tc = getInternalTransportClient()) {
             String roles = new String(Base64.getDecoder().decode((String) tc.get(new GetRequest("searchguard", "sg", ConfigConstants.CONFIGNAME_ROLES)).actionGet().getSource().get(ConfigConstants.CONFIGNAME_ROLES)));
             JsonNode rolesJson = objectMapper.readTree(roles);
-            JsonNode kibanaUserRole = rolesJson.get("sg_kibana_user");
-            JsonNode applications = kibanaUserRole.get("applications");
+            JsonNode kibanaUserRole = rolesJson.get("sg_legacy_kibana_user");
             
-            Assert.assertEquals(null, applications);
+            Assert.assertEquals(null, kibanaUserRole);
         }
         
         HttpResponse response = rh.executePostRequest("/_searchguard/kibanainfo", "{\"action\": \"formatUpgrade\"}", new Header[0]);
@@ -52,7 +51,7 @@ public class RbacRoleConfigUpgraderTest extends SingleClusterTest {
         try (TransportClient tc = getInternalTransportClient()) {
             String roles = new String(Base64.getDecoder().decode((String) tc.get(new GetRequest("searchguard", "sg", ConfigConstants.CONFIGNAME_ROLES)).actionGet().getSource().get(ConfigConstants.CONFIGNAME_ROLES)));
             JsonNode rolesJson = objectMapper.readTree(roles);
-            JsonNode kibanaUserRole = rolesJson.get("sg_kibana_user");
+            JsonNode kibanaUserRole = rolesJson.get("sg_legacy_kibana_user");
             JsonNode applications = kibanaUserRole.get("applications");
             
             Assert.assertEquals("kibana:ui:navLinks/*", applications.get(0).asText());
@@ -80,10 +79,9 @@ public class RbacRoleConfigUpgraderTest extends SingleClusterTest {
         try (TransportClient tc = getInternalTransportClient()) {
             String roles = new String(Base64.getDecoder().decode((String) tc.get(new GetRequest("searchguard", "sg", ConfigConstants.CONFIGNAME_ROLES)).actionGet().getSource().get(ConfigConstants.CONFIGNAME_ROLES)));
             JsonNode rolesJson = objectMapper.readTree(roles);
-            JsonNode kibanaUserRole = rolesJson.get("sg_kibana_user");
-            JsonNode applications = kibanaUserRole.get("applications");
+            JsonNode kibanaUserRole = rolesJson.get("sg_legacy_kibana_user");
             
-            Assert.assertEquals(0, applications.size());
+            Assert.assertNull(kibanaUserRole);
         }
         
         HttpResponse response = rh.executePostRequest("/_searchguard/kibanainfo", "{\"action\": \"formatUpgrade\"}", new Header[0]);
@@ -92,10 +90,9 @@ public class RbacRoleConfigUpgraderTest extends SingleClusterTest {
         try (TransportClient tc = getInternalTransportClient()) {
             String roles = new String(Base64.getDecoder().decode((String) tc.get(new GetRequest("searchguard", "sg", ConfigConstants.CONFIGNAME_ROLES)).actionGet().getSource().get(ConfigConstants.CONFIGNAME_ROLES)));
             JsonNode rolesJson = objectMapper.readTree(roles);
-            JsonNode kibanaUserRole = rolesJson.get("sg_kibana_user");
-            JsonNode applications = kibanaUserRole.get("applications");
+            JsonNode kibanaUserRole = rolesJson.get("sg_legacy_kibana_user");
             
-            Assert.assertEquals(0, applications.size());
+            Assert.assertNull(kibanaUserRole);
         }
 
     }

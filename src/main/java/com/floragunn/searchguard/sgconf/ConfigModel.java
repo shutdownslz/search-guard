@@ -65,7 +65,7 @@ public class ConfigModel {
         final Settings settings = configurationRepository.getConfiguration("roles");
         SgRoles _sgRoles = new SgRoles();
         Set<String> sgRoles = settings.names();
-        boolean kibanaRoleHasApplicationsBlock = false;
+        boolean hasApplicationsBlock = false;
 
         Collection<String> oldStyleApplicationPermissions = new ArrayList<String>();
         Collection<String> newStyleApplicationPermissions = new ArrayList<String>();
@@ -80,8 +80,8 @@ public class ConfigModel {
                 continue;
             }
 
-            if ("sg_kibana_user".equals(sgRole) && sgRoleSettings.getAsList("applications") != null) {
-                kibanaRoleHasApplicationsBlock = true;
+            if (sgRoleSettings.getAsList("applications") != null) {
+                hasApplicationsBlock = true;
             }
 
             final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
@@ -166,7 +166,7 @@ public class ConfigModel {
                     + "Legacy style: " + oldStyleApplicationPermissions + "\n" //
                     + "New style: " + newStyleApplicationPermissions);
             _sgRoles.setFormatVersion(-1);
-        } else if (oldStyleApplicationPermissions.size() > 0 || !kibanaRoleHasApplicationsBlock) {
+        } else if (oldStyleApplicationPermissions.size() > 0 || !hasApplicationsBlock) {
             _sgRoles.setFormatVersion(1);
         } else if (newStyleApplicationPermissions.size() > 0) {
             _sgRoles.setFormatVersion(2);
