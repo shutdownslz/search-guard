@@ -543,20 +543,20 @@ public class IntegrationTests extends SingleClusterTest {
         System.out.println(resc.getBody());
         Assert.assertTrue(resc.getBody(), resc.getBody().contains("indexa"));
         Assert.assertFalse(resc.getBody(), resc.getBody().contains("indexb"));
-        Assert.assertTrue(resc.getBody(), resc.getBody().contains("exception"));
-        Assert.assertTrue(resc.getBody(), resc.getBody().contains("permission"));
-        Assert.assertEquals(3, resc.getBody().split("\"status\" : 200").length);
-        Assert.assertEquals(2, resc.getBody().split("\"status\" : 403").length);
+        //Assert.assertTrue(resc.getBody(), resc.getBody().contains("exception"));
+        //Assert.assertTrue(resc.getBody(), resc.getBody().contains("permission"));
+        Assert.assertEquals(4, resc.getBody().split("\"status\" : 200").length);
+        //Assert.assertEquals(2, resc.getBody().split("\"status\" : 403").length);
 
         resc = rh.executePostRequest("_msearch?pretty", msearchBody, encodeBasicHeader("user_b", "user_b"));
         Assert.assertEquals(200, resc.getStatusCode());
         System.out.println(resc.getBody());
         Assert.assertFalse(resc.getBody(), resc.getBody().contains("indexa"));
         Assert.assertTrue(resc.getBody(), resc.getBody().contains("indexb"));
-        Assert.assertTrue(resc.getBody(), resc.getBody().contains("exception"));
-        Assert.assertTrue(resc.getBody(), resc.getBody().contains("permission"));
-        Assert.assertEquals(3, resc.getBody().split("\"status\" : 200").length);
-        Assert.assertEquals(2, resc.getBody().split("\"status\" : 403").length);
+        //Assert.assertTrue(resc.getBody(), resc.getBody().contains("exception"));
+        //Assert.assertTrue(resc.getBody(), resc.getBody().contains("permission"));
+        Assert.assertEquals(4, resc.getBody().split("\"status\" : 200").length);
+        //Assert.assertEquals(2, resc.getBody().split("\"status\" : 403").length);
 
         msearchBody =
                 "{\"index\":\"indexc\", \"type\":\"doc\", \"ignore_unavailable\": true}"+System.lineSeparator()+
@@ -623,8 +623,9 @@ public class IntegrationTests extends SingleClusterTest {
         Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("indexa/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
         System.out.println(resc.getBody());
 
-        Assert.assertEquals(HttpStatus.SC_FORBIDDEN, (resc=rh.executeGetRequest("indexb/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("indexb/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
         System.out.println(resc.getBody());
+        Assert.assertFalse(resc.getBody(), resc.getBody().contains("indexb"));
 
         Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("*/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
         System.out.println(resc.getBody());
@@ -632,7 +633,7 @@ public class IntegrationTests extends SingleClusterTest {
         Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("_all/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
         System.out.println(resc.getBody());
 
-        Assert.assertEquals(HttpStatus.SC_FORBIDDEN, (resc=rh.executeGetRequest("notexists/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("notexists/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
         System.out.println(resc.getBody());
         
         Assert.assertEquals(HttpStatus.SC_NOT_FOUND, (resc=rh.executeGetRequest("permitnotexistentindex/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
@@ -644,15 +645,48 @@ public class IntegrationTests extends SingleClusterTest {
         Assert.assertEquals(HttpStatus.SC_NOT_FOUND, (resc=rh.executeGetRequest("indexanbh,indexabb*/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
         System.out.println(resc.getBody());
 
-        Assert.assertEquals(HttpStatus.SC_FORBIDDEN, (resc=rh.executeGetRequest("starfleet/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("starfleet/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
         System.out.println(resc.getBody());
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"total\" : 0,"));
 
-        Assert.assertEquals(HttpStatus.SC_FORBIDDEN, (resc=rh.executeGetRequest("starfleet/_search?pretty", encodeBasicHeader("worf", "worf"))).getStatusCode());
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("starfleet/_search?pretty", encodeBasicHeader("worf", "worf"))).getStatusCode());
         System.out.println(resc.getBody());
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"total\" : 0,"));
 
         System.out.println("#### _all/_mapping/field/*");
-        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("_all/_mapping/field/*", encodeBasicHeader("nagilum", "nagilum"))).getStatusCode());
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("_all/_mapping/field/*?pretty", encodeBasicHeader("nagilum", "nagilum"))).getStatusCode());
         System.out.println(resc.getBody());
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("indexa"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("vulcangov"));
+        
+        System.out.println("#### _all/_mapping/field/* user_a");
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("_all/_mapping/field/*?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        System.out.println(resc.getBody());
+        
+        System.out.println("#### indexb/_mapping/field/* user_a");
+        Assert.assertEquals(HttpStatus.SC_FORBIDDEN, (resc=rh.executeGetRequest("indexb/_mapping/field/*?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        System.out.println(resc.getBody());
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("_field_caps?fields=content&pretty", encodeBasicHeader("nagilum", "nagilum"))).getStatusCode());
+        System.out.println(resc.getBody());
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("_field_caps?fields=content&pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        System.out.println(resc.getBody());
+        Assert.assertFalse(resc.getBody(), resc.getBody().contains("long"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("text"));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("indexb/_field_caps?fields=content&pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        System.out.println(resc.getBody());
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"fields\" : { }"));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("_field_caps?fields=*&pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        System.out.println(resc.getBody());
+        Assert.assertFalse(resc.getBody(), resc.getBody().contains("long"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("text"));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("indexb/_field_caps?fields=*&pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        System.out.println(resc.getBody());
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"fields\" : { }"));
     }
 
 
@@ -819,5 +853,99 @@ public class IntegrationTests extends SingleClusterTest {
         Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("*/_mapping/field/*", encodeBasicHeader("nagilum", "nagilum"))).getStatusCode());
         System.out.println(resc.getBody());
     }
+    
+    @Test
+    public void testDnfofEmptyReturn() throws Exception {
+
+        final Settings settings = Settings.builder()
+                .put(ConfigConstants.SEARCHGUARD_ROLES_MAPPING_RESOLUTION, "BOTH")
+                .build();
+
+        setup(Settings.EMPTY, new DynamicSgConfig().setSgConfig("sg_config_dnfof.yml"), settings);
+        final RestHelper rh = nonSslRestHelper();
+
+        try (TransportClient tc = getInternalTransportClient()) {
+
+            tc.index(new IndexRequest("indexa").type("doc").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":\"indexa\"}", XContentType.JSON)).actionGet();
+            tc.index(new IndexRequest("testindexemptydnfof1").type("doc").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":\"testindexemptydnfof1\"}", XContentType.JSON)).actionGet();
+            tc.index(new IndexRequest("testindexemptydnfof2").type("doc").id("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":\"testindexemptydnfof2\"}", XContentType.JSON)).actionGet();
+
+            tc.admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(AliasActions.add().indices("testindexemptydnfof1","testindexemptydnfof2").alias("aliastestindexemptydnfof"))).actionGet();
+            tc.admin().indices().aliases(new IndicesAliasesRequest().addAliasAction(AliasActions.add().indices("testindexemptydnfof1","testindexemptydnfof2", "indexa").alias("aliastestindexemptydnfofa"))).actionGet();
+
+        }
+
+        HttpResponse resc;
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("indexa/doc/0?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertTrue(resc.getBody().contains("\"found\" : true"));
+        Assert.assertTrue(resc.getBody().contains("\"indexa\""));
+        
+        Assert.assertEquals(HttpStatus.SC_FORBIDDEN, (resc=rh.executeGetRequest("testindexemptydnfof1/doc/0?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("indexa/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertTrue(resc.getBody().contains("\"indexa\","));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("testindexemptydnfof1/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertFalse(resc.getBody().contains("testindexemptydnfof1"));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("testindexemptydnfof2/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertFalse(resc.getBody().contains("testindexemptydnfof2"));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("aliastestindexemptydnfof/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof1"));
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof2"));
+        Assert.assertFalse(resc.getBody(), resc.getBody().contains("\"indexa\""));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("aliastestindexemptydnfofa/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof1"));
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof2"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"indexa\""));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("_all/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof1"));
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof2"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"indexa\""));
+        
+        Assert.assertEquals(HttpStatus.SC_OK, (resc=rh.executeGetRequest("*/_search?pretty", encodeBasicHeader("user_a", "user_a"))).getStatusCode());
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof1"));
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof2"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"indexa\""));
+        
+        String mgetBody = "{"+
+                "\"docs\" : ["+
+                "{"+
+                "\"_index\" : \"indexa\","+
+                "\"_type\" : \"doc\","+
+                "\"_id\" : \"0\""+
+                " },"+
+                " {"+
+                "\"_index\" : \"testindexemptydnfof1\","+
+                " \"_type\" : \"doc\","+
+                " \"_id\" : \"0\""+
+                "}"+
+                "]"+
+                "}";
+
+        resc = rh.executePostRequest("_mget?pretty",  mgetBody, encodeBasicHeader("user_a", "user_a"));
+        System.out.println(resc.getBody());
+        Assert.assertTrue(resc.getBody(),resc.getBody().contains("testindexemptydnfof1"));
+        Assert.assertTrue(resc.getBody(),resc.getBody().contains("security_exception"));
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof2"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"indexa\""));
+        Assert.assertTrue(resc.getBody().contains("\"found\" : true"));
+        
+        String msearchBody =
+                "{\"index\":\"indexa\", \"type\":\"doc\", \"ignore_unavailable\": true}"+System.lineSeparator()+
+                "{\"size\":10, \"query\":{\"bool\":{\"must\":{\"match_all\":{}}}}}"+System.lineSeparator()+
+                "{\"index\":\"testindexemptydnfof1\", \"type\":\"doc\", \"ignore_unavailable\": true}"+System.lineSeparator()+
+                "{\"size\":10, \"query\":{\"bool\":{\"must\":{\"match_all\":{}}}}}"+System.lineSeparator();
+
+        resc = rh.executePostRequest("_msearch?pretty", msearchBody, encodeBasicHeader("user_a", "user_a"));
+        System.out.println(resc.getBody());
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof1"));
+        Assert.assertFalse(resc.getBody(),resc.getBody().contains("testindexemptydnfof2"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"indexa\""));
+    }
+
 
 }
