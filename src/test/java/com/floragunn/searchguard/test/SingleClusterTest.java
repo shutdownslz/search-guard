@@ -47,21 +47,21 @@ public abstract class SingleClusterTest extends AbstractSGUnitTest {
         setup(initTransportClientSettings, dynamicSgSettings, nodeOverride, true);
     }
     
-    protected void setup(Settings initTransportClientSettings, DynamicSgConfig dynamicSgSettings, Settings nodeOverride, boolean initSeachGuardIndex) throws Exception {    
-        setup(initTransportClientSettings, dynamicSgSettings, nodeOverride, initSeachGuardIndex, ClusterConfiguration.DEFAULT);
+    protected void setup(Settings initTransportClientSettings, DynamicSgConfig dynamicSgSettings, Settings nodeOverride, boolean initSearchGuardIndex) throws Exception {    
+        setup(initTransportClientSettings, dynamicSgSettings, nodeOverride, initSearchGuardIndex, ClusterConfiguration.DEFAULT);
     }
     
-    protected void setup(Settings initTransportClientSettings, DynamicSgConfig dynamicSgSettings, Settings nodeOverride, boolean initSeachGuardIndex, ClusterConfiguration clusterConfiguration) throws Exception {    
+    protected void setup(Settings initTransportClientSettings, DynamicSgConfig dynamicSgSettings, Settings nodeOverride, boolean initSearchGuardIndex, ClusterConfiguration clusterConfiguration) throws Exception {    
         clusterInfo = clusterHelper.startCluster(minimumSearchGuardSettings(nodeOverride), clusterConfiguration);
-        if(initSeachGuardIndex && dynamicSgSettings != null) {
+        if(initSearchGuardIndex && dynamicSgSettings != null) {
             initialize(clusterInfo, initTransportClientSettings, dynamicSgSettings);
         }
     }
     
     protected void setup(Settings initTransportClientSettings, DynamicSgConfig dynamicSgSettings, Settings nodeOverride
-            , boolean initSeachGuardIndex, ClusterConfiguration clusterConfiguration, int timeout, Integer nodes) throws Exception {    
+            , boolean initSearchGuardIndex, ClusterConfiguration clusterConfiguration, int timeout, Integer nodes) throws Exception {    
         clusterInfo = clusterHelper.startCluster(minimumSearchGuardSettings(nodeOverride), clusterConfiguration, timeout, nodes);
-        if(initSeachGuardIndex) {
+        if(initSearchGuardIndex) {
             initialize(clusterInfo, initTransportClientSettings, dynamicSgSettings);
         }
     }
