@@ -58,6 +58,8 @@ echo "Check for errors ..."
 echo "$-"
 echo $SHELLOPTS
 
+grep -i "A scan request has already been submitted" vera.log && { echo "Veracode upload already in progress"; exit 0; }
+
 ! grep -i error vera.log || { echo "Veracode error"; exit 1; }
 ! grep -i denied vera.log || { echo "Veracode denied"; exit 1; }
 

@@ -135,6 +135,19 @@ public class WildcardMatcher {
 
         return matchedPatternNum == pattern.length && pattern.length > 0;
     }
+    
+    public static boolean allPatternsMatched(final Collection<String> pattern, final Collection<String> candidate) {
+
+        int matchedPatternNum = 0;
+
+        for (String string:pattern) {
+            if (matchAny(string, candidate)) {
+                matchedPatternNum++;
+            }
+        }
+
+        return matchedPatternNum == pattern.size() && pattern.size() > 0;
+    }
 
     public static boolean matchAny(final String pattern, final String[] candidate) {
         return matchAny(pattern, candidate, false);
@@ -251,6 +264,30 @@ public class WildcardMatcher {
         }
 
         return Optional.empty();
+    }
+    
+    public static List<String> getAllMatchingPatterns(final Collection<String> pattern, final String candidate) {
+
+        final List<String> matches = new ArrayList<String>(pattern.size());
+        
+        for (String p : pattern) {
+            if (match(p, candidate)) {
+                matches.add(p);
+            }
+        }
+
+        return matches;
+    }
+    
+    public static List<String> getAllMatchingPatterns(final Collection<String> pattern, final Collection<String> candidates) {
+
+        final List<String> matches = new ArrayList<String>(pattern.size());
+        
+        for (String c : candidates) {
+            matches.addAll(getAllMatchingPatterns(pattern, c));
+        }
+
+        return matches;
     }
 
     /**

@@ -90,7 +90,6 @@ public class DlsFlsEvaluator {
         
 
         // attach dls/fls map if not already done
-        // TODO do this only if enterprise module are loaded
         final Tuple<Map<String, Set<String>>, Map<String, Set<String>>> dlsFls = sgRoles.getDlsFls(user, resolver, clusterService);
         final Map<String, Set<String>> dlsQueries = dlsFls.v1();
         final Map<String, Set<String>> flsFields = dlsFls.v2();
@@ -150,10 +149,10 @@ public class DlsFlsEvaluator {
             }
         }
 
-        if (requestedResolved == Resolved._EMPTY) {
+        /*if (requestedResolved == Resolved._EMPTY) {
             presponse.allowed = true;
             return presponse.markComplete();
-        }
+        }*/
         
         return presponse;
     }
