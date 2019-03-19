@@ -358,7 +358,9 @@ public class IndexBaseConfigurationRepository implements ConfigurationRepository
 
             try {
                 LOGGER.debug("Notify {} listener about change configuration with type {}", listener, type);
+                final long start = LOGGER.isDebugEnabled()?System.currentTimeMillis():0L;
                 listener.onChange(settings);
+                LOGGER.debug("listener {} notified about type {} in {} ms", listener, type, (System.currentTimeMillis()-start));
             } catch (Exception e) {
                 LOGGER.error("{} listener errored: "+e, listener, e);
                 throw ExceptionsHelper.convertToElastic(e);
