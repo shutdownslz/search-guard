@@ -1,10 +1,10 @@
 /*
  * Copyright 2015-2018 floragunn GmbH
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -12,7 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  */
 
 package com.floragunn.searchguard.sgconf;
@@ -27,9 +27,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,7 +44,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
-import com.floragunn.searchguard.configuration.ConfigurationRepository;
+import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.user.User;
@@ -46,92 +53,135 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-public class ConfigModel {
+public class ConfigModel implements ConfigurationChangeListener {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     private static final Set<String> IGNORED_TYPES = ImmutableSet.of("_dls_", "_fls_","_masked_fields_");
     private final ActionGroupHolder ah;
-    private final ConfigurationRepository configurationRepository;
+    private SgRoles sgRoles = null;
 
-    public ConfigModel(final ActionGroupHolder ah,
-            final ConfigurationRepository configurationRepository) {
-        super();
+    public ConfigModel(final ActionGroupHolder ah) {
         this.ah = ah;
-        this.configurationRepository = configurationRepository;
+    }
+    
+    @Override
+    public void onChange(Settings rolesSettings) {
+        final SgRoles tmp = reload(rolesSettings);
+
+        if(tmp != null) {
+            sgRoles = tmp;
+        }
     }
 
-    public SgRoles load() {
-        final Settings settings = configurationRepository.getConfiguration("roles");
-        SgRoles _sgRoles = new SgRoles();
-        Set<String> sgRoles = settings.names();
-        for(String sgRole: sgRoles) {
+    public SgRoles getSgRoles() {
+        return sgRoles;
+    }
 
-            SgRole _sgRole = new SgRole(sgRole);
+    private SgRoles reload(Settings rolesSettings) {
 
-            final Settings sgRoleSettings = settings.getByPrefix(sgRole);
-            if (sgRoleSettings.names().isEmpty()) {
-                continue;
-            }
+        final Set<Future<SgRole>> futures = new HashSet<>(5000);
+        final ExecutorService execs = Executors.newFixedThreadPool(10);
+        
+        for(String sgRole: rolesSettings.names()) {
+            
+            Future<SgRole> future = execs.submit(new Callable<SgRole>() {
+                
+                @Override
+                public SgRole call() throws Exception {
+                    SgRole _sgRole = new SgRole(sgRole);
 
-            final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
-            _sgRole.addClusterPerms(permittedClusterActions);
-
-            Settings tenants = settings.getByPrefix(sgRole+".tenants.");
-
-            if(tenants != null) {
-                for(String tenant: tenants.names()) {
-
-                    //if(tenant.equals(user.getName())) {
-                    //    continue;
-                    //}
-
-                    if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
-                        _sgRole.addTenant(new Tenant(tenant, true));
-                    } else {
-                        _sgRole.addTenant(new Tenant(tenant, false));
-                        //if(_sgRole.tenants.stream().filter(t->t.tenant.equals(tenant)).count() > 0) { //RW outperforms RO
-                        //    _sgRole.addTenant(new Tenant(tenant, false));
-                        //}
+                    final Settings sgRoleSettings = rolesSettings.getByPrefix(sgRole);
+                    if (!sgRoleSettings.names().isEmpty()) {
+                        final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
+                        _sgRole.addClusterPerms(permittedClusterActions);
+            
+                        Settings tenants = rolesSettings.getByPrefix(sgRole+".tenants.");
+            
+                        if(tenants != null) {
+                            for(String tenant: tenants.names()) {
+            
+                                //if(tenant.equals(user.getName())) {
+                                //    continue;
+                                //}
+            
+                                if("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
+                                    _sgRole.addTenant(new Tenant(tenant, true));
+                                } else {
+                                    _sgRole.addTenant(new Tenant(tenant, false));
+                                    //if(_sgRole.tenants.stream().filter(t->t.tenant.equals(tenant)).count() > 0) { //RW outperforms RO
+                                    //    _sgRole.addTenant(new Tenant(tenant, false));
+                                    //}
+                                }
+                            }
+                        }
+            
+            
+                        final Map<String, Settings> permittedAliasesIndices = sgRoleSettings.getGroups(".indices");
+            
+                        for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
+            
+                            final String resolvedRole = sgRole;
+                            final String indexPattern = permittedAliasesIndex;
+            
+                            final String dls = rolesSettings.get(resolvedRole+".indices."+indexPattern+"._dls_");
+                            final List<String> fls = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"._fls_");
+                            final List<String> maskedFields = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"._masked_fields_");
+            
+                            IndexPattern _indexPattern = new IndexPattern(indexPattern);
+                            _indexPattern.setDlsQuery(dls);
+                            _indexPattern.addFlsFields(fls);
+                            _indexPattern.addMaskedFields(maskedFields);
+            
+                            for(String type: permittedAliasesIndices.get(indexPattern).names()) {
+            
+                                if(IGNORED_TYPES.contains(type)) {
+                                    continue;
+                                }
+            
+                                TypePerm typePerm = new TypePerm(type);
+                                final List<String> perms = rolesSettings.getAsList(resolvedRole+".indices."+indexPattern+"."+type);
+                                typePerm.addPerms(ah.resolvedActions(perms));
+                                _indexPattern.addTypePerms(typePerm);
+                            }
+            
+                            _sgRole.addIndexPattern(_indexPattern);
+            
+                        }
+                        return _sgRole;
                     }
+                    
+                    return null;
                 }
-            }
-
-
-            final Map<String, Settings> permittedAliasesIndices = sgRoleSettings.getGroups(".indices");
-
-            for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
-
-                final String resolvedRole = sgRole;
-                final String indexPattern = permittedAliasesIndex;
-
-                final String dls = settings.get(resolvedRole+".indices."+indexPattern+"._dls_");
-                final List<String> fls = settings.getAsList(resolvedRole+".indices."+indexPattern+"._fls_");
-                final List<String> maskedFields = settings.getAsList(resolvedRole+".indices."+indexPattern+"._masked_fields_");
-
-                IndexPattern _indexPattern = new IndexPattern(indexPattern);
-                _indexPattern.setDlsQuery(dls);
-                _indexPattern.addFlsFields(fls);
-                _indexPattern.addMaskedFields(maskedFields);
-
-                for(String type: permittedAliasesIndices.get(indexPattern).names()) {
-
-                    if(IGNORED_TYPES.contains(type)) {
-                        continue;
-                    }
-
-                    TypePerm typePerm = new TypePerm(type);
-                    final List<String> perms = settings.getAsList(resolvedRole+".indices."+indexPattern+"."+type);
-                    typePerm.addPerms(ah.resolvedActions(perms));
-                    _indexPattern.addTypePerms(typePerm);
-                }
-
-                _sgRole.addIndexPattern(_indexPattern);
-
-            }
-            _sgRoles.addSgRole(_sgRole);
+            });
+        
+            futures.add(future);
+        }
+        
+        
+        execs.shutdown();
+        try {
+            execs.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted (1) while loading roles");
+            return null;
         }
 
-        return _sgRoles;
+        try {
+            SgRoles _sgRoles = new SgRoles(futures.size());
+            for(Future<SgRole> future: futures) {
+                _sgRoles.addSgRole(future.get());
+            }
+            
+            return _sgRoles;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted (2) while loading roles");
+            return null;
+        } catch (ExecutionException e) {
+            log.error("Error while updating roles: {}",e.getCause(),e.getCause());
+            throw ExceptionsHelper.convertToElastic(e);
+        }
     }
 
     //beans
@@ -139,10 +189,11 @@ public class ConfigModel {
     public static class SgRoles {
 
         protected final Logger log = LogManager.getLogger(this.getClass());
-        
-        final Set<SgRole> roles = new HashSet<>(100);
 
-        private SgRoles() {
+        final Set<SgRole> roles;
+
+        private SgRoles(int roleCount) {
+            roles = new HashSet<>(roleCount);
         }
 
         private SgRoles addSgRole(SgRole sgRole) {
@@ -187,7 +238,7 @@ public class ConfigModel {
         }
 
         public SgRoles filter(Set<String> keep) {
-            final SgRoles retVal = new SgRoles();
+            final SgRoles retVal = new SgRoles(roles.size());
             for(SgRole sgr: roles) {
                 if(keep.contains(sgr.getName())) {
                     retVal.addSgRole(sgr);
@@ -195,10 +246,10 @@ public class ConfigModel {
             }
             return retVal;
         }
-        
+
         public Map<String,Set<String>> getMaskedFields(User user, IndexNameExpressionResolver resolver, ClusterService cs) {
             final Map<String,Set<String>> maskedFieldsMap = new HashMap<String, Set<String>>();
-            
+
             for(SgRole sgr: roles) {
                 for(IndexPattern ip: sgr.getIpatterns()) {
                     final Set<String> maskedFields = ip.getMaskedFields();
@@ -296,7 +347,7 @@ public class ConfigModel {
             return new Tuple<Map<String,Set<String>>, Map<String,Set<String>>>(dlsQueries, flsFields);
 
         }
-        
+
         //kibana special only
         public Set<String> getAllPermittedIndices(User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             Set<String> retVal = new HashSet<>();
@@ -332,13 +383,13 @@ public class ConfigModel {
             return roles.stream()
                     .filter(r->r.impliesClusterPermission(action)).count() > 0;
         }
-        
+
         //rolespan
         public boolean impliesTypePermGlobal(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             Set<IndexPattern> ipatterns = new HashSet<ConfigModel.IndexPattern>();
             roles.stream().forEach(p->ipatterns.addAll(p.getIpatterns()));
             return ConfigModel.impliesTypePerm(ipatterns, resolved, user, actions, resolver, cs);
-        }  
+        }
     }
 
     public static class SgRole {
@@ -363,42 +414,42 @@ public class ConfigModel {
 
             final Set<String> retVal = new HashSet<>();
             for(IndexPattern p: ipatterns) {
-               //what if we cannot resolve one (for create purposes)
-               boolean patternMatch = false;
-               final Set<TypePerm> tperms = p.getTypePerms();
-               for(TypePerm tp: tperms) {
-                   if(WildcardMatcher.matchAny(tp.typePattern, resolved.getTypes().toArray(new String[0]))) {
-                       patternMatch = WildcardMatcher.matchAll(tp.perms.toArray(new String[0]), actions);
-                   }
-               }
-               if(patternMatch) {
-                   //resolved but can contain patterns for nonexistent indices
-                   final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); //maybe they do not exists
-                   final Set<String> res = new HashSet<>();
-                   if(!resolved.isAll() && !resolved.getAllIndices().contains("*")  && !resolved.getAllIndices().contains("_all")) {
-                       final Set<String> wanted = new HashSet<>(resolved.getAllIndices());
-                       //resolved but can contain patterns for nonexistent indices
-                       WildcardMatcher.wildcardRetainInSet(wanted, permitted);
-                       res.addAll(wanted);
-                   } else {
-                       //we want all indices so just return what's permitted
-                       
-                       //#557
-                       //final String[] allIndices = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), "*");
-                       final String[] allIndices = cs.state().metaData().getConcreteAllOpenIndices();
-                       final Set<String> wanted = new HashSet<>(Arrays.asList(allIndices));
-                       WildcardMatcher.wildcardRetainInSet(wanted, permitted);
-                       res.addAll(wanted);
-                   }
-                   retVal.addAll(res);
-               }
+                //what if we cannot resolve one (for create purposes)
+                boolean patternMatch = false;
+                final Set<TypePerm> tperms = p.getTypePerms();
+                for(TypePerm tp: tperms) {
+                    if(WildcardMatcher.matchAny(tp.typePattern, resolved.getTypes().toArray(new String[0]))) {
+                        patternMatch = WildcardMatcher.matchAll(tp.perms.toArray(new String[0]), actions);
+                    }
+                }
+                if(patternMatch) {
+                    //resolved but can contain patterns for nonexistent indices
+                    final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); //maybe they do not exists
+                    final Set<String> res = new HashSet<>();
+                    if(!resolved.isAll() && !resolved.getAllIndices().contains("*")  && !resolved.getAllIndices().contains("_all")) {
+                        final Set<String> wanted = new HashSet<>(resolved.getAllIndices());
+                        //resolved but can contain patterns for nonexistent indices
+                        WildcardMatcher.wildcardRetainInSet(wanted, permitted);
+                        res.addAll(wanted);
+                    } else {
+                        //we want all indices so just return what's permitted
+
+                        //#557
+                        //final String[] allIndices = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), "*");
+                        final String[] allIndices = cs.state().metaData().getConcreteAllOpenIndices();
+                        final Set<String> wanted = new HashSet<>(Arrays.asList(allIndices));
+                        WildcardMatcher.wildcardRetainInSet(wanted, permitted);
+                        res.addAll(wanted);
+                    }
+                    retVal.addAll(res);
+                }
             }
 
             //all that we want and all thats permitted of them
             return Collections.unmodifiableSet(retVal);
         }
 
-        
+
 
         private SgRole addTenant(Tenant tenant) {
             if(tenant != null) {
@@ -508,7 +559,7 @@ public class ConfigModel {
             }
             return this;
         }
-        
+
         public IndexPattern addMaskedFields(List<String> maskedFields) {
             if(maskedFields != null) {
                 this.maskedFields.addAll(maskedFields);
@@ -592,17 +643,17 @@ public class ConfigModel {
             String unresolved = getUnresolvedIndexPattern(user);
             String[] resolved = null;
             if(WildcardMatcher.containsWildcard(unresolved)) {
-                final String[] aliasesForPermittedPattern = cs.state().getMetaData().getAliasAndIndexLookup()        
+                final String[] aliasesForPermittedPattern = cs.state().getMetaData().getAliasAndIndexLookup()
                         .entrySet().stream()
                         .filter(e->e.getValue().isAlias())
                         .filter(e->WildcardMatcher.match(unresolved, e.getKey()))
                         .map(e->e.getKey()).toArray(String[]::new);
-                
+
                 if(aliasesForPermittedPattern != null && aliasesForPermittedPattern.length > 0) {
                     resolved = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), aliasesForPermittedPattern);
                 }
             }
-            
+
             if(resolved == null && !unresolved.isEmpty()) {
                 resolved = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), unresolved);
             }
@@ -623,7 +674,7 @@ public class ConfigModel {
         public Set<String> getFls() {
             return Collections.unmodifiableSet(fls);
         }
-        
+
         public Set<String> getMaskedFields() {
             return Collections.unmodifiableSet(maskedFields);
         }
@@ -748,13 +799,13 @@ public class ConfigModel {
         }
     }
 
-    
+
     private static String replaceProperties(String orig, User user) {
-        
+
         if(user == null || orig == null) {
             return orig;
         }
-        
+
         orig = orig.replace("${user.name}", user.getName()).replace("${user_name}", user.getName());
         orig = replaceRoles(orig, user);
         for(Entry<String, String> entry: user.getCustomAttributesMap().entrySet()) {
@@ -766,7 +817,7 @@ public class ConfigModel {
         }
         return orig;
     }
-    
+
     private static String replaceRoles(final String orig, final User user) {
         String retVal = orig;
         if(orig.contains("${user.roles}") || orig.contains("${user_roles}")) {
@@ -775,13 +826,13 @@ public class ConfigModel {
         }
         return retVal;
     }
-    
+
     private static String toQuotedCommaSeparatedString(final Set<String> roles) {
         return Joiner.on(',').join(Iterables.transform(roles, s->{
             return new StringBuilder(s.length()+2).append('"').append(s).append('"').toString();
         }));
     }
-    
+
     private static boolean impliesTypePerm(Set<IndexPattern> ipatterns, Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
         Set<String> matchingIndex = new HashSet<>(resolved.getAllIndices());
 
