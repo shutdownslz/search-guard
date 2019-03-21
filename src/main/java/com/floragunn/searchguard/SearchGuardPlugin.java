@@ -772,7 +772,8 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         backendRegistry = new BackendRegistry(settings, configPath, adminDns, xffResolver, iab, auditLog, threadPool);
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, backendRegistry);
         final ActionGroupHolder ah = new ActionGroupHolder(cr);
-        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih, irr);
+        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih, irr,
+                enterpriseModulesEnabled);
 
         final CompatConfig compatConfig = new CompatConfig(environment);
         cr.subscribeOnChange(ConfigConstants.CONFIGNAME_CONFIG, compatConfig);
@@ -913,7 +914,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             settings.add(Setting.listSetting(
                     ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_HTTP_ENDPOINTS,
                     Lists.newArrayList("localhost:9200"), Function.identity(), Property.NodeScope)); //not filtered here
-                                                                                                                                                                                                                                                              // here
+
             settings.add(Setting.simpleString(
                     ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_USERNAME,
                     Property.NodeScope, Property.Filtered));

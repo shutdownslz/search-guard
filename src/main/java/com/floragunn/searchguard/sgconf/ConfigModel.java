@@ -17,7 +17,6 @@
 
 package com.floragunn.searchguard.sgconf;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,9 +27,18 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,7 +46,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
-import com.floragunn.searchguard.configuration.ConfigurationRepository;
+import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
 import com.floragunn.searchguard.privileges.Privileges;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.support.WildcardMatcher;
@@ -48,131 +56,169 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-public class ConfigModel {
+public class ConfigModel implements ConfigurationChangeListener {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     private static final Set<String> IGNORED_TYPES = ImmutableSet.of("_dls_", "_fls_", "_masked_fields_");
     private final ActionGroupHolder ah;
-    private final ConfigurationRepository configurationRepository;
+    private SgRoles sgRoles = null;
 
-    public ConfigModel(final ActionGroupHolder ah, final ConfigurationRepository configurationRepository) {
-        super();
+    public ConfigModel(final ActionGroupHolder ah) {
         this.ah = ah;
-        this.configurationRepository = configurationRepository;
     }
 
-    public SgRoles load() {
-        final Settings settings = configurationRepository.getConfiguration("roles");
-        SgRoles _sgRoles = new SgRoles();
-        Set<String> sgRoles = settings.names();
-        boolean hasApplicationsBlock = false;
+    @Override
+    public void onChange(Settings rolesSettings) {
+        final SgRoles tmp = reload(rolesSettings);
 
-        Collection<String> oldStyleApplicationPermissions = new ArrayList<String>();
-        Collection<String> newStyleApplicationPermissions = new ArrayList<String>();
+        if (tmp != null) {
+            sgRoles = tmp;
+        }
+    }
 
-        for (String sgRole : sgRoles) {
+    public SgRoles getSgRoles() {
+        return sgRoles;
+    }
 
-            SgRole _sgRole = new SgRole(sgRole);
+    private SgRoles reload(Settings rolesSettings) {
+        final Set<Future<SgRole>> futures = new HashSet<>(5000);
+        final ExecutorService execs = Executors.newFixedThreadPool(10);
+        final AtomicInteger oldStyleApplicationPermissions = new AtomicInteger(0);
+        final AtomicInteger newStyleApplicationPermissions = new AtomicInteger(0);
+        final AtomicBoolean hasApplicationsBlock = new AtomicBoolean(false);
 
-            final Settings sgRoleSettings = settings.getByPrefix(sgRole);
+        for (String sgRole : rolesSettings.names()) {
 
-            if (sgRoleSettings.names().isEmpty()) {
-                continue;
-            }
+            Future<SgRole> future = execs.submit(new Callable<SgRole>() {
+                @Override
+                public SgRole call() throws Exception {
+                    SgRole _sgRole = new SgRole(sgRole);
+                    final Settings sgRoleSettings = rolesSettings.getByPrefix(sgRole);
+                    
+                    if (sgRoleSettings.getAsList("applications") != null) {
+                        hasApplicationsBlock.getAndSet(true);
+                    }
+                    
+                    if (!sgRoleSettings.names().isEmpty()) {
+                        final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
+                        _sgRole.addClusterPerms(permittedClusterActions);
+                        
+                        Set<String> applicationPerms = ah.resolvedActions(sgRoleSettings.getAsList(".applications", Collections.emptyList()));
+                        _sgRole.addApplicationPerms(applicationPerms);
 
-            if (sgRoleSettings.getAsList("applications") != null) {
-                hasApplicationsBlock = true;
-            }
+                        Settings tenants = rolesSettings.getByPrefix(sgRole + ".tenants.");
 
-            final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
-            _sgRole.addClusterPerms(permittedClusterActions);
+                        if (tenants != null) {
+                            for (String tenant : tenants.names()) {
 
-            Set<String> applicationPerms = ah.resolvedActions(sgRoleSettings.getAsList(".applications", Collections.emptyList()));
-            _sgRole.addApplicationPerms(applicationPerms);
+                                Settings tenantSettings = tenants.getAsSettings(tenant);
 
-            Settings tenants = settings.getByPrefix(sgRole + ".tenants.");
+                                if (!tenantSettings.isEmpty()) {
+                                    List<String> permissions = tenantSettings.getAsList("applications");
 
-            if (tenants != null) {
-                for (String tenant : tenants.names()) {
+                                    if (!permissions.isEmpty()) {
+                                        _sgRole.addTenant(new Tenant(tenant, new HashSet<>(permissions)));
+                                        newStyleApplicationPermissions.incrementAndGet();
+                                    }
+                                } else {
 
-                    Settings tenantSettings = tenants.getAsSettings(tenant);
+                                    // Legacy config
 
-                    if (!tenantSettings.isEmpty()) {
-                        List<String> permissions = tenantSettings.getAsList("applications");
+                                    String legacyTenantConfig = tenants.get(tenant, "RO");
+                                    oldStyleApplicationPermissions.incrementAndGet();
 
-                        if (!permissions.isEmpty()) {
-                            _sgRole.addTenant(new Tenant(tenant, new HashSet<>(permissions)));
-                            newStyleApplicationPermissions.add(sgRole + "." + tenant);
+                                    if ("RW".equalsIgnoreCase(legacyTenantConfig)) {
+                                        _sgRole.addTenant(new Tenant(tenant, Privileges.Defaults.SET_TENANT_RW));
+                                    } else {
+                                        if (!("RO".equalsIgnoreCase(legacyTenantConfig))) {
+                                            log.warn(
+                                                    "Invalid tenant config for tenant " + tenant + ": " + legacyTenantConfig + "\n" + "Assuming RO (read-only).");
+                                        }
+
+                                        _sgRole.addTenant(new Tenant(tenant, Privileges.Defaults.SET_TENANT_RO));
+                                    }
+                                }
+                            }
                         }
-                    } else {
 
-                        // Legacy config
+                        final Map<String, Settings> permittedAliasesIndices = sgRoleSettings.getGroups(".indices");
 
-                        String legacyTenantConfig = tenants.get(tenant, "RO");
-                        oldStyleApplicationPermissions.add(sgRole + "." + tenant);
+                        for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
 
-                        if ("RW".equalsIgnoreCase(legacyTenantConfig)) {
-                            _sgRole.addTenant(new Tenant(tenant, Privileges.Defaults.SET_TENANT_RW));
-                        } else {
-                            if (!("RO".equalsIgnoreCase(legacyTenantConfig))) {
-                                log.warn(
-                                        "Invalid tenant config for tenant " + tenant + ": " + legacyTenantConfig + "\n" + "Assuming RO (read-only).");
+                            final String resolvedRole = sgRole;
+                            final String indexPattern = permittedAliasesIndex;
+
+                            final String dls = rolesSettings.get(resolvedRole + ".indices." + indexPattern + "._dls_");
+                            final List<String> fls = rolesSettings.getAsList(resolvedRole + ".indices." + indexPattern + "._fls_");
+                            final List<String> maskedFields = rolesSettings.getAsList(resolvedRole + ".indices." + indexPattern + "._masked_fields_");
+
+                            IndexPattern _indexPattern = new IndexPattern(indexPattern);
+                            _indexPattern.setDlsQuery(dls);
+                            _indexPattern.addFlsFields(fls);
+                            _indexPattern.addMaskedFields(maskedFields);
+
+                            for (String type : permittedAliasesIndices.get(indexPattern).names()) {
+
+                                if (IGNORED_TYPES.contains(type)) {
+                                    continue;
+                                }
+
+                                TypePerm typePerm = new TypePerm(type);
+                                final List<String> perms = rolesSettings.getAsList(resolvedRole + ".indices." + indexPattern + "." + type);
+                                typePerm.addPerms(ah.resolvedActions(perms));
+                                _indexPattern.addTypePerms(typePerm);
                             }
 
-                            _sgRole.addTenant(new Tenant(tenant, Privileges.Defaults.SET_TENANT_RO));
+                            _sgRole.addIndexPattern(_indexPattern);
+
                         }
-                    }
-                }
-            }
-
-            final Map<String, Settings> permittedAliasesIndices = sgRoleSettings.getGroups(".indices");
-
-            for (final String permittedAliasesIndex : permittedAliasesIndices.keySet()) {
-
-                final String resolvedRole = sgRole;
-                final String indexPattern = permittedAliasesIndex;
-
-                final String dls = settings.get(resolvedRole + ".indices." + indexPattern + "._dls_");
-                final List<String> fls = settings.getAsList(resolvedRole + ".indices." + indexPattern + "._fls_");
-                final List<String> maskedFields = settings.getAsList(resolvedRole + ".indices." + indexPattern + "._masked_fields_");
-
-                IndexPattern _indexPattern = new IndexPattern(indexPattern);
-                _indexPattern.setDlsQuery(dls);
-                _indexPattern.addFlsFields(fls);
-                _indexPattern.addMaskedFields(maskedFields);
-
-                for (String type : permittedAliasesIndices.get(indexPattern).names()) {
-
-                    if (IGNORED_TYPES.contains(type)) {
-                        continue;
+                        return _sgRole;
                     }
 
-                    TypePerm typePerm = new TypePerm(type);
-                    final List<String> perms = settings.getAsList(resolvedRole + ".indices." + indexPattern + "." + type);
-                    typePerm.addPerms(ah.resolvedActions(perms));
-                    _indexPattern.addTypePerms(typePerm);
+                    return null;
                 }
+            });
 
-                _sgRole.addIndexPattern(_indexPattern);
+            futures.add(future);
+        }
 
+        execs.shutdown();
+        try {
+            execs.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted (1) while loading roles");
+            return null;
+        }
+
+        try {
+            SgRoles _sgRoles = new SgRoles(futures.size());
+            for (Future<SgRole> future : futures) {
+                _sgRoles.addSgRole(future.get());
             }
-            _sgRoles.addSgRole(_sgRole);
-        }
+            
+            if (oldStyleApplicationPermissions.get() > 0 && newStyleApplicationPermissions.get() > 0) {
+                log.warn("The role config contains both legacy style and new style tenant configurations. It is recommended to use only the new style.\n"
+                        + "Legacy style: " + oldStyleApplicationPermissions + "\n" //
+                        + "New style: " + newStyleApplicationPermissions);
+                _sgRoles.setFormatVersion(-1);
+            } else if (oldStyleApplicationPermissions.get() > 0 || !hasApplicationsBlock.get()) {
+                _sgRoles.setFormatVersion(1);
+            } else if (newStyleApplicationPermissions.get() > 0) {
+                _sgRoles.setFormatVersion(2);
+            } else {
+                _sgRoles.setFormatVersion(0);
+            }
 
-        if (oldStyleApplicationPermissions.size() > 0 && newStyleApplicationPermissions.size() > 0) {
-            log.warn("The role config contains both legacy style and new style tenant configurations. It is recommended to use only the new style.\n"
-                    + "Legacy style: " + oldStyleApplicationPermissions + "\n" //
-                    + "New style: " + newStyleApplicationPermissions);
-            _sgRoles.setFormatVersion(-1);
-        } else if (oldStyleApplicationPermissions.size() > 0 || !hasApplicationsBlock) {
-            _sgRoles.setFormatVersion(1);
-        } else if (newStyleApplicationPermissions.size() > 0) {
-            _sgRoles.setFormatVersion(2);
-        } else {
-            _sgRoles.setFormatVersion(0);
+            return _sgRoles;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted (2) while loading roles");
+            return null;
+        } catch (ExecutionException e) {
+            log.error("Error while updating roles: {}", e.getCause(), e.getCause());
+            throw ExceptionsHelper.convertToElastic(e);
         }
-
-        return _sgRoles;
     }
 
     //beans
@@ -181,10 +227,11 @@ public class ConfigModel {
 
         protected final Logger log = LogManager.getLogger(this.getClass());
 
-        final Set<SgRole> roles = new HashSet<>(100);
+        final Set<SgRole> roles;
         private int formatVersion = 0;
 
-        private SgRoles() {
+        private SgRoles(int roleCount) {
+            roles = new HashSet<>(roleCount);
         }
 
         private SgRoles addSgRole(SgRole sgRole) {
@@ -229,7 +276,8 @@ public class ConfigModel {
         }
 
         public SgRoles filter(Set<String> keep) {
-            final SgRoles retVal = new SgRoles();
+            final SgRoles retVal = new SgRoles(roles.size());
+
             for (SgRole sgr : roles) {
                 if (keep.contains(sgr.getName())) {
                     retVal.addSgRole(sgr);

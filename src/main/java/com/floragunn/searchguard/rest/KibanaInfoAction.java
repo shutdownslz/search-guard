@@ -76,7 +76,6 @@ public class KibanaInfoAction extends BaseRestHandler {
         } else {
             return handleGet(request, client);
         }
-
     }
 
     private RestChannelConsumer handleGet(RestRequest request, NodeClient client) throws IOException {
