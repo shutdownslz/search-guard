@@ -472,7 +472,6 @@ public class PrivilegesEvaluator {
 
         for (SgRole sgRole : getSgRoles(user, caller).getRoles()) {
 
-            // TODO what to do with user param?
             for (Tenant tenant : sgRole.getTenants(user)) {
                 if (tenant.isReadOnly()) {
                     if (!result.containsKey(tenant.getTenant())) { // RW outperforms RO

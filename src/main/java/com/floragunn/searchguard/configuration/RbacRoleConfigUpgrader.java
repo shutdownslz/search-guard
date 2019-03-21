@@ -86,7 +86,7 @@ public class RbacRoleConfigUpgrader {
             }
         }
 
-        if (!hasApplicationsSection && !sgRoles.contains("sg_legacy_kibana_user")) {
+        if (!hasApplicationsSection && !sgRoles.contains("sg_kibana_user_all_application_access")) {
             createLegacyKibanaUserRole();
         }
 
@@ -110,12 +110,12 @@ public class RbacRoleConfigUpgrader {
     }
 
     private void createLegacyKibanaUserRole() {
-        log.info("Creating sg_legacy_kibana_user");
+        log.info("Creating sg_kibana_user_all_application_access");
 
-        updatedRoleSettingsBuilder.putList("sg_legacy_kibana_user.applications", Privileges.Defaults.DEFAULT_TENANT);
+        updatedRoleSettingsBuilder.putList("sg_kibana_user_all_application_access.applications", Privileges.Defaults.DEFAULT_TENANT);
         roleUpdateCount++;
 
-        updatedRoleMappingSettingsBuilder.putList("sg_legacy_kibana_user.users", Collections.singletonList("*"));
+        updatedRoleMappingSettingsBuilder.putList("sg_kibana_user_all_application_access.users", Collections.singletonList("*"));
         roleMappingUpdateCount++;
     }
 
