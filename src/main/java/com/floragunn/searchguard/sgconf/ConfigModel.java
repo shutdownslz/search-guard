@@ -108,8 +108,6 @@ public class ConfigModel {
 
                         // Legacy config
 
-                        // TODO check if used permissions are right
-
                         String legacyTenantConfig = tenants.get(tenant, "RO");
                         oldStyleApplicationPermissions.add(sgRole + "." + tenant);
 
@@ -177,7 +175,7 @@ public class ConfigModel {
         return _sgRoles;
     }
 
-    // beans
+    //beans
 
     public static class SgRoles {
 
@@ -341,7 +339,7 @@ public class ConfigModel {
 
         }
 
-        // kibana special only
+        //kibana special only
         public Set<String> getAllPermittedIndices(User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
 
             Set<String> retVal = new HashSet<>();
@@ -351,7 +349,7 @@ public class ConfigModel {
             return Collections.unmodifiableSet(retVal);
         }
 
-        // dnfof only
+        //dnfof only
         public Set<String> reduce(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             Set<String> retVal = new HashSet<>();
             for (SgRole sgr : roles) {
@@ -363,7 +361,7 @@ public class ConfigModel {
             return Collections.unmodifiableSet(retVal);
         }
 
-        // return true on success
+        //return true on success
         public boolean get(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             for (SgRole sgr : roles) {
                 if (ConfigModel.impliesTypePerm(sgr.getIpatterns(), resolved, user, actions, resolver, cs)) {
@@ -401,7 +399,7 @@ public class ConfigModel {
             return result;
         }
 
-        // rolespan
+        //rolespan
         public boolean impliesTypePermGlobal(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver,
                 ClusterService cs) {
             Set<IndexPattern> ipatterns = new HashSet<ConfigModel.IndexPattern>();
@@ -435,15 +433,15 @@ public class ConfigModel {
             return WildcardMatcher.matchAny(clusterPerms, action);
         }
 
-        // get indices which are permitted for the given types and actions
-        // dnfof + kibana special only
+        //get indices which are permitted for the given types and actions
+        //dnfof + kibana special only
         private Set<String> getAllResolvedPermittedIndices(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver,
                 ClusterService cs) {
 
             final Set<String> retVal = new HashSet<>();
 
             for (IndexPattern p : ipatterns) {
-                // what if we cannot resolve one (for create purposes)
+                //what if we cannot resolve one (for create purposes)
                 boolean patternMatch = false;
                 final Set<TypePerm> tperms = p.getTypePerms();
                 for (TypePerm tp : tperms) {
@@ -452,19 +450,19 @@ public class ConfigModel {
                     }
                 }
                 if (patternMatch) {
-                    // resolved but can contain patterns for nonexistent indices
+                    //resolved but can contain patterns for nonexistent indices
                     final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); // maybe they do not
                                                                                               // exists
                     final Set<String> res = new HashSet<>();
                     if (!resolved.isAll() && !resolved.getAllIndices().contains("*") && !resolved.getAllIndices().contains("_all")) {
                         final Set<String> wanted = new HashSet<>(resolved.getAllIndices());
-                        // resolved but can contain patterns for nonexistent indices
+                        //resolved but can contain patterns for nonexistent indices
                         WildcardMatcher.wildcardRetainInSet(wanted, permitted);
                         res.addAll(wanted);
                     } else {
                         // we want all indices so just return what's permitted
 
-                        // #557
+                        //#557
                         final String[] allIndices = resolver.concreteIndexNames(cs.state(), IndicesOptions.lenientExpandOpen(), "*");
                         final Set<String> wanted = new HashSet<>(Arrays.asList(allIndices));
                         WildcardMatcher.wildcardRetainInSet(wanted, permitted);
@@ -474,7 +472,7 @@ public class ConfigModel {
                 }
             }
 
-            // all that we want and all thats permitted of them
+            //all that we want and all thats permitted of them
             return Collections.unmodifiableSet(retVal);
         }
 
@@ -568,7 +566,7 @@ public class ConfigModel {
         }
 
         public Set<Tenant> getTenants(User user) {
-            // TODO filter out user tenants
+            //TODO filter out user tenants
             return Collections.unmodifiableSet(tenants);
         }
 
@@ -590,7 +588,7 @@ public class ConfigModel {
 
     }
 
-    // sg roles
+    //sg roles
     public static class IndexPattern {
         private final String indexPattern;
         private String dlsQuery;
@@ -709,7 +707,7 @@ public class ConfigModel {
             if (resolved == null || resolved.length == 0) {
                 return new String[] { unresolved };
             } else {
-                // append unresolved value for pattern matching
+                //append unresolved value for pattern matching
                 String[] retval = Arrays.copyOf(resolved, resolved.length + 1);
                 retval[retval.length - 1] = unresolved;
                 return retval;
@@ -913,12 +911,12 @@ public class ConfigModel {
         Set<String> matchingIndex = new HashSet<>(resolved.getAllIndices());
 
         for (String in : resolved.getAllIndices()) {
-            // find index patterns who are matching
+            //find index patterns who are matching
             Set<String> matchingActions = new HashSet<>(Arrays.asList(actions));
             Set<String> matchingTypes = new HashSet<>(resolved.getTypes());
             for (IndexPattern p : ipatterns) {
                 if (WildcardMatcher.matchAny(p.getResolvedIndexPattern(user, resolver, cs), in)) {
-                    // per resolved index per pattern
+                    //per resolved index per pattern
                     for (String t : resolved.getTypes()) {
                         for (TypePerm tp : p.typePerms) {
                             if (WildcardMatcher.match(tp.typePattern, t)) {

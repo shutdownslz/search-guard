@@ -247,7 +247,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         demoCertHashes.add("7a355f42c90e7543a267fbe3976c02f619036f5a34ce712995a22b342d83c3ce");
         demoCertHashes.add("a9b5eca1399ec8518081c0d4a21a34eec4589087ce64c04fb01a488f9ad8edc9");
 
-        // new certs 04/2018
+        //new certs 04/2018
         demoCertHashes.add("d14aefe70a592d7a29e14f3ff89c3d0070c99e87d21776aa07d333ee877e758f");
         demoCertHashes.add("54a70016e0837a2b0c5658d1032d7ca32e432c62c55f01a2bf5adcb69a0a7ba9");
         demoCertHashes.add("bdc141ab2272c779d0f242b79063152c49e1b06a2af05e0fd90d505f2b44d5f5");
@@ -329,7 +329,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         }
 
         if (!client && !tribeNodeClient && !settings.getAsBoolean(ConfigConstants.SEARCHGUARD_ALLOW_UNSAFE_DEMOCERTIFICATES, false)) {
-            // check for demo certificates
+            //check for demo certificates
             final List<String> files = AccessController.doPrivileged(new PrivilegedAction<List<String>>() {
                 @Override
                 public List<String> run() {
@@ -396,7 +396,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             if (log.isDebugEnabled()) {
                 log.debug("Cannot determine posix file permissions for {} due to {}", p, e);
             }
-            // ignore, can happen on windows
+            //ignore, can happen on windows
             return false;
         }
 
@@ -418,11 +418,10 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             return true;
         }
 
-        // if (perms.contains(PosixFilePermission.GROUP_READ) ||
-        // perms.contains(PosixFilePermission.GROUP_WRITE)) {
-        // // no permissions for "group" allowed
-        // return true;
-        // }
+        //if (perms.contains(PosixFilePermission.GROUP_READ) || perms.contains(PosixFilePermission.GROUP_WRITE)) {
+        //    // no permissions for "group" allowed
+        //    return true;
+        //}
 
         return false;
     }
@@ -499,7 +498,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        // called for every index!
+        //called for every index!
 
         if (!disabled && !client && !sslOnly) {
             log.debug("Handle complianceConfig=" + complianceConfig + "/dlsFlsAvailable: " + dlsFlsAvailable + "/auditLog=" + auditLog.getClass()
@@ -699,7 +698,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
                 final ValidatingDispatcher validatingDispatcher = new ValidatingDispatcher(threadPool.getThreadContext(), dispatcher, settings,
                         configPath, evaluateSslExceptionHandler());
-                // TODO close sghst
+                //TODO close sghst
                 final SearchGuardHttpServerTransport sghst = new SearchGuardHttpServerTransport(settings, networkService, bigArrays, threadPool, sgks,
                         evaluateSslExceptionHandler(), xContentRegistry, validatingDispatcher);
 
@@ -762,7 +761,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                 localClient, threadPool);
 
         adminDns = new AdminDNs(settings);
-        // final PrincipalExtractor pe = new DefaultPrincipalExtractor();
+        //final PrincipalExtractor pe = new DefaultPrincipalExtractor();
         cr = (IndexBaseConfigurationRepository) IndexBaseConfigurationRepository.create(settings, this.configPath, threadPool, localClient,
                 clusterService, auditLog, complianceConfig);
         cr.subscribeOnLicenseChange(complianceConfig);
@@ -796,12 +795,12 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
             @Override
             public void onChange(Settings unused) {
-                // auditLog.logExternalConfig(settings, environment);
+                //auditLog.logExternalConfig(settings, environment);
             }
         });
 
         components.add(adminDns);
-        // components.add(auditLog);
+        //components.add(auditLog);
         components.add(cr);
         components.add(iab);
         components.add(xffResolver);
@@ -843,16 +842,16 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
         if (!sslOnly) {
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_ADMIN_DN, Collections.emptyList(), Function.identity(),
-                    Property.NodeScope)); // not filtered here
+                    Property.NodeScope)); //not filtered here
 
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_CONFIG_INDEX_NAME, Property.NodeScope, Property.Filtered));
-            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_IMPERSONATION_DN + ".", Property.NodeScope)); // not filtered here
+            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_IMPERSONATION_DN + ".", Property.NodeScope)); //not filtered here
 
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_CERT_OID, Property.NodeScope, Property.Filtered));
 
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_CERT_INTERCLUSTER_REQUEST_EVALUATOR_CLASS, Property.NodeScope,
                     Property.Filtered));
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_NODES_DN, Collections.emptyList(), Function.identity(), Property.NodeScope));// not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_NODES_DN, Collections.emptyList(), Function.identity(), Property.NodeScope));//not filtered here
 
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE,
                     ConfigConstants.SG_DEFAULT_ENABLE_SNAPSHOT_RESTORE_PRIVILEGE, Property.NodeScope, Property.Filtered));
@@ -863,23 +862,21 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
             settings.add(Setting.intSetting(ConfigConstants.SEARCHGUARD_CACHE_TTL_MINUTES, 60, 0, Property.NodeScope, Property.Filtered));
 
-            // SG6
+            //SG6
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_ENTERPRISE_MODULES_ENABLED, true, Property.NodeScope, Property.Filtered));
             settings.add(
                     Setting.boolSetting(ConfigConstants.SEARCHGUARD_ALLOW_UNSAFE_DEMOCERTIFICATES, false, Property.NodeScope, Property.Filtered));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_ALLOW_DEFAULT_INIT_SGINDEX, false, Property.NodeScope, Property.Filtered));
 
-            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_REST_IMPERSONATION_USERS + ".", Property.NodeScope)); // not filtered here
+            settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUTHCZ_REST_IMPERSONATION_USERS + ".", Property.NodeScope)); //not filtered here
 
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_ROLES_MAPPING_RESOLUTION, Property.NodeScope, Property.Filtered));
-            // settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY,
-            // false, Property.NodeScope, Property.Filtered));
+            //settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_DISABLE_TYPE_SECURITY, false, Property.NodeScope, Property.Filtered));
 
-            // TODO remove searchguard.tribe.clustername?
-            // settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_TRIBE_CLUSTERNAME,
-            // Property.NodeScope, Property.Filtered));
+            //TODO remove searchguard.tribe.clustername?
+            //settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_TRIBE_CLUSTERNAME, Property.NodeScope, Property.Filtered));
 
-            // SG6 - Audit
+            // SG6 - Audit        
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_TYPE_DEFAULT, Property.NodeScope, Property.Filtered));
             settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_ROUTES + ".", Property.NodeScope));
             settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_ENDPOINTS + ".", Property.NodeScope));
@@ -894,14 +891,14 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             disabledCategories.add("AUTHENTICATED");
             disabledCategories.add("GRANTED_PRIVILEGES");
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DISABLED_TRANSPORT_CATEGORIES, disabledCategories,
-                    Function.identity(), Property.NodeScope)); // not filtered here
+                    Function.identity(), Property.NodeScope)); //not filtered here
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DISABLED_REST_CATEGORIES, disabledCategories,
-                    Function.identity(), Property.NodeScope)); // not filtered here
+                    Function.identity(), Property.NodeScope)); //not filtered here
             final List<String> ignoredUsers = new ArrayList<String>(2);
             ignoredUsers.add("kibanaserver");
-            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_IGNORE_USERS, ignoredUsers, Function.identity(), Property.NodeScope)); // not filtered here
+            settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_IGNORE_USERS, ignoredUsers, Function.identity(), Property.NodeScope)); //not filtered here
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_AUDIT_IGNORE_REQUESTS, Collections.emptyList(), Function.identity(),
-                    Property.NodeScope)); // not filtered here
+                    Property.NodeScope)); //not filtered here
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_RESOLVE_BULK_REQUESTS, false, Property.NodeScope, Property.Filtered));
             settings.add(
                     Setting.boolSetting(ConfigConstants.SEARCHGUARD_AUDIT_EXCLUDE_SENSITIVE_HEADERS, true, Property.NodeScope, Property.Filtered));
@@ -915,7 +912,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             // External ES
             settings.add(Setting.listSetting(
                     ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_HTTP_ENDPOINTS,
-                    Lists.newArrayList("localhost:9200"), Function.identity(), Property.NodeScope)); // not filtered
+                    Lists.newArrayList("localhost:9200"), Function.identity(), Property.NodeScope)); //not filtered here
                                                                                                                                                                                                                                                               // here
             settings.add(Setting.simpleString(
                     ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_USERNAME,
@@ -958,10 +955,10 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                     Property.NodeScope, Property.Filtered));
             settings.add(Setting.listSetting(
                     ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLED_SSL_CIPHERS,
-                    Collections.emptyList(), Function.identity(), Property.NodeScope));// not filtered here
+                    Collections.emptyList(), Function.identity(), Property.NodeScope));//not filtered here
             settings.add(Setting.listSetting(
                     ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_EXTERNAL_ES_ENABLED_SSL_PROTOCOLS,
-                    Collections.emptyList(), Function.identity(), Property.NodeScope));// not filtered here
+                    Collections.emptyList(), Function.identity(), Property.NodeScope));//not filtered here
 
             // Webhooks
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_AUDIT_CONFIG_DEFAULT_PREFIX + ConfigConstants.SEARCHGUARD_AUDIT_WEBHOOK_URL,
@@ -993,7 +990,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
             // SG6 - REST API
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_RESTAPI_ROLES_ENABLED, Collections.emptyList(), Function.identity(),
-                    Property.NodeScope)); // not filtered here
+                    Property.NodeScope)); //not filtered here
             settings.add(Setting.groupSetting(ConfigConstants.SEARCHGUARD_RESTAPI_ENDPOINTS_DISABLED + ".", Property.NodeScope));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_RESTAPI_ACCEPT_INVALID_LICENSE, false, Property.NodeScope,
                     Property.Filtered));
@@ -1004,9 +1001,9 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
             // Compliance
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_WATCHED_INDICES, Collections.emptyList(),
-                    Function.identity(), Property.NodeScope)); // not filtered here
+                    Function.identity(), Property.NodeScope)); //not filtered here
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_WATCHED_FIELDS, Collections.emptyList(),
-                    Function.identity(), Property.NodeScope)); // not filtered here
+                    Function.identity(), Property.NodeScope)); //not filtered here
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_METADATA_ONLY, false, Property.NodeScope,
                     Property.Filtered));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_METADATA_ONLY, false, Property.NodeScope,
@@ -1016,18 +1013,18 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_EXTERNAL_CONFIG_ENABLED, false, Property.NodeScope,
                     Property.Filtered));
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_READ_IGNORE_USERS, Collections.emptyList(),
-                    Function.identity(), Property.NodeScope)); // not filtered here
+                    Function.identity(), Property.NodeScope)); //not filtered here
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_WRITE_IGNORE_USERS, Collections.emptyList(),
-                    Function.identity(), Property.NodeScope)); // not filtered here
+                    Function.identity(), Property.NodeScope)); //not filtered here
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false, Property.NodeScope,
                     Property.Filtered));
             settings.add(Setting.listSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_IMMUTABLE_INDICES, Collections.emptyList(), Function.identity(),
-                    Property.NodeScope)); // not filtered here
+                    Property.NodeScope)); //not filtered here
             settings.add(Setting.simpleString(ConfigConstants.SEARCHGUARD_COMPLIANCE_SALT, Property.NodeScope, Property.Filtered));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_COMPLIANCE_HISTORY_INTERNAL_CONFIG_ENABLED, false, Property.NodeScope,
                     Property.Filtered));
 
-            // compat
+            //compat
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_DISABLE_INTERTRANSPORT_AUTH_INITIALLY, false, Property.NodeScope,
                     Property.Filtered));
             settings.add(Setting.boolSetting(ConfigConstants.SEARCHGUARD_UNSUPPORTED_DISABLE_REST_AUTH_INITIALLY, false, Property.NodeScope,
@@ -1063,11 +1060,9 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         log.info("{} Search Guard modules loaded so far: {}", sgModules.size(), sgModules);
     }
 
-    // below is a hack because it seems not possible to access RepositoriesService
-    // from a non guice class
-    // the way of how deguice is organized is really a mess - hope this can be fixed
-    // in later versions
-    // TODO check if this could be removed
+    //below is a hack because it seems not possible to access RepositoriesService from a non guice class
+    //the way of how deguice is organized is really a mess - hope this can be fixed in later versions
+    //TODO check if this could be removed
 
     @Override
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
