@@ -115,7 +115,6 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
     private final TermsAggregationEvaluator termsAggregationEvaluator;
     private final DlsFlsEvaluator dlsFlsEvaluator;
     private RoleMappingHolder roleMappingHolder = null;
-    private TenantHolder tenantHolder = null;
     private final boolean enterpriseModulesEnabled;
 
     public PrivilegesEvaluator(final ClusterService clusterService, final ThreadPool threadPool,
@@ -154,103 +153,7 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
         sgIndexAccessEvaluator = new SearchGuardIndexAccessEvaluator(settings, auditLog);
         dlsFlsEvaluator = new DlsFlsEvaluator(settings, threadPool);
         termsAggregationEvaluator = new TermsAggregationEvaluator();
-        tenantHolder = new TenantHolder();
-        configurationRepository.subscribeOnChange("roles", tenantHolder);
         this.enterpriseModulesEnabled = enterpriseModulesEnabled;
-    }
-
-    private class TenantHolder implements ConfigurationChangeListener {
-
-        private SetMultimap<String, Tuple<String, Boolean>> tenantsMM = null;
-
-        public Map<String, Boolean> mapTenants(final User user, Set<String> roles) {
-
-            if (user == null || tenantsMM == null) {
-                return Collections.emptyMap();
-            }
-
-            final Map<String, Boolean> result = new HashMap<>(roles.size());
-            result.put(user.getName(), true);
-
-            tenantsMM.entries().stream().filter(e -> roles.contains(e.getKey())).filter(e -> !user.getName().equals(e.getValue().v1())).forEach(e -> {
-                final String tenant = e.getValue().v1();
-                final boolean rw = e.getValue().v2();
-
-                if (rw || !result.containsKey(tenant)) { //RW outperforms RO
-                    result.put(tenant, rw);
-                }
-            });
-            return Collections.unmodifiableMap(result);
-        }
-
-        @Override
-        public void onChange(Settings roles) {
-
-            final Set<Future<Tuple<String, Set<Tuple<String, Boolean>>>>> futures = new HashSet<>(roles.size());
-
-            final ExecutorService execs = Executors.newFixedThreadPool(10);
-            
-            for (String sgRole : roles.names()) {
-
-                Future<Tuple<String, Set<Tuple<String, Boolean>>>> future = execs.submit(new Callable<Tuple<String, Set<Tuple<String, Boolean>>>>() {
-                    @Override
-                    public Tuple<String, Set<Tuple<String, Boolean>>> call() throws Exception {
-                        final Set<Tuple<String, Boolean>> tuples = new HashSet<>();
-                        final Settings tenants = getRolesSettings().getByPrefix(sgRole + ".tenants.");
-
-                        // TODO convert to new config format
-                        
-                        if (tenants != null) {
-                            for (String tenant : tenants.names()) {
-
-                                if ("RW".equalsIgnoreCase(tenants.get(tenant, "RO"))) {
-                                    //RW
-                                    tuples.add(new Tuple<String, Boolean>(tenant, true));
-                                } else {
-                                    //RO
-                                    //if(!tenantsMM.containsValue(value)) { //RW outperforms RO
-                                    tuples.add(new Tuple<String, Boolean>(tenant, false));
-                                    //}
-                                }
-                            }
-                        }
-
-                        return new Tuple<String, Set<Tuple<String, Boolean>>>(sgRole, tuples);
-                    }
-                });
-
-                futures.add(future);
-
-            }
-
-            execs.shutdown();
-            try {
-                execs.awaitTermination(30, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Thread interrupted (1) while loading roles");
-                return;
-            }
-
-            try {
-                final SetMultimap<String, Tuple<String, Boolean>> tenantsMM_ = SetMultimapBuilder.hashKeys(futures.size()).hashSetValues(16).build();
-
-                for (Future<Tuple<String, Set<Tuple<String, Boolean>>>> future : futures) {
-                    Tuple<String, Set<Tuple<String, Boolean>>> result = future.get();
-                    tenantsMM_.putAll(result.v1(), result.v2());
-                }
-
-                tenantsMM = tenantsMM_;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log.error("Thread interrupted (2) while loading roles");
-                return;
-            } catch (ExecutionException e) {
-                log.error("Error while updating roles: {}", e.getCause(), e.getCause());
-                throw ExceptionsHelper.convertToElastic(e);
-            }
-
-        }
     }
 
     private class RoleMappingHolder {
@@ -706,8 +609,8 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
     
     }*/
 
-    public Map<String, Boolean> mapTenants(final User user, Set<String> roles) {
-        return this.tenantHolder.mapTenants(user, roles);
+    public Map<String, Boolean> mapTenants(final User user, Set<String> roleNames) {
+        return this.configModel.getSgRoles().mapTenants(user, roleNames);
     }
 
     /*public Map<String, Boolean> mapTenants00(final User user, Set<String> roles) {

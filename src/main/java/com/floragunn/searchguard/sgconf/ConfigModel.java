@@ -94,15 +94,15 @@ public class ConfigModel implements ConfigurationChangeListener {
                 public SgRole call() throws Exception {
                     SgRole _sgRole = new SgRole(sgRole);
                     final Settings sgRoleSettings = rolesSettings.getByPrefix(sgRole);
-                    
+
                     if (sgRoleSettings.getAsList("applications") != null) {
                         hasApplicationsBlock.getAndSet(true);
                     }
-                    
+
                     if (!sgRoleSettings.names().isEmpty()) {
                         final Set<String> permittedClusterActions = ah.resolvedActions(sgRoleSettings.getAsList(".cluster", Collections.emptyList()));
                         _sgRole.addClusterPerms(permittedClusterActions);
-                        
+
                         Set<String> applicationPerms = ah.resolvedActions(sgRoleSettings.getAsList(".applications", Collections.emptyList()));
                         _sgRole.addApplicationPerms(applicationPerms);
 
@@ -131,8 +131,8 @@ public class ConfigModel implements ConfigurationChangeListener {
                                         _sgRole.addTenant(new Tenant(tenant, Privileges.Defaults.SET_TENANT_RW));
                                     } else {
                                         if (!("RO".equalsIgnoreCase(legacyTenantConfig))) {
-                                            log.warn(
-                                                    "Invalid tenant config for tenant " + tenant + ": " + legacyTenantConfig + "\n" + "Assuming RO (read-only).");
+                                            log.warn("Invalid tenant config for tenant " + tenant + ": " + legacyTenantConfig + "\n"
+                                                    + "Assuming RO (read-only).");
                                         }
 
                                         _sgRole.addTenant(new Tenant(tenant, Privileges.Defaults.SET_TENANT_RO));
@@ -196,11 +196,12 @@ public class ConfigModel implements ConfigurationChangeListener {
             for (Future<SgRole> future : futures) {
                 _sgRoles.addSgRole(future.get());
             }
-            
+
             if (oldStyleApplicationPermissions.get() > 0 && newStyleApplicationPermissions.get() > 0) {
-                log.warn("The role config contains both legacy style and new style tenant configurations. It is recommended to use only the new style.\n"
-                        + "Legacy style: " + oldStyleApplicationPermissions + "\n" //
-                        + "New style: " + newStyleApplicationPermissions);
+                log.warn(
+                        "The role config contains both legacy style and new style tenant configurations. It is recommended to use only the new style.\n"
+                                + "Legacy style: " + oldStyleApplicationPermissions + "\n" //
+                                + "New style: " + newStyleApplicationPermissions);
                 _sgRoles.setFormatVersion(-1);
             } else if (oldStyleApplicationPermissions.get() > 0 || !hasApplicationsBlock.get()) {
                 _sgRoles.setFormatVersion(1);
@@ -227,16 +228,16 @@ public class ConfigModel implements ConfigurationChangeListener {
 
         protected final Logger log = LogManager.getLogger(this.getClass());
 
-        final Set<SgRole> roles;
+        final Map<String, SgRole> roles;
         private int formatVersion = 0;
 
         private SgRoles(int roleCount) {
-            roles = new HashSet<>(roleCount);
+            roles = new HashMap<>(roleCount);
         }
 
         private SgRoles addSgRole(SgRole sgRole) {
             if (sgRole != null) {
-                this.roles.add(sgRole);
+                this.roles.put(sgRole.getName(), sgRole);
             }
             return this;
         }
@@ -271,25 +272,28 @@ public class ConfigModel implements ConfigurationChangeListener {
             return "roles=" + roles;
         }
 
-        public Set<SgRole> getRoles() {
-            return Collections.unmodifiableSet(roles);
+        public Collection<SgRole> getRoles() {
+            return Collections.unmodifiableCollection(roles.values());
         }
 
-        public SgRoles filter(Set<String> keep) {
+        public SgRoles filter(Set<String> rolesToKeep) {
             final SgRoles retVal = new SgRoles(roles.size());
 
-            for (SgRole sgr : roles) {
-                if (keep.contains(sgr.getName())) {
-                    retVal.addSgRole(sgr);
+            for (String roleToKeep : rolesToKeep) {
+                SgRole sgRole = this.roles.get(roleToKeep);
+
+                if (sgRole != null) {
+                    retVal.addSgRole(sgRole);
                 }
             }
+
             return retVal;
         }
 
         public Map<String, Set<String>> getMaskedFields(User user, IndexNameExpressionResolver resolver, ClusterService cs) {
             final Map<String, Set<String>> maskedFieldsMap = new HashMap<String, Set<String>>();
 
-            for (SgRole sgr : roles) {
+            for (SgRole sgr : roles.values()) {
                 for (IndexPattern ip : sgr.getIpatterns()) {
                     final Set<String> maskedFields = ip.getMaskedFields();
                     final String indexPattern = ip.getUnresolvedIndexPattern(user);
@@ -329,7 +333,7 @@ public class ConfigModel implements ConfigurationChangeListener {
             final Map<String, Set<String>> dlsQueries = new HashMap<String, Set<String>>();
             final Map<String, Set<String>> flsFields = new HashMap<String, Set<String>>();
 
-            for (SgRole sgr : roles) {
+            for (SgRole sgr : roles.values()) {
                 for (IndexPattern ip : sgr.getIpatterns()) {
                     final Set<String> fls = ip.getFls();
                     final String dls = ip.getDlsQuery(user);
@@ -391,7 +395,7 @@ public class ConfigModel implements ConfigurationChangeListener {
         public Set<String> getAllPermittedIndices(User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
 
             Set<String> retVal = new HashSet<>();
-            for (SgRole sgr : roles) {
+            for (SgRole sgr : roles.values()) {
                 retVal.addAll(sgr.getAllResolvedPermittedIndices(Resolved._ALL, user, actions, resolver, cs));
             }
             return Collections.unmodifiableSet(retVal);
@@ -400,7 +404,7 @@ public class ConfigModel implements ConfigurationChangeListener {
         //dnfof only
         public Set<String> reduce(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             Set<String> retVal = new HashSet<>();
-            for (SgRole sgr : roles) {
+            for (SgRole sgr : roles.values()) {
                 retVal.addAll(sgr.getAllResolvedPermittedIndices(resolved, user, actions, resolver, cs));
             }
             if (log.isDebugEnabled()) {
@@ -411,7 +415,7 @@ public class ConfigModel implements ConfigurationChangeListener {
 
         //return true on success
         public boolean get(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
-            for (SgRole sgr : roles) {
+            for (SgRole sgr : roles.values()) {
                 if (ConfigModel.impliesTypePerm(sgr.getIpatterns(), resolved, user, actions, resolver, cs)) {
                     return true;
                 }
@@ -420,11 +424,11 @@ public class ConfigModel implements ConfigurationChangeListener {
         }
 
         public boolean impliesClusterPermissionPermission(String action) {
-            return roles.stream().filter(r -> r.impliesClusterPermission(action)).count() > 0;
+            return roles.values().stream().filter(r -> r.impliesClusterPermission(action)).count() > 0;
         }
 
         public boolean hasApplicationPermission(String permission) {
-            for (SgRole role : roles) {
+            for (SgRole role : roles.values()) {
                 if (WildcardMatcher.matchAny(role.getApplicationPerms(), permission)) {
                     return true;
                 }
@@ -436,7 +440,7 @@ public class ConfigModel implements ConfigurationChangeListener {
         public Set<String> getApplicationPermissionsForTenant(User user, String tenantName) {
             Set<String> result = new HashSet<>();
 
-            for (SgRole role : roles) {
+            for (SgRole role : roles.values()) {
                 for (Tenant roleTenant : role.getTenants(user)) {
                     if (roleTenant.getTenant().equals(tenantName)) {
                         result.addAll(roleTenant.getApplicationPermissions());
@@ -447,11 +451,45 @@ public class ConfigModel implements ConfigurationChangeListener {
             return result;
         }
 
+        public Map<String, Boolean> mapTenants(final User user, Set<String> roleNames) {
+
+            if (user == null) {
+                return Collections.emptyMap();
+            }
+
+            final Map<String, Boolean> result = new HashMap<>(roles.size());
+            result.put(user.getName(), true);
+
+            for (String roleName : roleNames) {
+                SgRole sgRole = this.roles.get(roleName);
+
+                if (sgRole != null) {
+                    for (Tenant tenant : sgRole.getTenants(user)) {
+
+                        String tenantName = tenant.getTenant();
+
+                        if (tenant.isReadOnly()) {
+                            if (!result.containsKey(tenantName)) {
+                                result.put(tenantName, Boolean.FALSE);
+                            }
+                        } else {
+                            // RW outperforms RO
+                            if (!Boolean.TRUE.equals(result.get(tenantName))) {
+                                result.put(tenantName, Boolean.TRUE);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return Collections.unmodifiableMap(result);
+        }
+
         //rolespan
         public boolean impliesTypePermGlobal(Resolved resolved, User user, String[] actions, IndexNameExpressionResolver resolver,
                 ClusterService cs) {
             Set<IndexPattern> ipatterns = new HashSet<ConfigModel.IndexPattern>();
-            roles.stream().forEach(p -> ipatterns.addAll(p.getIpatterns()));
+            roles.values().stream().forEach(p -> ipatterns.addAll(p.getIpatterns()));
             return ConfigModel.impliesTypePerm(ipatterns, resolved, user, actions, resolver, cs);
         }
 
