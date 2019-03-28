@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -416,7 +417,8 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
 
         // check dlsfls 
         if (enterpriseModulesEnabled
-                && dlsFlsEvaluator.evaluate(clusterService, resolver, requestedResolved, user, sgRoles, presponse).isComplete()) {
+                //&& (action0.startsWith("indices:data/read") || action0.equals(ClusterSearchShardsAction.NAME))
+                && dlsFlsEvaluator.evaluate(request, clusterService, resolver, requestedResolved, user, sgRoles, presponse).isComplete()) {
             return presponse;
         }
 
