@@ -680,6 +680,7 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
         if (sslOnly) {
             return super.getHttpTransports(settings, threadPool, bigArrays, pageCacheRecycler, circuitBreakerService, xContentRegistry,
+
                     networkService, dispatcher);
         }
 
@@ -754,8 +755,10 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
         adminDns = new AdminDNs(settings);
         //final PrincipalExtractor pe = new DefaultPrincipalExtractor();
+
         cr = (ConfigurationRepository) ConfigurationRepository.create(settings, this.configPath, threadPool, localClient, clusterService, auditLog,
                 complianceConfig);
+
         cr.subscribeOnLicenseChange(complianceConfig);
         cr.subscribeOnChange(CType.CONFIG, irr);
         final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);
@@ -764,7 +767,8 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         backendRegistry = new BackendRegistry(settings, configPath, adminDns, xffResolver, iab, auditLog, threadPool);
         cr.subscribeOnChange(CType.CONFIG, backendRegistry);
         final ActionGroupHolder ah = new ActionGroupHolder(cr);
-        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih, irr);
+
+        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih, irr, enterpriseModulesEnabled);
 
         final CompatConfig compatConfig = new CompatConfig(environment);
         cr.subscribeOnChange(CType.CONFIG, compatConfig);

@@ -21,6 +21,7 @@ import java.security.PrivilegedExceptionAction;
 
 import org.elasticsearch.SpecialPermission;
 
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
@@ -29,6 +30,12 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 
 public class DefaultObjectMapper {
     public static final ObjectMapper objectMapper = new ObjectMapper();
+    
+    static {
+        //objectMapper.setSerializationInclusion(Include.NON_NULL);
+        objectMapper.setSerializationInclusion(Include.NON_EMPTY);
+    }
+    
     //public static final ObjectMapper objectMapperYaml = new ObjectMapper(new YAMLFactory());
 
     public static <T> T readValue(String string, Class<T> clazz) throws IOException {

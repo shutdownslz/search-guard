@@ -1,10 +1,10 @@
 /*
  * Copyright 2015-2018 floragunn GmbH
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -12,7 +12,7 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- * 
+ *
  */
 
 package com.floragunn.searchguard.sgconf;
@@ -27,9 +27,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,7 +44,7 @@ import org.elasticsearch.common.collect.Tuple;
 
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
 import com.floragunn.searchguard.configuration.CType;
-import com.floragunn.searchguard.configuration.ConfigurationRepository;
+import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
 import com.floragunn.searchguard.configuration.Role;
 import com.floragunn.searchguard.configuration.Role.Index;
 import com.floragunn.searchguard.configuration.SgDynamicConfiguration;
@@ -48,81 +55,131 @@ import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
-public class ConfigModel {
+public class ConfigModel implements ConfigurationChangeListener {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     private final ActionGroupHolder ah;
-    private final ConfigurationRepository configurationRepository;
+    private SgRoles sgRoles = null;
 
-    public ConfigModel(final ActionGroupHolder ah, final ConfigurationRepository configurationRepository) {
+    public ConfigModel(final ActionGroupHolder ah) {
         super();
         this.ah = ah;
-        this.configurationRepository = configurationRepository;
     }
 
-    public SgRoles load() {
-        final SgDynamicConfiguration<Role> settings = (SgDynamicConfiguration<Role>) configurationRepository.getConfiguration(CType.ROLES);
-        SgRoles _sgRoles = new SgRoles();
-        for (Entry<String, Role> sgRole : settings.getCEntries().entrySet()) {
 
-            SgRole _sgRole = new SgRole(sgRole.getKey());
+    @Override
+    public void onChange(CType cType, SgDynamicConfiguration<?> configuration) {
+        final SgRoles tmp = reload((SgDynamicConfiguration<Role>) configuration);
+    
+        if (tmp != null) {
+            sgRoles = tmp;
+        }
+    }
+    
+    public SgRoles getSgRoles() {
+        return sgRoles;
+    }
 
-            if (sgRole.getValue() == null) {
-                continue;
-            }
+    private SgRoles reload(SgDynamicConfiguration<Role> settings) {
 
-            final Set<String> permittedClusterActions = ah.resolvedActions(sgRole.getValue().getCluster());
-            _sgRole.addClusterPerms(permittedClusterActions);
+        final Set<Future<SgRole>> futures = new HashSet<>(5000);
+        final ExecutorService execs = Executors.newFixedThreadPool(10);
 
-            //if(tenants != null) {
-            for (Entry<String, String> tenant : sgRole.getValue().getTenants().entrySet()) {
+        for(Entry<String, Role> sgRole: settings.getCEntries().entrySet()) {
 
-                //if(tenant.equals(user.getName())) {
-                //    continue;
-                //}
+            Future<SgRole> future = execs.submit(new Callable<SgRole>() {
 
-                if ("RW".equalsIgnoreCase(tenant.getValue())) {
-                    _sgRole.addTenant(new Tenant(tenant.getKey(), true));
-                } else {
-                    _sgRole.addTenant(new Tenant(tenant.getKey(), false));
-                    //if(_sgRole.tenants.stream().filter(t->t.tenant.equals(tenant)).count() > 0) { //RW outperforms RO
-                    //    _sgRole.addTenant(new Tenant(tenant, false));
+                @Override
+                public SgRole call() throws Exception {
+                    SgRole _sgRole = new SgRole(sgRole.getKey());
+                    
+                    if(sgRole.getValue() == null) {
+                        return null;
+                    }
+
+                    final Set<String> permittedClusterActions = ah.resolvedActions(sgRole.getValue().getCluster());
+                    _sgRole.addClusterPerms(permittedClusterActions);
+
+                    //if(tenants != null) {
+                        for(Entry<String, String> tenant: sgRole.getValue().getTenants().entrySet()) {
+
+                            //if(tenant.equals(user.getName())) {
+                            //    continue;
+                            //}
+
+                            if("RW".equalsIgnoreCase(tenant.getValue())) {
+                                _sgRole.addTenant(new Tenant(tenant.getKey(), true));
+                            } else {
+                                _sgRole.addTenant(new Tenant(tenant.getKey(), false));
+                                //if(_sgRole.tenants.stream().filter(t->t.tenant.equals(tenant)).count() > 0) { //RW outperforms RO
+                                //    _sgRole.addTenant(new Tenant(tenant, false));
+                                //}
+                            }
+                        }
                     //}
+
+
+                    //final Map<String, DynamicConfiguration> permittedAliasesIndices = sgRoleSettings.getGroups(DotPath.of("indices"));
+
+                        for (final Entry<String, Index> permittedAliasesIndex : sgRole.getValue().getIndices().entrySet()) {
+
+                            //final String resolvedRole = sgRole;
+                            //final String indexPattern = permittedAliasesIndex;
+
+                            final String dls = permittedAliasesIndex.getValue().get_dls_();
+                            final List<String> fls = permittedAliasesIndex.getValue().get_fls_();
+                            final List<String> maskedFields = permittedAliasesIndex.getValue().get_masked_fields_();
+
+                            IndexPattern _indexPattern = new IndexPattern(permittedAliasesIndex.getKey());
+                            _indexPattern.setDlsQuery(dls);
+                            _indexPattern.addFlsFields(fls);
+                            _indexPattern.addMaskedFields(maskedFields);
+
+                            for(Entry<String, List<String>> type: permittedAliasesIndex.getValue().getTypes().entrySet()) {
+                                TypePerm typePerm = new TypePerm(type.getKey());
+                                final List<String> perms = type.getValue();
+                                typePerm.addPerms(ah.resolvedActions(perms));
+                                _indexPattern.addTypePerms(typePerm);
+                            }
+
+                            _sgRole.addIndexPattern(_indexPattern);
+
+                        }
+            
+                            
+                        return _sgRole;
                 }
-            }
-            //}
+            });
 
-            //final Map<String, DynamicConfiguration> permittedAliasesIndices = sgRoleSettings.getGroups(DotPath.of("indices"));
-
-            for (final Entry<String, Index> permittedAliasesIndex : sgRole.getValue().getIndices().entrySet()) {
-
-                //final String resolvedRole = sgRole;
-                //final String indexPattern = permittedAliasesIndex;
-
-                final String dls = permittedAliasesIndex.getValue().get_dls_();
-                final List<String> fls = permittedAliasesIndex.getValue().get_fls_();
-                final List<String> maskedFields = permittedAliasesIndex.getValue().get_masked_fields_();
-
-                IndexPattern _indexPattern = new IndexPattern(permittedAliasesIndex.getKey());
-                _indexPattern.setDlsQuery(dls);
-                _indexPattern.addFlsFields(fls);
-                _indexPattern.addMaskedFields(maskedFields);
-
-                for (Entry<String, List<String>> type : permittedAliasesIndex.getValue().getTypes().entrySet()) {
-                    TypePerm typePerm = new TypePerm(type.getKey());
-                    final List<String> perms = type.getValue();
-                    typePerm.addPerms(ah.resolvedActions(perms));
-                    _indexPattern.addTypePerms(typePerm);
-                }
-
-                _sgRole.addIndexPattern(_indexPattern);
-
-            }
-            _sgRoles.addSgRole(_sgRole);
+            futures.add(future);
         }
 
-        return _sgRoles;
+        execs.shutdown();
+        try {
+            execs.awaitTermination(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted (1) while loading roles");
+            return null;
+        }
+
+        try {
+            SgRoles _sgRoles = new SgRoles(futures.size());
+            for (Future<SgRole> future : futures) {
+                _sgRoles.addSgRole(future.get());
+            }
+
+            return _sgRoles;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("Thread interrupted (2) while loading roles");
+            return null;
+        } catch (ExecutionException e) {
+            log.error("Error while updating roles: {}", e.getCause(), e.getCause());
+            throw ExceptionsHelper.convertToElastic(e);
+        }
     }
+
 
     //beans
 
@@ -130,9 +187,10 @@ public class ConfigModel {
 
         protected final Logger log = LogManager.getLogger(this.getClass());
 
-        final Set<SgRole> roles = new HashSet<>(100);
+        final Set<SgRole> roles;
 
-        private SgRoles() {
+        private SgRoles(int roleCount) {
+            roles = new HashSet<>(roleCount);
         }
 
         private SgRoles addSgRole(SgRole sgRole) {
@@ -177,7 +235,7 @@ public class ConfigModel {
         }
 
         public SgRoles filter(Set<String> keep) {
-            final SgRoles retVal = new SgRoles();
+            final SgRoles retVal = new SgRoles(roles.size());
             for (SgRole sgr : roles) {
                 if (keep.contains(sgr.getName())) {
                     retVal.addSgRole(sgr);
