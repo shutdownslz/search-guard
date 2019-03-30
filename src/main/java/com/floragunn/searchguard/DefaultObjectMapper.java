@@ -32,8 +32,9 @@ public class DefaultObjectMapper {
     public static final ObjectMapper objectMapper = new ObjectMapper();
     
     static {
-        //objectMapper.setSerializationInclusion(Include.NON_NULL);
-        objectMapper.setSerializationInclusion(Include.NON_EMPTY);
+        objectMapper.setSerializationInclusion(Include.NON_NULL);
+        //objectMapper.setSerializationInclusion(Include.NON_EMPTY);
+        //objectMapper.setSerializationInclusion(Include.NON_DEFAULT);
     }
     
     //public static final ObjectMapper objectMapperYaml = new ObjectMapper(new YAMLFactory());
