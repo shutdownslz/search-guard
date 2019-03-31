@@ -30,14 +30,12 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 
 public class DefaultObjectMapper {
     public static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper defaulOmittingObjectMapper = new ObjectMapper();
     
     static {
         objectMapper.setSerializationInclusion(Include.NON_NULL);
-        //objectMapper.setSerializationInclusion(Include.NON_EMPTY);
-        //objectMapper.setSerializationInclusion(Include.NON_DEFAULT);
+        defaulOmittingObjectMapper.setSerializationInclusion(Include.NON_DEFAULT);
     }
-    
-    //public static final ObjectMapper objectMapperYaml = new ObjectMapper(new YAMLFactory());
 
     public static <T> T readValue(String string, Class<T> clazz) throws IOException {
 
@@ -59,7 +57,7 @@ public class DefaultObjectMapper {
         }
     }
 
-    public static String writeValueAsString(Object value) throws JsonProcessingException {
+    public static String writeValueAsString(Object value, boolean omitDefaults) throws JsonProcessingException {
 
         final SecurityManager sm = System.getSecurityManager();
 
@@ -71,7 +69,7 @@ public class DefaultObjectMapper {
             return AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
                 @Override
                 public String run() throws Exception {
-                    return objectMapper.writeValueAsString(value);
+                    return (omitDefaults?defaulOmittingObjectMapper:objectMapper).writeValueAsString(value);
                 }
             });
         } catch (final PrivilegedActionException e) {

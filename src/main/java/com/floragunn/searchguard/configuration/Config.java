@@ -110,7 +110,7 @@ public class Config {
         @JsonIgnore
         public String configAsJson() {
             try {
-                return DefaultObjectMapper.writeValueAsString(config);
+                return DefaultObjectMapper.writeValueAsString(config, false);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
@@ -124,7 +124,7 @@ public class Config {
         @JsonIgnore
         public String configAsJson() {
             try {
-                return DefaultObjectMapper.writeValueAsString(config);
+                return DefaultObjectMapper.writeValueAsString(config, false);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
@@ -138,7 +138,7 @@ public class Config {
         @JsonIgnore
         public String configAsJson() {
             try {
-                return DefaultObjectMapper.writeValueAsString(config);
+                return DefaultObjectMapper.writeValueAsString(config, false);
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }

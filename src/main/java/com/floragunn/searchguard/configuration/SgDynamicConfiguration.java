@@ -35,7 +35,7 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     }
     
     public static <T> SgDynamicConfiguration<T> fromNode(JsonNode json, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
-        return fromJson(DefaultObjectMapper.writeValueAsString(json), ctype, version, seqNo, primaryTerm);
+        return fromJson(DefaultObjectMapper.writeValueAsString(json, false), ctype, version, seqNo, primaryTerm);
     }
     
     public SgDynamicConfiguration() {
@@ -113,7 +113,8 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     @Override
     @JsonIgnore
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.map(DefaultObjectMapper.readValue(DefaultObjectMapper.writeValueAsString(this), typeRefMSO));
+        final boolean omitDefaults = params != null && params.paramAsBoolean("omit_defaults", false);
+        return builder.map(DefaultObjectMapper.readValue(DefaultObjectMapper.writeValueAsString(this, omitDefaults), typeRefMSO));
     }
     
     @Override
@@ -150,7 +151,7 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     @JsonIgnore
     public SgDynamicConfiguration<T> deepClone() {
         try {
-            return fromJson(DefaultObjectMapper.writeValueAsString(this), ctype, version, seqNo, primaryTerm);
+            return fromJson(DefaultObjectMapper.writeValueAsString(this, false), ctype, version, seqNo, primaryTerm);
         } catch (Exception e) {
             throw ExceptionsHelper.convertToElastic(e);
         }
