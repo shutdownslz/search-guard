@@ -283,6 +283,9 @@ public class IndexIntegrationTests extends SingleClusterTest {
         //nonexistent index with permissions
         Assert.assertEquals(HttpStatus.SC_NOT_FOUND, (res = rh.executeGetRequest("/logstash-nonex/_search", encodeBasicHeader("logstash", "nagilum"))).getStatusCode());
     
+        //nonexistent and existent index with permissions
+        Assert.assertEquals(HttpStatus.SC_NOT_FOUND, (res = rh.executeGetRequest("/logstash-nonex,logstash-1/_search", encodeBasicHeader("logstash", "nagilum"))).getStatusCode());
+        
         //existent index without permissions
         Assert.assertEquals(HttpStatus.SC_FORBIDDEN, (res = rh.executeGetRequest("/nopermindex/_search", encodeBasicHeader("logstash", "nagilum"))).getStatusCode());
 
@@ -447,9 +450,13 @@ public class IndexIntegrationTests extends SingleClusterTest {
             tc.index(new IndexRequest(".abc-6").type("logs").setRefreshPolicy(RefreshPolicy.IMMEDIATE).source("{\"content\":1}", XContentType.JSON)).actionGet();
         }
         
-        HttpResponse res = rh.executeGetRequest("/*:.abc-6,.abc-6/_search", encodeBasicHeader("ccsresolv", "nagilum"));
-        Assert.assertTrue(res.getBody(),res.getBody().contains("\"content\":1"));
+        //ccsresolv has perm for ?abc*
+        HttpResponse res = rh.executeGetRequest("ggg:.abc-6,.abc-6/_search", encodeBasicHeader("ccsresolv", "nagilum"));
+        Assert.assertEquals(HttpStatus.SC_FORBIDDEN, res.getStatusCode());
+        
+        res = rh.executeGetRequest("/*:.abc-6,.abc-6/_search", encodeBasicHeader("ccsresolv", "nagilum"));
         Assert.assertEquals(HttpStatus.SC_OK, res.getStatusCode());
+        //TODO: Change for 25.0 to be forbidden (possible bug in ES regarding ccs wildcard)
     }
 
     @Test

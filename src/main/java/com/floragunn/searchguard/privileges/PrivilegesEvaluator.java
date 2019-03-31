@@ -41,6 +41,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -54,6 +56,7 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.update.UpdateAction;
@@ -426,13 +429,9 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
 
         // check dlsfls 
         if (enterpriseModulesEnabled
-                && dlsFlsEvaluator.evaluate(clusterService, resolver, requestedResolved, user, sgRoles, presponse).isComplete()) {
+                //&& (action0.startsWith("indices:data/read") || action0.equals(ClusterSearchShardsAction.NAME))
+                && dlsFlsEvaluator.evaluate(request, clusterService, resolver, requestedResolved, user, sgRoles, presponse).isComplete()) {
             return presponse;
-        }
-
-        if (requestedResolved == Resolved._EMPTY) {
-            presponse.allowed = true;
-            return presponse.markComplete();
         }
 
         // check snapshot/restore requests 
@@ -568,7 +567,8 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
             }
         }
 
-        if (dnfofEnabled && (action0.startsWith("indices:data/read/") || action0.startsWith("indices:admin/mappings/fields/get"))) {
+        if (dnfofEnabled && (action0.startsWith("indices:data/read/") || action0.startsWith("indices:admin/mappings/fields/get")
+                || action0.equals("indices:admin/shards/search_shards"))) {
 
             if (requestedResolved.getAllIndices().isEmpty()) {
                 presponse.missingPrivileges.clear();
@@ -852,6 +852,10 @@ public class PrivilegesEvaluator implements ConfigurationChangeListener {
 
         if (!isClusterPerm(originalAction)) {
             additionalPermissionsRequired.add(originalAction);
+        }
+
+        if (request instanceof ClusterSearchShardsRequest) {
+            additionalPermissionsRequired.add(SearchAction.NAME);
         }
 
         if (request instanceof BulkShardRequest) {

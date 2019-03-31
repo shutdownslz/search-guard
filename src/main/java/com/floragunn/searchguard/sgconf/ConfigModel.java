@@ -349,7 +349,7 @@ public class ConfigModel implements ConfigurationChangeListener {
         public Set<String> getAllPermittedIndices(User user, String[] actions, IndexNameExpressionResolver resolver, ClusterService cs) {
             Set<String> retVal = new HashSet<>();
             for (SgRole sgr : roles) {
-                retVal.addAll(sgr.getAllResolvedPermittedIndices(Resolved._ALL, user, actions, resolver, cs));
+                retVal.addAll(sgr.getAllResolvedPermittedIndices(Resolved._LOCAL_ALL, user, actions, resolver, cs));
             }
             return Collections.unmodifiableSet(retVal);
         }
@@ -422,9 +422,9 @@ public class ConfigModel implements ConfigurationChangeListener {
                 }
                 if (patternMatch) {
                     //resolved but can contain patterns for nonexistent indices
-                    final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); //maybe they do not exists
+                    final String[] permitted = p.getResolvedIndexPattern(user, resolver, cs); //maybe they do not exist
                     final Set<String> res = new HashSet<>();
-                    if (!resolved.isAll() && !resolved.getAllIndices().contains("*") && !resolved.getAllIndices().contains("_all")) {
+                    if (!resolved.isLocalAll() && !resolved.getAllIndices().contains("*") && !resolved.getAllIndices().contains("_all")) {
                         final Set<String> wanted = new HashSet<>(resolved.getAllIndices());
                         //resolved but can contain patterns for nonexistent indices
                         WildcardMatcher.wildcardRetainInSet(wanted, permitted);
