@@ -27,6 +27,8 @@ import java.util.Map.Entry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import com.floragunn.searchguard.SearchGuardPlugin;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.sgconf.ConfigModel.SgRoles;
 import com.floragunn.searchguard.support.Base64Helper;
@@ -51,7 +54,7 @@ public class DlsFlsEvaluator {
         this.threadPool = threadPool;
     }
 
-    public PrivilegesEvaluatorResponse evaluate(final ClusterService clusterService, final IndexNameExpressionResolver resolver, final Resolved requestedResolved, final User user,
+    public PrivilegesEvaluatorResponse evaluate(final ActionRequest request, final ClusterService clusterService, final IndexNameExpressionResolver resolver, final Resolved requestedResolved, final User user,
             final SgRoles sgRoles, final PrivilegesEvaluatorResponse presponse) {
 
         ThreadContext threadContext = threadPool.getThreadContext();
@@ -59,19 +62,25 @@ public class DlsFlsEvaluator {
         // maskedFields
         final Map<String, Set<String>> maskedFieldsMap = sgRoles.getMaskedFields(user, resolver, clusterService);
 
+       
         if (maskedFieldsMap != null && !maskedFieldsMap.isEmpty()) {
-            if (threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER) != null) {
-                if (!maskedFieldsMap.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER)))) {
-                    throw new ElasticsearchSecurityException(ConfigConstants.SG_MASKED_FIELD_HEADER + " does not match (SG 901D)");
-                } else {
-                    if (log.isDebugEnabled()) {
-                        log.debug(ConfigConstants.SG_MASKED_FIELD_HEADER + " already set");
-                    }
-                }
+            
+            if(request instanceof ClusterSearchShardsRequest && SearchGuardPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()) {
+                threadContext.addResponseHeader(ConfigConstants.SG_MASKED_FIELD_HEADER, Base64Helper.serializeObject((Serializable) maskedFieldsMap));
             } else {
-                threadContext.putHeader(ConfigConstants.SG_MASKED_FIELD_HEADER, Base64Helper.serializeObject((Serializable) maskedFieldsMap));
-                if (log.isDebugEnabled()) {
-                    log.debug("attach masked fields info: {}", maskedFieldsMap);
+                if (threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER) != null) {
+                    if (!maskedFieldsMap.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER)))) {
+                        throw new ElasticsearchSecurityException(ConfigConstants.SG_MASKED_FIELD_HEADER + " does not match (SG 901D)");
+                    } else {
+                        if (log.isDebugEnabled()) {
+                            log.debug(ConfigConstants.SG_MASKED_FIELD_HEADER + " already set");
+                        }
+                    }
+                } else {
+                    threadContext.putHeader(ConfigConstants.SG_MASKED_FIELD_HEADER, Base64Helper.serializeObject((Serializable) maskedFieldsMap));
+                    if (log.isDebugEnabled()) {
+                        log.debug("attach masked fields info: {}", maskedFieldsMap);
+                    }
                 }
             }
         
@@ -96,14 +105,18 @@ public class DlsFlsEvaluator {
 
         if (!dlsQueries.isEmpty()) {
 
-            if (threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER) != null) {
-                if (!dlsQueries.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER)))) {
-                    throw new ElasticsearchSecurityException(ConfigConstants.SG_DLS_QUERY_HEADER + " does not match (SG 900D)");
-                }
+            if(request instanceof ClusterSearchShardsRequest && SearchGuardPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()) {
+                threadContext.addResponseHeader(ConfigConstants.SG_DLS_QUERY_HEADER, Base64Helper.serializeObject((Serializable) dlsQueries));
             } else {
-                threadContext.putHeader(ConfigConstants.SG_DLS_QUERY_HEADER, Base64Helper.serializeObject((Serializable) dlsQueries));
-                if (log.isDebugEnabled()) {
-                    log.debug("attach DLS info: {}", dlsQueries);
+                if (threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER) != null) {
+                    if (!dlsQueries.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER)))) {
+                        throw new ElasticsearchSecurityException(ConfigConstants.SG_DLS_QUERY_HEADER + " does not match (SG 900D)");
+                    }
+                } else {
+                    threadContext.putHeader(ConfigConstants.SG_DLS_QUERY_HEADER, Base64Helper.serializeObject((Serializable) dlsQueries));
+                    if (log.isDebugEnabled()) {
+                        log.debug("attach DLS info: {}", dlsQueries);
+                    }
                 }
             }
 
@@ -122,21 +135,25 @@ public class DlsFlsEvaluator {
 
         if (!flsFields.isEmpty()) {
 
-            if (threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER) != null) {
-                if (!flsFields.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER)))) {
-                    throw new ElasticsearchSecurityException(ConfigConstants.SG_FLS_FIELDS_HEADER + " does not match (SG 901D)");
+            if(request instanceof ClusterSearchShardsRequest && SearchGuardPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()) {
+                threadContext.addResponseHeader(ConfigConstants.SG_FLS_FIELDS_HEADER, Base64Helper.serializeObject((Serializable) flsFields));
+            } else {
+                if (threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER) != null) {
+                    if (!flsFields.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER)))) {
+                        throw new ElasticsearchSecurityException(ConfigConstants.SG_FLS_FIELDS_HEADER + " does not match (SG 901D)");
+                    } else {
+                        if (log.isDebugEnabled()) {
+                            log.debug(ConfigConstants.SG_FLS_FIELDS_HEADER + " already set");
+                        }
+                    }
                 } else {
+                    threadContext.putHeader(ConfigConstants.SG_FLS_FIELDS_HEADER, Base64Helper.serializeObject((Serializable) flsFields));
                     if (log.isDebugEnabled()) {
-                        log.debug(ConfigConstants.SG_FLS_FIELDS_HEADER + " already set");
+                        log.debug("attach FLS info: {}", flsFields);
                     }
                 }
-            } else {
-                threadContext.putHeader(ConfigConstants.SG_FLS_FIELDS_HEADER, Base64Helper.serializeObject((Serializable) flsFields));
-                if (log.isDebugEnabled()) {
-                    log.debug("attach FLS info: {}", flsFields);
-                }
             }
-
+            
             presponse.allowedFlsFields = new HashMap<>(flsFields);
 
             if (!requestedResolved.getAllIndices().isEmpty()) {
