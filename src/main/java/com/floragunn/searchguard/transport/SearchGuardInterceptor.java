@@ -60,6 +60,7 @@ import com.google.common.collect.Maps;
 public class SearchGuardInterceptor {
 
     protected final Logger actionTrace = LogManager.getLogger("sg_action_trace");
+    protected final Logger log = LogManager.getLogger(getClass());
     private BackendRegistry backendRegistry;
     private AuditLog auditLog;
     private final ThreadPool threadPool;
@@ -101,7 +102,9 @@ public class SearchGuardInterceptor {
         final User user0 = getThreadContext().getTransient(ConfigConstants.SG_USER);
         final String origin0 = getThreadContext().getTransient(ConfigConstants.SG_ORIGIN);
         final Object remoteAdress0 = getThreadContext().getTransient(ConfigConstants.SG_REMOTE_ADDRESS);
-        final Map<String, List<String>> origResponseHeaders0 = getThreadContext().getResponseHeaders();
+        final String origCCSTransientDls = getThreadContext().getTransient(ConfigConstants.SG_DLS_QUERY_CCS);
+        final String origCCSTransientFls = getThreadContext().getTransient(ConfigConstants.SG_FLS_FIELDS_CCS);
+        final String origCCSTransientMf = getThreadContext().getTransient(ConfigConstants.SG_MASKED_FIELD_CCS);
 
         //stash headers and transient objects
         try (ThreadContext.StoredContext stashedContext = getThreadContext().stashContext()) {
@@ -131,6 +134,9 @@ public class SearchGuardInterceptor {
                     && clusterInfoHolder.isInitialized()
                     && action.startsWith(ClusterSearchShardsAction.NAME) 
                     && !clusterInfoHolder.hasNode(connection.getNode())) {
+                if (log.isDebugEnabled()) {
+                    log.debug("remove dls/fls/mf because we sent a ccs request to a remote cluster");
+                }
                 headerMap.remove(ConfigConstants.SG_DLS_QUERY_HEADER);
                 headerMap.remove(ConfigConstants.SG_MASKED_FIELD_HEADER);
                 headerMap.remove(ConfigConstants.SG_FLS_FIELDS_HEADER);
@@ -140,18 +146,20 @@ public class SearchGuardInterceptor {
                   && clusterInfoHolder.isInitialized()
                   && !action.startsWith("internal:") 
                   && !action.startsWith(ClusterSearchShardsAction.NAME) 
-                  && !clusterInfoHolder.hasNode(connection.getNode())
-                  && origResponseHeaders0 != null 
-                  && origResponseHeaders0.size() > 0) {
+                  && !clusterInfoHolder.hasNode(connection.getNode())) {
                 
-                if (origResponseHeaders0.containsKey(ConfigConstants.SG_DLS_QUERY_HEADER)) {
-                    headerMap.put(ConfigConstants.SG_DLS_QUERY_HEADER, origResponseHeaders0.get(ConfigConstants.SG_DLS_QUERY_HEADER).get(0));
+                if (log.isDebugEnabled()) {
+                    log.debug("add dls/fls/mf from transient");
                 }
-                if (origResponseHeaders0.containsKey(ConfigConstants.SG_MASKED_FIELD_HEADER)) {
-                    headerMap.put(ConfigConstants.SG_MASKED_FIELD_HEADER, origResponseHeaders0.get(ConfigConstants.SG_MASKED_FIELD_HEADER).get(0));
+                
+                if (origCCSTransientDls != null && !origCCSTransientDls.isEmpty()) {
+                    headerMap.put(ConfigConstants.SG_DLS_QUERY_HEADER, origCCSTransientDls);
                 }
-                if (origResponseHeaders0.containsKey(ConfigConstants.SG_FLS_FIELDS_HEADER)) {
-                    headerMap.put(ConfigConstants.SG_FLS_FIELDS_HEADER, origResponseHeaders0.get(ConfigConstants.SG_FLS_FIELDS_HEADER).get(0));
+                if (origCCSTransientMf != null && !origCCSTransientMf.isEmpty()) {
+                    headerMap.put(ConfigConstants.SG_MASKED_FIELD_HEADER, origCCSTransientMf);
+                }
+                if (origCCSTransientFls != null && !origCCSTransientFls.isEmpty()) {
+                    headerMap.put(ConfigConstants.SG_FLS_FIELDS_HEADER, origCCSTransientFls);
                 }
             }
 
@@ -220,22 +228,32 @@ public class SearchGuardInterceptor {
 
         @Override
         public void handleResponse(T response) {
-            final List<String> flsResposneHeader = getThreadContext().getResponseHeaders().get(ConfigConstants.SG_FLS_FIELDS_HEADER);
+            final List<String> flsResponseHeader = getThreadContext().getResponseHeaders().get(ConfigConstants.SG_FLS_FIELDS_HEADER);
             final List<String> dlsResponseHeader = getThreadContext().getResponseHeaders().get(ConfigConstants.SG_DLS_QUERY_HEADER);
             final List<String> maskedFieldsResponseHeader = getThreadContext().getResponseHeaders().get(ConfigConstants.SG_MASKED_FIELD_HEADER);
-
+            
             contextToRestore.restore();
 
-            if (response instanceof ClusterSearchShardsResponse && flsResposneHeader != null && !flsResposneHeader.isEmpty()) {
-                getThreadContext().addResponseHeader(ConfigConstants.SG_FLS_FIELDS_HEADER, flsResposneHeader.get(0));
+            if (response instanceof ClusterSearchShardsResponse && flsResponseHeader != null && !flsResponseHeader.isEmpty()) {
+                if (log.isDebugEnabled()) {
+                    log.debug("add flsResponseHeader as transient");
+                }
+                getThreadContext().putTransient(ConfigConstants.SG_FLS_FIELDS_CCS, flsResponseHeader.get(0));
             }
 
             if (response instanceof ClusterSearchShardsResponse && dlsResponseHeader != null && !dlsResponseHeader.isEmpty()) {
-                getThreadContext().addResponseHeader(ConfigConstants.SG_DLS_QUERY_HEADER, dlsResponseHeader.get(0));
+                if (log.isDebugEnabled()) {
+                    log.debug("add dlsResponseHeader as transient");
+                }
+                getThreadContext().putTransient(ConfigConstants.SG_DLS_QUERY_CCS, dlsResponseHeader.get(0));
+
             }
             
             if (response instanceof ClusterSearchShardsResponse && maskedFieldsResponseHeader != null && !maskedFieldsResponseHeader.isEmpty()) {
-                getThreadContext().addResponseHeader(ConfigConstants.SG_MASKED_FIELD_HEADER, maskedFieldsResponseHeader.get(0));
+                if (log.isDebugEnabled()) {
+                    log.debug("add maskedFieldsResponseHeader as transient");
+                }
+                getThreadContext().putTransient(ConfigConstants.SG_MASKED_FIELD_CCS, maskedFieldsResponseHeader.get(0));
             }
 
             innerHandler.handleResponse(response);
