@@ -79,7 +79,7 @@ public class SearchGuardIndexAccessEvaluator {
         }
 
         //TODO: newpeval: check if isAll() is all (contains("_all" or "*"))
-        if (requestedResolved.isAll()
+        if (requestedResolved.isLocalAll()
                 && WildcardMatcher.matchAny(sgDeniedActionPatterns, action)) {
             auditLog.logSgIndexAttempt(request, action, task);
             log.warn(action + " for '_all' indices is not allowed for a regular user");
@@ -88,7 +88,7 @@ public class SearchGuardIndexAccessEvaluator {
         }
 
       //TODO: newpeval: check if isAll() is all (contains("_all" or "*"))
-        if(requestedResolved.getAllIndices().contains(searchguardIndex) || requestedResolved.isAll()) {
+        if(requestedResolved.getAllIndices().contains(searchguardIndex) || requestedResolved.isLocalAll()) {
 
             if(request instanceof SearchRequest) {
                 ((SearchRequest)request).requestCache(Boolean.FALSE);
