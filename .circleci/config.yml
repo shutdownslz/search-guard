@@ -28,21 +28,23 @@ jobs:
             echo "$TESTFILES"
             #echo "${TESTFILES// /,}"
             cd ~/circleci-sg
-            mvn -U -Pcoverage verify -Dtest="$TESTFILES"
-      #- run: mvn -Pcoverage verify mvn test -Dtest="com/floragunn/searchguard/HealthTests.java"
+
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              mvn -U -Pcoverage verify -Dtest="$TESTFILES"
+            else
+              #no coverage for non-master branches
+              mvn -U verify -Dtest="$TESTFILES"
+            fi
       - store_test_results:
           path: target/surefire-reports
       - store_artifacts:
           path: /.circleci-task-data
       - deploy:
           name: Deploy
-          command: |          
-            mvn deploy -U -Penterprise -DskipTests -s settings.xml
-            
-            echo "$-"
-            echo $SHELLOPTS
+          command: |
             
             if [ "${CIRCLE_BRANCH}" == "master" ] && [ "${SG_JAVA_BUILD_VERSION}" == "8" ]; then
+             mvn deploy -U -Penterprise -DskipTests -s settings.xml
               mvn -U -Pcoverage sonar:sonar -Dsonar.organization=floragunncom-github -Dsonar.login=$SONAR_LOGIN -Dsonar.host.url=https://sonarcloud.io || true
               mvn clean verify com.srcclr:srcclr-maven-plugin:scan -Penterprise -DskipTests -U
               ./dev/scan_veracode.sh

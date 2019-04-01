@@ -64,6 +64,7 @@ import com.floragunn.searchguard.test.helper.rules.SGTestWatcher;
 public abstract class AbstractSGUnitTest {
     
     protected static final AtomicLong num = new AtomicLong();
+    protected static boolean withRemoteCluster;
 
 	static {
 
@@ -75,7 +76,8 @@ public abstract class AbstractSGUnitTest {
 				+ System.getProperty("java.vm.vendor") + " " + System.getProperty("java.vm.name"));
 		System.out.println("Open SSL available: " + OpenSsl.isAvailable());
 		System.out.println("Open SSL version: " + OpenSsl.versionString());
-		
+		withRemoteCluster = Boolean.parseBoolean(System.getenv("SG_TEST_WITH_REMOTE_CLUSTER"));
+		System.out.println("With remote cluster: " + withRemoteCluster);
 	    //System.setProperty("sg.display_lic_none","true");
 	}
 	
@@ -241,6 +243,10 @@ public abstract class AbstractSGUnitTest {
     
     protected void initialize(ClusterInfo info) {
         initialize(info, Settings.EMPTY, new DynamicSgConfig());
+    }
+    
+    protected void initialize(ClusterInfo info, DynamicSgConfig dynamicSgConfig) {
+        initialize(info, Settings.EMPTY, dynamicSgConfig);
     }
     
     protected final void assertContains(HttpResponse res, String pattern) {

@@ -37,18 +37,19 @@ public class PrivilegesInterceptor {
     protected final Client client;
     protected final ThreadPool threadPool;
 
-    public PrivilegesInterceptor(final IndexNameExpressionResolver resolver, final ClusterService clusterService, 
-            final Client client, ThreadPool threadPool) {
+    public PrivilegesInterceptor(final IndexNameExpressionResolver resolver, final ClusterService clusterService, final Client client,
+            ThreadPool threadPool) {
         this.resolver = resolver;
         this.clusterService = clusterService;
         this.client = client;
         this.threadPool = threadPool;
     }
 
-    public Boolean replaceKibanaIndex(final ActionRequest request, final String action, final User user, final Settings config, final Resolved requestedResolved, final Map<String, Boolean> tenants) { 
+    public Boolean replaceKibanaIndex(final ActionRequest request, final String action, final User user, final Settings config,
+            final Resolved requestedResolved, final Map<String, Boolean> tenants) {
         throw new RuntimeException("not implemented");
     }
-    
+
     protected final ThreadContext getThreadContext() {
         return threadPool.getThreadContext();
     }
