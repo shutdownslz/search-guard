@@ -610,8 +610,8 @@ public class BackendRegistry implements ConfigurationChangeListener {
             return cache.get(user.getName(), new Callable<User>() { //no cache miss in case of noop
                 @Override
                 public User call() throws Exception {
-                    if(log.isDebugEnabled()) {
-                        log.debug(user.getName()+" not cached, return from "+authenticationBackend.getType()+" backend directly");
+                    if(log.isTraceEnabled()) {
+                        log.trace("Credentials for user "+user.getName()+" not cached, return from "+authenticationBackend.getType()+" backend directly");
                     }
                     if(authenticationBackend.exists(user)) {
                         authz(user, null, authorizers); //no role cache because no miss here in case of noop
@@ -655,8 +655,10 @@ public class BackendRegistry implements ConfigurationChangeListener {
         
         for (final AuthorizationBackend ab : authorizers) {
             try {
+                if(log.isTraceEnabled()) {
+                    log.trace("Backend roles for "+authenticatedUser.getName()+" not cached, return from "+ab.getType()+" backend directly");
+                }
                 ab.fillRoles(authenticatedUser, new AuthCredentials(authenticatedUser.getName()));
-                new Exception().printStackTrace();
             } catch (Exception e) {
                 log.error("Cannot retrieve roles for {} from {} due to {}", authenticatedUser, ab.getType(), e.toString(), e);
             }
@@ -694,8 +696,8 @@ public class BackendRegistry implements ConfigurationChangeListener {
             return cache.get(ac, new Callable<User>() {
                 @Override
                 public User call() throws Exception {
-                    if(log.isDebugEnabled()) {
-                        log.debug(ac.getUsername()+" not cached, return from "+authBackend.getType()+" backend directly");
+                    if(log.isTraceEnabled()) {
+                        log.trace("Credentials for user "+ac.getUsername()+" not cached, return from "+authBackend.getType()+" backend directly");
                     }
                     final User authenticatedUser = authBackend.authenticate(ac);
                     authz(authenticatedUser, roleCache, authorizers);
