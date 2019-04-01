@@ -38,6 +38,12 @@ public class ConfigConstants {
     public static final String SG_FLS_FIELDS_HEADER = SG_CONFIG_PREFIX+"fls_fields";
     
     public static final String SG_MASKED_FIELD_HEADER = SG_CONFIG_PREFIX+"masked_fields";
+    
+    public static final String SG_DLS_QUERY_CCS = SG_CONFIG_PREFIX+"dls_query_ccs";
+
+    public static final String SG_FLS_FIELDS_CCS = SG_CONFIG_PREFIX+"fls_fields_ccs";
+    
+    public static final String SG_MASKED_FIELD_CCS = SG_CONFIG_PREFIX+"masked_fields_ccs";
 
     public static final String SG_CONF_REQUEST_HEADER = SG_CONFIG_PREFIX+"conf_request";
 
