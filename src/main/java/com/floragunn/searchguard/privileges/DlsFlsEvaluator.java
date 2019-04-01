@@ -41,6 +41,7 @@ import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
 import com.floragunn.searchguard.sgconf.ConfigModel.SgRoles;
 import com.floragunn.searchguard.support.Base64Helper;
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.support.HeaderHelper;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.user.User;
 
@@ -65,8 +66,11 @@ public class DlsFlsEvaluator {
        
         if (maskedFieldsMap != null && !maskedFieldsMap.isEmpty()) {
             
-            if(request instanceof ClusterSearchShardsRequest && SearchGuardPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()) {
+            if(request instanceof ClusterSearchShardsRequest && HeaderHelper.isTrustedClusterRequest(threadContext)) {
                 threadContext.addResponseHeader(ConfigConstants.SG_MASKED_FIELD_HEADER, Base64Helper.serializeObject((Serializable) maskedFieldsMap));
+                if (log.isDebugEnabled()) {
+                    log.debug("added response header for masked fields info: {}", maskedFieldsMap);
+                }
             } else {
                 if (threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER) != null) {
                     if (!maskedFieldsMap.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_MASKED_FIELD_HEADER)))) {
@@ -105,8 +109,11 @@ public class DlsFlsEvaluator {
 
         if (!dlsQueries.isEmpty()) {
 
-            if(request instanceof ClusterSearchShardsRequest && SearchGuardPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()) {
+            if(request instanceof ClusterSearchShardsRequest && HeaderHelper.isTrustedClusterRequest(threadContext)) {
                 threadContext.addResponseHeader(ConfigConstants.SG_DLS_QUERY_HEADER, Base64Helper.serializeObject((Serializable) dlsQueries));
+                if (log.isDebugEnabled()) {
+                    log.debug("added response header for DLS info: {}", dlsQueries);
+                }
             } else {
                 if (threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER) != null) {
                     if (!dlsQueries.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_DLS_QUERY_HEADER)))) {
@@ -135,8 +142,11 @@ public class DlsFlsEvaluator {
 
         if (!flsFields.isEmpty()) {
 
-            if(request instanceof ClusterSearchShardsRequest && SearchGuardPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled()) {
+            if(request instanceof ClusterSearchShardsRequest && HeaderHelper.isTrustedClusterRequest(threadContext)) {
                 threadContext.addResponseHeader(ConfigConstants.SG_FLS_FIELDS_HEADER, Base64Helper.serializeObject((Serializable) flsFields));
+                if (log.isDebugEnabled()) {
+                    log.debug("added response header for FLS info: {}", flsFields);
+                }
             } else {
                 if (threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER) != null) {
                     if (!flsFields.equals(Base64Helper.deserializeObject(threadContext.getHeader(ConfigConstants.SG_FLS_FIELDS_HEADER)))) {
