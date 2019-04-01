@@ -22,6 +22,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import javax.net.ssl.SSLContext;
 
@@ -273,6 +275,10 @@ public class RestHelper {
 		public String getStatusReason() {
 			return statusReason;
 		}
+		
+		public List<Header> getHeaders() {
+            return header==null?Collections.emptyList():Arrays.asList(header);
+        }
 
         @Override
         public String toString() {
