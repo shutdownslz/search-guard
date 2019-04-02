@@ -87,7 +87,7 @@ The Search Guard configuration is stored in a dedicated index in Elasticsearch i
 
 ## Support
 * Commercial support available through [floragunn GmbH](https://search-guard.com)
-* Community support available via [google groups](https://groups.google.com/forum/#!forum/search-guard)
+* Community support available via [Search Guard Forum](https://forum.search-guard.com)
 * Follow us on twitter [@searchguard](https://twitter.com/searchguard)
 
 ## Legal 
