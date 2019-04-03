@@ -51,4 +51,4 @@ else
   echo ok
 fi
 
-killall java
+./sgadmin_demo.sh
