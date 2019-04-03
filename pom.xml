@@ -36,7 +36,7 @@
   <properties>
     <sgssl.version>7.x-HEAD-SNAPSHOT</sgssl.version>
     <enterprise-modules.version>7.x-enterprise-HEAD-SNAPSHOT</enterprise-modules.version>
-    <elasticsearch.version>7.0.0-rc1</elasticsearch.version>
+    <elasticsearch.version>7.0.0-rc2</elasticsearch.version>
     
     <!-- deps -->
     <netty-native.version>2.0.20.Final</netty-native.version>
