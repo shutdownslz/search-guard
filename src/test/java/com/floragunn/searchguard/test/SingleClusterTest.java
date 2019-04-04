@@ -58,7 +58,7 @@ public abstract class SingleClusterTest extends AbstractSGUnitTest {
         ClusterInfo cl2Info = remoteClusterHelper.startCluster(minimumSearchGuardSettings(Settings.EMPTY), ClusterConfiguration.SINGLENODE);
         Settings.Builder builder = Settings.builder()
                 .put(nodeOverride)
-                .putList("search.remote.cross_cluster_two.seeds", cl2Info.nodeHost+":"+cl2Info.nodePort);
+                .putList("cluster.remote.cross_cluster_two.seeds", cl2Info.nodeHost+":"+cl2Info.nodePort);
         return builder.build();
         } else {
             return nodeOverride;

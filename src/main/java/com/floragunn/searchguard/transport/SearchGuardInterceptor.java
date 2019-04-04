@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -132,7 +133,9 @@ public class SearchGuardInterceptor {
             
             if (SearchGuardPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled() 
                     && clusterInfoHolder.isInitialized()
-                    && action.startsWith(ClusterSearchShardsAction.NAME) 
+                    && (action.equals(ClusterSearchShardsAction.NAME)
+                            || action.equals(SearchAction.NAME) 
+)
                     && !clusterInfoHolder.hasNode(connection.getNode())) {
                 if (log.isDebugEnabled()) {
                     log.debug("remove dls/fls/mf because we sent a ccs request to a remote cluster");
@@ -145,7 +148,7 @@ public class SearchGuardInterceptor {
             if (SearchGuardPlugin.GuiceHolder.getRemoteClusterService().isCrossClusterSearchEnabled() 
                   && clusterInfoHolder.isInitialized()
                   && !action.startsWith("internal:") 
-                  && !action.startsWith(ClusterSearchShardsAction.NAME) 
+                  && !action.equals(ClusterSearchShardsAction.NAME) 
                   && !clusterInfoHolder.hasNode(connection.getNode())) {
                 
                 if (log.isDebugEnabled()) {
