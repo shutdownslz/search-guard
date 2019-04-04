@@ -1,4 +1,4 @@
-package com.floragunn.searchguard.configuration;
+package com.floragunn.searchguard.sgconf.impl.v6;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -8,6 +8,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.floragunn.searchguard.sgconf.Hideable;
 
 public class Role implements Hideable {
 

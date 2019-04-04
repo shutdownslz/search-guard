@@ -28,10 +28,10 @@ import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import com.floragunn.searchguard.configuration.CType;
-import com.floragunn.searchguard.configuration.Config;
 import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
-import com.floragunn.searchguard.configuration.SgDynamicConfiguration;
+import com.floragunn.searchguard.sgconf.impl.CType;
+import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
+import com.floragunn.searchguard.sgconf.impl.v6.Config;
 import com.floragunn.searchguard.support.ConfigConstants;
 
 public class XFFResolver implements ConfigurationChangeListener {

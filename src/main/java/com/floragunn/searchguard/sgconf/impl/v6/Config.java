@@ -1,4 +1,4 @@
-package com.floragunn.searchguard.configuration;
+package com.floragunn.searchguard.sgconf.impl.v6;
 
 import java.util.Collections;
 import java.util.HashMap;

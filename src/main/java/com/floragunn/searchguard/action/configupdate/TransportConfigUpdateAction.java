@@ -38,9 +38,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import com.floragunn.searchguard.auth.BackendRegistry;
-import com.floragunn.searchguard.configuration.CType;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardLicense;
+import com.floragunn.searchguard.sgconf.impl.CType;
 import com.floragunn.searchguard.support.LicenseHelper;
 
 public class TransportConfigUpdateAction

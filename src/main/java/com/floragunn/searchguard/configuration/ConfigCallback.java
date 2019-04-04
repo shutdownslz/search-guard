@@ -19,6 +19,8 @@ package com.floragunn.searchguard.configuration;
 
 import org.elasticsearch.action.get.MultiGetResponse.Failure;
 
+import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
+
 public interface ConfigCallback {
     
     void success(SgDynamicConfiguration<?> dConf);

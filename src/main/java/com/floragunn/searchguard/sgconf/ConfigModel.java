@@ -43,12 +43,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 
 import com.floragunn.searchguard.configuration.ActionGroupHolder;
-import com.floragunn.searchguard.configuration.CType;
 import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
-import com.floragunn.searchguard.configuration.Role;
-import com.floragunn.searchguard.configuration.Role.Index;
-import com.floragunn.searchguard.configuration.SgDynamicConfiguration;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
+import com.floragunn.searchguard.sgconf.impl.CType;
+import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
+import com.floragunn.searchguard.sgconf.impl.v6.Role;
+import com.floragunn.searchguard.sgconf.impl.v6.Role.Index;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.floragunn.searchguard.user.User;
 import com.google.common.base.Joiner;

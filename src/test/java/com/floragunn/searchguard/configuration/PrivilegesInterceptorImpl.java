@@ -28,6 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.privileges.PrivilegesInterceptor;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
+import com.floragunn.searchguard.sgconf.impl.v6.Config;
 import com.floragunn.searchguard.user.User;
 
 public class PrivilegesInterceptorImpl extends PrivilegesInterceptor {

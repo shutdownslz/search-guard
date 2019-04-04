@@ -1,4 +1,4 @@
-package com.floragunn.searchguard.configuration;
+package com.floragunn.searchguard.sgconf.impl;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -15,6 +15,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.floragunn.searchguard.DefaultObjectMapper;
+import com.floragunn.searchguard.sgconf.Hashed;
+import com.floragunn.searchguard.sgconf.Hideable;
 
 public class SgDynamicConfiguration<T> implements ToXContent {
     

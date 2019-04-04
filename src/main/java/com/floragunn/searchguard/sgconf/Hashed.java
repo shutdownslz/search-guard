@@ -1,4 +1,4 @@
-package com.floragunn.searchguard.configuration;
+package com.floragunn.searchguard.sgconf;
 
 public interface Hashed {
     

@@ -1,4 +1,4 @@
-package com.floragunn.searchguard.configuration;
+package com.floragunn.searchguard.sgconf.impl;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -8,13 +8,20 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.floragunn.searchguard.sgconf.impl.v6.ActionGroups;
+import com.floragunn.searchguard.sgconf.impl.v6.Config;
+import com.floragunn.searchguard.sgconf.impl.v6.InternalUser;
+import com.floragunn.searchguard.sgconf.impl.v6.Role;
+import com.floragunn.searchguard.sgconf.impl.v6.RoleMappings;
+
 public enum CType {
     
     INTERNALUSERS(toMap(1, InternalUser.class)),
     ACTIONGROUPS(toMap(0, List.class, 1, ActionGroups.class)),
     CONFIG(toMap(1, Config.class)),
     ROLES(toMap(1, Role.class)),
-    ROLESMAPPING(toMap(1, RoleMappings.class));
+    ROLESMAPPING(toMap(1, RoleMappings.class)),
+    TENANTS(toMap(1, Role.class));
     
     private Map<Integer, Class<?>> implementations;
 

@@ -26,8 +26,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import com.floragunn.searchguard.configuration.Config;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
+import com.floragunn.searchguard.sgconf.impl.v6.Config;
 import com.floragunn.searchguard.user.User;
 
 public class PrivilegesInterceptor {

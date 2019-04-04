@@ -17,6 +17,9 @@
 
 package com.floragunn.searchguard.configuration;
 
+import com.floragunn.searchguard.sgconf.impl.CType;
+import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
+
 /**
  * Callback function on change particular configuration
  */
