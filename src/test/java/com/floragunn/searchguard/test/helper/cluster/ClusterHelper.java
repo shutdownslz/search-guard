@@ -38,12 +38,16 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode.Role;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.PluginAwareNode;
 
@@ -190,6 +194,22 @@ public final class ClusterHelper {
 		ClusterInfo cInfo = waitForCluster(ClusterHealthStatus.GREEN, TimeValue.timeValueSeconds(timeout), nodes == null?esNodes.size():nodes.intValue());
 		cInfo.numNodes = internalNodeSettings.size();
 		cInfo.clustername = clustername;
+		
+		final String defaultTemplate = "{\n" + 
+		        "          \"index_patterns\": [\"*\"],\n" + 
+		        "          \"order\": -1,\n" + 
+		        "          \"settings\": {\n" + 
+		        "            \"number_of_shards\": \"5\",\n" + 
+		        "            \"number_of_replicas\": \"1\"\n" + 
+		        "          }\n" + 
+		        "        }";
+		
+		final AcknowledgedResponse templateAck = nodeClient().admin().indices().putTemplate(new PutIndexTemplateRequest("default").source(defaultTemplate, XContentType.JSON)).actionGet();
+		
+		if(!templateAck.isAcknowledged()) {
+		    throw new RuntimeException("Default template could not be created");
+		}
+		
 		return cInfo;
 	}
 
