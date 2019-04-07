@@ -10,7 +10,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.floragunn.searchguard.sgconf.Hideable;
 
-public class Role implements Hideable {
+public class RoleV6 implements Hideable {
 
     private boolean readonly;
     private boolean hidden;

@@ -17,17 +17,12 @@
 
 package com.floragunn.searchguard.auth;
 
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -41,7 +36,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -55,22 +49,17 @@ import com.floragunn.searchguard.auth.internal.InternalAuthenticationBackend;
 import com.floragunn.searchguard.auth.internal.NoOpAuthenticationBackend;
 import com.floragunn.searchguard.auth.internal.NoOpAuthorizationBackend;
 import com.floragunn.searchguard.configuration.AdminDNs;
-import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
 import com.floragunn.searchguard.http.HTTPBasicAuthenticator;
 import com.floragunn.searchguard.http.HTTPClientCertAuthenticator;
 import com.floragunn.searchguard.http.HTTPProxyAuthenticator;
 import com.floragunn.searchguard.http.XFFResolver;
-import com.floragunn.searchguard.sgconf.impl.CType;
-import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
-import com.floragunn.searchguard.sgconf.impl.v6.Config;
-import com.floragunn.searchguard.sgconf.impl.v6.Config.Authc;
-import com.floragunn.searchguard.sgconf.impl.v6.Config.AuthcDomain;
-import com.floragunn.searchguard.sgconf.impl.v6.Config.Authz;
-import com.floragunn.searchguard.sgconf.impl.v6.Config.AuthzDomain;
+import com.floragunn.searchguard.sgconf.ConfigModel;
+import com.floragunn.searchguard.sgconf.DynamicConfigFactory.DCFListener;
+import com.floragunn.searchguard.sgconf.DynamicConfigModel;
+import com.floragunn.searchguard.sgconf.InternalUsersModel;
 import com.floragunn.searchguard.ssl.util.Utils;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HTTPHelper;
-import com.floragunn.searchguard.support.ReflectionHelper;
 import com.floragunn.searchguard.user.AuthCredentials;
 import com.floragunn.searchguard.user.User;
 import com.google.common.base.Strings;
@@ -79,22 +68,20 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 
-public class BackendRegistry implements ConfigurationChangeListener {
+public class BackendRegistry implements DCFListener {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
-    private final Map<String, String> authImplMap = new HashMap<>();
     private SortedSet<AuthDomain> restAuthDomains;
     private Set<AuthorizationBackend> restAuthorizers;
     private SortedSet<AuthDomain> transportAuthDomains;
     private Set<AuthorizationBackend> transportAuthorizers;
-    private List<Destroyable> destroyableComponents;
+    //private List<Destroyable> destroyableComponents;
     private volatile boolean initialized;
     private final AdminDNs adminDns;
     private final XFFResolver xffResolver;
     private volatile boolean anonymousAuthEnabled = false;
     private final Settings esSettings;
-    private final Path configPath;
-    private final InternalAuthenticationBackend iab;
+    //private final InternalAuthenticationBackend iab;
     private final AuditLog auditLog;
     private final ThreadPool threadPool;
     private final UserInjector userInjector;
@@ -167,36 +154,14 @@ public class BackendRegistry implements ConfigurationChangeListener {
                 }).build();
     }
 
-    public BackendRegistry(final Settings settings, final Path configPath, final AdminDNs adminDns,
-            final XFFResolver xffResolver, final InternalAuthenticationBackend iab, final AuditLog auditLog, final ThreadPool threadPool) {
+    public BackendRegistry(final Settings settings, final AdminDNs adminDns,
+            final XFFResolver xffResolver, final AuditLog auditLog, final ThreadPool threadPool) {
         this.adminDns = adminDns;
         this.esSettings = settings;
-        this.configPath = configPath;
         this.xffResolver = xffResolver;
-        this.iab = iab;
         this.auditLog = auditLog;
         this.threadPool = threadPool;
         this.userInjector = new UserInjector(settings, threadPool, auditLog, xffResolver);
-        
-        authImplMap.put("intern_c", InternalAuthenticationBackend.class.getName());
-        authImplMap.put("intern_z", NoOpAuthorizationBackend.class.getName());
-
-        authImplMap.put("internal_c", InternalAuthenticationBackend.class.getName());
-        authImplMap.put("internal_z", NoOpAuthorizationBackend.class.getName());
-
-        authImplMap.put("noop_c", NoOpAuthenticationBackend.class.getName());
-        authImplMap.put("noop_z", NoOpAuthorizationBackend.class.getName());
-
-        authImplMap.put("ldap_c", "com.floragunn.dlic.auth.ldap.backend.LDAPAuthenticationBackend");
-        authImplMap.put("ldap_z", "com.floragunn.dlic.auth.ldap.backend.LDAPAuthorizationBackend");
-
-        authImplMap.put("basic_h", HTTPBasicAuthenticator.class.getName());
-        authImplMap.put("proxy_h", HTTPProxyAuthenticator.class.getName());
-        authImplMap.put("clientcert_h", HTTPClientCertAuthenticator.class.getName());
-        authImplMap.put("kerberos_h", "com.floragunn.dlic.auth.http.kerberos.HTTPSpnegoAuthenticator");
-        authImplMap.put("jwt_h", "com.floragunn.dlic.auth.http.jwt.HTTPJwtAuthenticator");
-        authImplMap.put("openid_h", "com.floragunn.dlic.auth.http.jwt.keybyoidc.HTTPJwtKeyByOpenIdConnectAuthenticator");
-        authImplMap.put("saml_h", "com.floragunn.dlic.auth.http.saml.HTTPSamlAuthenticator");
 
         this.ttlInMin = settings.getAsInt(ConfigConstants.SEARCHGUARD_CACHE_TTL_MINUTES, 60);
                 
@@ -217,9 +182,34 @@ public class BackendRegistry implements ConfigurationChangeListener {
     }
 
     @Override
-    public void onChange(final CType cType, final SgDynamicConfiguration<?> settings0) {
+    public void onChanged(ConfigModel cf, DynamicConfigModel dcf, InternalUsersModel cfff) {
         
-        final Config config = CType.getConfig(settings0);
+        invalidateCache();
+
+        transportUsernameAttribute = dcf.getTransportUsernameAttribute();// config.dynamic.transport_userrname_attribute;
+        anonymousAuthEnabled = dcf.isAnonymousAuthenticationEnabled()//config.dynamic.http.anonymous_auth_enabled
+                && !esSettings.getAsBoolean(ConfigConstants.SEARCHGUARD_COMPLIANCE_DISABLE_ANONYMOUS_AUTHENTICATION, false);
+
+        //List<Destroyable> originalDestroyableComponents = destroyableComponents;
+        
+        restAuthDomains = Collections.unmodifiableSortedSet(dcf.getRestAuthDomains());
+        transportAuthDomains = Collections.unmodifiableSortedSet(dcf.getTransportAuthDomains());
+        restAuthorizers = Collections.unmodifiableSet(dcf.getRestAuthorizers());
+        transportAuthorizers = Collections.unmodifiableSet(dcf.getTransportAuthorizers());
+        //destroyableComponents = Collections.unmodifiableList(destroyableComponents0);
+        
+        //SG6 no default authc
+        initialized = !restAuthDomains.isEmpty() || anonymousAuthEnabled;
+        
+        //TODO SG7 destroy componenets
+        //if(originalDestroyableComponents != null) {
+        //    destroyDestroyables(originalDestroyableComponents);
+        //}
+        
+        //originalDestroyableComponents = null;
+        
+        /*//final ConfigV6 config = CType.getConfig(settings0);
+        //dcf.getDynamicConfigModel().
         
         final SortedSet<AuthDomain> restAuthDomains0 = new TreeSet<>();
         final Set<AuthorizationBackend> restAuthorizers0 = new HashSet<>();
@@ -227,7 +217,8 @@ public class BackendRegistry implements ConfigurationChangeListener {
         final Set<AuthorizationBackend> transportAuthorizers0 = new HashSet<>();
         final List<Destroyable> destroyableComponents0 = new LinkedList<>();
 
-        final Authz authzDyn = config.dynamic.authz;
+        //final Authz authzDyn = config.dynamic.authz;
+        final Authz authzDyn = dcf.get
 
         for (final Entry<String, AuthzDomain> ad : authzDyn.getDomains().entrySet()) {
             final boolean enabled = ad.getValue().enabled;
@@ -354,7 +345,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
             destroyDestroyables(originalDestroyableComponents);
         }
         
-        originalDestroyableComponents = null;
+        originalDestroyableComponents = null;*/
 
     }
 
@@ -392,6 +383,11 @@ public class BackendRegistry implements ConfigurationChangeListener {
         //loop over all transport auth domains
         for (final AuthDomain authDomain: transportAuthDomains) {
 
+            
+            if(log.isDebugEnabled()) {
+                log.debug("Check transport authdomain {}/{} or {} in total", authDomain.getBackend().getType(), authDomain.getOrder(), transportAuthDomains.size());
+            }
+            
             User authenticatedUser = null;
 
             if(creds == null) {
@@ -408,19 +404,19 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
             if(authenticatedUser == null) {
                 if(log.isDebugEnabled()) {
-                    log.debug("Cannot authenticate user {} (or add roles) with authdomain {}/{}, try next", creds==null?(impersonatedTransportUser==null?origPKIUser.getName():impersonatedTransportUser.getName()):creds.getUsername(), authDomain.getBackend().getType(), authDomain.getOrder());
+                    log.debug("Cannot authenticate transport user {} (or add roles) with authdomain {}/{} of {}, try next", creds==null?(impersonatedTransportUser==null?origPKIUser.getName():impersonatedTransportUser.getName()):creds.getUsername(), authDomain.getBackend().getType(), authDomain.getOrder(), transportAuthDomains.size());
                 }
                 continue;
             }
 
             if(adminDns.isAdmin(authenticatedUser)) {
-                log.error("Cannot authenticate user because admin user is not permitted to login");
+                log.error("Cannot authenticate transport user because admin user is not permitted to login");
                 auditLog.logFailedLogin(authenticatedUser.getName(), true, null, request, task);
                 return null;
             }
 
             if(log.isDebugEnabled()) {
-                log.debug("User '{}' is authenticated", authenticatedUser);
+                log.debug("Transport user '{}' is authenticated", authenticatedUser);
             }
 
             auditLog.logSucceededLogin(authenticatedUser.getName(), false, impersonatedTransportUser==null?null:origPKIUser.getName(), request, action, task);
@@ -489,6 +485,10 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
         //loop over all http/rest auth domains
         for (final AuthDomain authDomain: restAuthDomains) {
+            
+            if(log.isDebugEnabled()) {
+                log.debug("Check authdomain for rest {}/{} or {} in total", authDomain.getBackend().getType(), authDomain.getOrder(), restAuthDomains.size());
+            }
 
             final HTTPAuthenticator httpAuthenticator = authDomain.getHttpAuthenticator();
 
@@ -545,13 +545,13 @@ public class BackendRegistry implements ConfigurationChangeListener {
 
             if(authenticatedUser == null) {
                 if(log.isDebugEnabled()) {
-                    log.debug("Cannot authenticate user {} (or add roles) with authdomain {}/{}, try next", ac.getUsername(), authDomain.getBackend().getType(), authDomain.getOrder());
+                    log.debug("Cannot authenticate rest user {} (or add roles) with authdomain {}/{} of {}, try next", ac.getUsername(), authDomain.getBackend().getType(), authDomain.getOrder(), restAuthDomains);
                 }
                 continue;
             }
 
             if(adminDns.isAdmin(authenticatedUser)) {
-                log.error("Cannot authenticate user because admin user is not permitted to login via HTTP");
+                log.error("Cannot authenticate rest user because admin user is not permitted to login via HTTP");
                 auditLog.logFailedLogin(authenticatedUser.getName(), true, null, request);
                 channel.sendResponse(new BytesRestResponse(RestStatus.FORBIDDEN, "Cannot authenticate user because admin user is not permitted to login via HTTP"));
                 return false;
@@ -560,7 +560,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
             final String tenant = Utils.coalesce(request.header("sgtenant"), request.header("sg_tenant"));
 
             if(log.isDebugEnabled()) {
-                log.debug("User '{}' is authenticated", authenticatedUser);
+                log.debug("Rest user '{}' is authenticated", authenticatedUser);
                 log.debug("sgtenant '{}'", tenant);
             }
 
@@ -816,34 +816,6 @@ public class BackendRegistry implements ConfigurationChangeListener {
             throw new ElasticsearchSecurityException("No such user:" + impersonatedUserHeader, RestStatus.FORBIDDEN);
         }
 
-    }
-        
-    private <T> T newInstance(final String clazzOrShortcut, String type, final Settings settings, final Path configPath) {
-
-        String clazz = clazzOrShortcut;
-        boolean isEnterprise = false;
-
-        if(authImplMap.containsKey(clazz+"_"+type)) {
-            clazz = authImplMap.get(clazz+"_"+type);
-        } else {
-            isEnterprise = true;
-        }
-
-        if(ReflectionHelper.isEnterpriseAAAModule(clazz)) {
-            isEnterprise = true;
-        }
-
-        return ReflectionHelper.instantiateAAA(clazz, settings, configPath, isEnterprise);
-    }
-    
-    private void destroyDestroyables(List<Destroyable> destroyableComponents) {
-    	for (Destroyable destroyable : destroyableComponents) {
-    		try {
-    			destroyable.destroy();
-    		} catch (Exception e) {
-    			log.error("Error while destroying " + destroyable, e);
-    		}
-    	}
     }
     
     private User resolveTransportUsernameAttribute(User pkiUser) {

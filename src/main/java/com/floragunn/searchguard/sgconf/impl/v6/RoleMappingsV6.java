@@ -6,7 +6,7 @@ import java.util.List;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.floragunn.searchguard.sgconf.Hideable;
 
-public class RoleMappings implements Hideable {
+public class RoleMappingsV6 implements Hideable {
 
     private boolean readonly;
     private boolean hidden;
@@ -18,7 +18,7 @@ public class RoleMappings implements Hideable {
     
     
     
-    public RoleMappings() {
+    public RoleMappingsV6() {
         super();
     }
     

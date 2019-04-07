@@ -124,7 +124,6 @@ import com.floragunn.searchguard.auth.BackendRegistry;
 import com.floragunn.searchguard.auth.internal.InternalAuthenticationBackend;
 import com.floragunn.searchguard.compliance.ComplianceConfig;
 import com.floragunn.searchguard.compliance.ComplianceIndexingOperationListener;
-import com.floragunn.searchguard.configuration.ActionGroupHolder;
 import com.floragunn.searchguard.configuration.AdminDNs;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
 import com.floragunn.searchguard.configuration.CompatConfig;
@@ -144,6 +143,8 @@ import com.floragunn.searchguard.rest.SearchGuardHealthAction;
 import com.floragunn.searchguard.rest.SearchGuardInfoAction;
 import com.floragunn.searchguard.rest.SearchGuardLicenseAction;
 import com.floragunn.searchguard.rest.TenantInfoAction;
+import com.floragunn.searchguard.sgconf.DynamicConfigFactory;
+import com.floragunn.searchguard.sgconf.InternalUsersModel;
 import com.floragunn.searchguard.sgconf.impl.CType;
 import com.floragunn.searchguard.ssl.SearchGuardSSLPlugin;
 import com.floragunn.searchguard.ssl.SslExceptionHandler;
@@ -164,6 +165,7 @@ import com.google.common.collect.Lists;
 
 public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements ClusterPlugin, MapperPlugin {
 
+    public static final boolean AUTO_MIGRATE_FROMV6 = Boolean.parseBoolean(System.getenv("TESTARG_migration_auto_migrate_fromv6"));
     private static final String KEYWORD = ".keyword";
     private final boolean tribeNodeClient;
     private final boolean dlsFlsAvailable;
@@ -275,6 +277,10 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
 
         ReflectionHelper.registerMngtRestApiHandler(settings);
 
+        if(AUTO_MIGRATE_FROMV6) {
+            log.warn("In memory auto migrate from V6 (for testing only) enabled");
+        }
+        
         log.info("Clustername: {}", settings.get("cluster.name", "elasticsearch"));
 
         if (!transportSSLEnabled) {
@@ -760,18 +766,31 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
                 complianceConfig);
 
         cr.subscribeOnLicenseChange(complianceConfig);
-        cr.subscribeOnChange(CType.CONFIG, irr);
-        final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(cr);
+        //cr.subscribeOnChange(CType.CONFIG, irr);
+        //final InternalAuthenticationBackend iab = new InternalAuthenticationBackend(dcf);
         final XFFResolver xffResolver = new XFFResolver(threadPool);
-        cr.subscribeOnChange(CType.CONFIG, xffResolver);
-        backendRegistry = new BackendRegistry(settings, configPath, adminDns, xffResolver, iab, auditLog, threadPool);
-        cr.subscribeOnChange(CType.CONFIG, backendRegistry);
-        final ActionGroupHolder ah = new ActionGroupHolder(cr);
-
-        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, ah, resolver, auditLog, settings, privilegesInterceptor, cih, irr, enterpriseModulesEnabled);
+        //cr.subscribeOnChange(CType.CONFIG, xffResolver);
+        backendRegistry = new BackendRegistry(settings, adminDns, xffResolver, auditLog, threadPool);
+        //cr.subscribeOnChange(CType.CONFIG, backendRegistry);
+        //final ActionGroupHolder ah = new ActionGroupHolder(cr);
 
         final CompatConfig compatConfig = new CompatConfig(environment);
-        cr.subscribeOnChange(CType.CONFIG, compatConfig);
+        //cr.subscribeOnChange(CType.CONFIG, compatConfig);
+        
+        
+        
+        evaluator = new PrivilegesEvaluator(clusterService, threadPool, cr, resolver, auditLog, 
+                settings, privilegesInterceptor, cih, irr, enterpriseModulesEnabled);
+
+        
+        final DynamicConfigFactory dcf = new DynamicConfigFactory(cr, settings, configPath, localClient, threadPool, cih);
+        dcf.registerDCFListener(backendRegistry);
+        dcf.registerDCFListener(compatConfig);
+        dcf.registerDCFListener(irr);
+        dcf.registerDCFListener(xffResolver);
+        dcf.registerDCFListener(evaluator);
+        
+        cr.setDynamicConfigFactory(dcf);
 
         sgf = new SearchGuardFilter(evaluator, adminDns, dlsFlsValve, auditLog, threadPool, cs, complianceConfig, compatConfig);
 
@@ -790,12 +809,13 @@ public final class SearchGuardPlugin extends SearchGuardSSLPlugin implements Clu
         components.add(adminDns);
         //components.add(auditLog);
         components.add(cr);
-        components.add(iab);
+        //components.add(iab);
         components.add(xffResolver);
         components.add(backendRegistry);
-        components.add(ah);
+        //components.add(ah);
         components.add(evaluator);
         components.add(sgi);
+        components.add(dcf);
 
         sgRestHandler = new SearchGuardRestFilter(backendRegistry, auditLog, threadPool, principalExtractor, settings, configPath, compatConfig);
 

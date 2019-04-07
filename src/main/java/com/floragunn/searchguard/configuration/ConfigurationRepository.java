@@ -23,12 +23,10 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -47,6 +45,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -62,6 +61,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.auditlog.AuditLog;
 import com.floragunn.searchguard.compliance.ComplianceConfig;
+import com.floragunn.searchguard.sgconf.DynamicConfigFactory;
 import com.floragunn.searchguard.sgconf.impl.CType;
 import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
 import com.floragunn.searchguard.ssl.util.ExceptionUtils;
@@ -69,19 +69,16 @@ import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.ConfigHelper;
 import com.floragunn.searchguard.support.LicenseHelper;
 import com.floragunn.searchguard.support.SgUtils;
+import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Multimap;
 
 public class ConfigurationRepository {
     private static final Logger LOGGER = LogManager.getLogger(ConfigurationRepository.class);
 
     private final String searchguardIndex;
     private final Client client;
-    private final LoadingCache<CType, SgDynamicConfiguration<?>> configCache;
-    private final Multimap<CType, ConfigurationChangeListener> configurationChangedListener;
+    private final Cache<CType, SgDynamicConfiguration<?>> configCache;
+    private final List<ConfigurationChangeListener> configurationChangedListener;
     private final List<LicenseChangeListener> licenseChangeListener;
     private final ConfigurationLoaderSG7 cl;
     private final Settings settings;
@@ -90,6 +87,7 @@ public class ConfigurationRepository {
     private final ComplianceConfig complianceConfig;
     private final ThreadPool threadPool;
     private volatile SearchGuardLicense effectiveLicense;
+    private DynamicConfigFactory dynamicConfigFactory;
 
     private ConfigurationRepository(Settings settings, final Path configPath, ThreadPool threadPool, 
             Client client, ClusterService clusterService, AuditLog auditLog, ComplianceConfig complianceConfig) {
@@ -100,20 +98,20 @@ public class ConfigurationRepository {
         this.clusterService = clusterService;
         this.auditLog = auditLog;
         this.complianceConfig = complianceConfig;
-        this.configurationChangedListener = ArrayListMultimap.create();
+        this.configurationChangedListener = new ArrayList<>();
         this.licenseChangeListener = new ArrayList<LicenseChangeListener>();
-        cl = new ConfigurationLoaderSG7(client, threadPool, settings);
+        cl = new ConfigurationLoaderSG7(client, threadPool, settings, clusterService);
         
         configCache = CacheBuilder
                       .newBuilder()
-                      .build(new CacheLoader<CType, SgDynamicConfiguration<?>>() {
+                      .build(/*new CacheLoader<CType, SgDynamicConfiguration<?>>() {
 
                         @Override
                         public SgDynamicConfiguration<?> load(CType key) throws Exception {
                             return getConfigurationsFromIndex(Collections.singleton(key), false).get(key);
                         }
                           
-                      });
+                      }*/);
 
         final AtomicBoolean installDefaultConfig = new AtomicBoolean();
 
@@ -263,17 +261,31 @@ public class ConfigurationRepository {
         });
     }
 
-    public static ConfigurationRepository create(Settings settings, final Path configPath, final ThreadPool threadPool, Client client,  ClusterService clusterService, AuditLog auditLog, ComplianceConfig complianceConfig) {
+    public static ConfigurationRepository create(Settings settings, final Path configPath, final ThreadPool threadPool, 
+            Client client,  ClusterService clusterService, AuditLog auditLog, ComplianceConfig complianceConfig) {
         final ConfigurationRepository repository = new ConfigurationRepository(settings, configPath, threadPool, client, clusterService, auditLog, complianceConfig);
         return repository;
     }
 
+    public void setDynamicConfigFactory(DynamicConfigFactory dynamicConfigFactory) {
+        this.dynamicConfigFactory = dynamicConfigFactory;
+    }
+
+    /**
+     * 
+     * @param configurationType
+     * @return can also return null in case it was never loaded 
+     */
     public SgDynamicConfiguration<?> getConfiguration(CType configurationType) {
-        try {
-            return configCache.get(configurationType).deepClone();
-        } catch (ExecutionException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+        //try {
+        SgDynamicConfiguration<?> conf=  configCache.getIfPresent(configurationType);
+        if(conf != null) {
+            return conf.deepClone();
         }
+        return null;
+        //} catch (ExecutionException e) {
+        //    throw ExceptionsHelper.convertToElastic(e);
+        //}
     }
 
     public void reloadConfiguration(Collection<CType> configTypes) {
@@ -305,9 +317,8 @@ public class ConfigurationRepository {
         }
     }
 
-    public synchronized void subscribeOnChange(CType configurationType,  ConfigurationChangeListener listener) {
-        LOGGER.debug("Subscribe on configuration changes by type {} with listener {}", configurationType, listener);
-        configurationChangedListener.put(configurationType, listener);
+    public synchronized void subscribeOnChange(ConfigurationChangeListener listener) {
+        configurationChangedListener.add(listener);
     }
     
     public synchronized void subscribeOnLicenseChange(LicenseChangeListener licenseChangeListener) {
@@ -323,19 +334,10 @@ public class ConfigurationRepository {
     }
 
     private synchronized void notifyAboutChanges(Map<CType, SgDynamicConfiguration<?>> typeToConfig) {
-        for (Map.Entry<CType, ConfigurationChangeListener> entry : configurationChangedListener.entries()) {
-            CType type = entry.getKey();
-            ConfigurationChangeListener listener = entry.getValue();
-
-            SgDynamicConfiguration<?> settings = typeToConfig.get(type);
-
-            if (settings == null) {
-                continue;
-            }
-
+        for (ConfigurationChangeListener listener : configurationChangedListener) {
             try {
-                LOGGER.debug("Notify {} listener about change configuration with type {}", listener, type);
-                listener.onChange(type, settings.deepClone());
+                LOGGER.debug("Notify {} listener about change configuration with type {}", listener);
+                listener.onChange(typeToConfig);
             } catch (Exception e) {
                 LOGGER.error("{} listener errored: "+e, listener, e);
                 throw ExceptionsHelper.convertToElastic(e);
@@ -415,7 +417,7 @@ public class ConfigurationRepository {
             return null;
         }
 
-        String licenseText = CType.getConfig(getConfiguration(CType.CONFIG)).dynamic.license;
+        String licenseText = dynamicConfigFactory.getLicenseString();
         
         if(licenseText == null || licenseText.isEmpty()) {
             if(effectiveLicense != null) {
@@ -440,18 +442,30 @@ public class ConfigurationRepository {
     }
 
     private SearchGuardLicense createOrGetTrial(String msg) {
+        
+        final IndexMetaData sgIndexMetaData = clusterService.state().metaData().index(searchguardIndex);
+        if(sgIndexMetaData == null) {
+            throw new RuntimeException(searchguardIndex+" does not exist");
+        }
+        
+        String type = "_doc";
+        
+        if(sgIndexMetaData.mapping().type().equals("sg")) {
+            type = "sg";
+        }
+        
         long created = System.currentTimeMillis();
         ThreadContext threadContext = threadPool.getThreadContext();
 
         try(StoredContext ctx = threadContext.stashContext()) {
             threadContext.putHeader(ConfigConstants.SG_CONF_REQUEST_HEADER, "true");
-            GetResponse get = client.prepareGet(searchguardIndex, "sg", "tattr").get();
+            GetResponse get = client.prepareGet(searchguardIndex, type, "tattr").get();
             if(get.isExists()) {
                 created = (long) get.getSource().get("val");
             } else {
                 try {
                     client.index(new IndexRequest(searchguardIndex)
-                    .type("sg")
+                    .type(type)
                     .id("tattr")
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                     .create(true)

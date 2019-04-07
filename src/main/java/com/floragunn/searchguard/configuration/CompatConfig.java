@@ -22,16 +22,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
-import com.floragunn.searchguard.sgconf.impl.CType;
-import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
-import com.floragunn.searchguard.sgconf.impl.v6.Config;
+import com.floragunn.searchguard.sgconf.ConfigModel;
+import com.floragunn.searchguard.sgconf.DynamicConfigModel;
+import com.floragunn.searchguard.sgconf.InternalUsersModel;
+import com.floragunn.searchguard.sgconf.DynamicConfigFactory.DCFListener;
 import com.floragunn.searchguard.support.ConfigConstants;
 
-public class CompatConfig implements ConfigurationChangeListener {
+public class CompatConfig implements DCFListener {
 
     private final Logger log = LogManager.getLogger(getClass());
     private final Settings staticSettings;
-    private Config dynamicSgConfig;
+    private DynamicConfigModel dcf;
 
     public CompatConfig(final Environment environment) {
         super();
@@ -39,9 +40,9 @@ public class CompatConfig implements ConfigurationChangeListener {
     }
     
     @Override
-    public void onChange(final CType cType, final SgDynamicConfiguration<?> dynamicSgConfig) {
-        this.dynamicSgConfig = CType.getConfig(dynamicSgConfig);
-        log.debug("dynamicSgConfig updated?: {}", (dynamicSgConfig != null));
+    public void onChanged(ConfigModel cf, DynamicConfigModel dcf, InternalUsersModel cfff) {
+        this.dcf = dcf;
+        log.debug("dynamicSgConfig updated?: {}", (dcf != null));
     }
     
     //true is default
@@ -49,13 +50,13 @@ public class CompatConfig implements ConfigurationChangeListener {
         final boolean restInitiallyDisabled = staticSettings.getAsBoolean(ConfigConstants.SEARCHGUARD_UNSUPPORTED_DISABLE_REST_AUTH_INITIALLY, false);
         
         if(restInitiallyDisabled) {
-            if(dynamicSgConfig == null) {
+            if(dcf == null) {
                 if(log.isTraceEnabled()) {
                     log.trace("dynamicSgConfig is null, initially static restDisabled");
                 }
                 return false;
             } else {
-                final boolean restDynamicallyDisabled = dynamicSgConfig.dynamic.disable_rest_auth;
+                final boolean restDynamicallyDisabled = dcf.isRestAuthDisabled();// dynamicSgConfig.dynamic.disable_rest_auth;
                 if(log.isTraceEnabled()) {
                     log.trace("searchguard.dynamic.disable_rest_auth {}", restDynamicallyDisabled);
                 }
@@ -72,13 +73,13 @@ public class CompatConfig implements ConfigurationChangeListener {
         final boolean interClusterAuthInitiallyDisabled = staticSettings.getAsBoolean(ConfigConstants.SEARCHGUARD_UNSUPPORTED_DISABLE_INTERTRANSPORT_AUTH_INITIALLY, false);
         
         if(interClusterAuthInitiallyDisabled) {
-            if(dynamicSgConfig == null) {
+            if(dcf == null) {
                 if(log.isTraceEnabled()) {
                     log.trace("dynamicSgConfig is null, initially static interClusterAuthDisabled");
                 }
                 return false;
             } else {
-                final boolean interClusterAuthDynamicallyDisabled = dynamicSgConfig.dynamic.disable_intertransport_auth;
+                final boolean interClusterAuthDynamicallyDisabled = dcf.isInterTransportAuthDisabled();//dynamicSgConfig.dynamic.disable_intertransport_auth;
                 if(log.isTraceEnabled()) {
                     log.trace("searchguard.dynamic.disable_intertransport_auth {}", interClusterAuthDynamicallyDisabled);
                 }

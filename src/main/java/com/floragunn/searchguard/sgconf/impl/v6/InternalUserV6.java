@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.floragunn.searchguard.sgconf.Hashed;
 import com.floragunn.searchguard.sgconf.Hideable;
 
-public class InternalUser implements Hideable, Hashed {
+public class InternalUserV6 implements Hideable, Hashed {
         
         private String hash;
         private boolean readonly;
@@ -19,7 +19,7 @@ public class InternalUser implements Hideable, Hashed {
 
         
 
-        public InternalUser(String hash, boolean readonly, boolean hidden, List<String> roles, Map<String, String> attributes, String username) {
+        public InternalUserV6(String hash, boolean readonly, boolean hidden, List<String> roles, Map<String, String> attributes, String username) {
             super();
             this.hash = hash;
             this.readonly = readonly;
@@ -37,7 +37,7 @@ public class InternalUser implements Hideable, Hashed {
             this.username = username;
         }
 
-        public InternalUser() {
+        public InternalUserV6() {
             super();
             //default constructor
         }

@@ -25,6 +25,7 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 
@@ -50,6 +51,26 @@ public class DefaultObjectMapper {
                 @Override
                 public T run() throws Exception {
                     return objectMapper.readValue(string, clazz);
+                }
+            });
+        } catch (final PrivilegedActionException e) {
+            throw (IOException) e.getCause();
+        }
+    }
+    
+    public static JsonNode readTree(String string) throws IOException {
+
+        final SecurityManager sm = System.getSecurityManager();
+
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+
+        try {
+            return AccessController.doPrivileged(new PrivilegedExceptionAction<JsonNode>() {
+                @Override
+                public JsonNode run() throws Exception {
+                    return objectMapper.readTree(string);
                 }
             });
         } catch (final PrivilegedActionException e) {

@@ -1,79 +1,99 @@
 UNLIMITED:
+ permissions:
   - "*"
 
 ###### INDEX LEVEL ######
 
 INDICES_ALL:
+ permissions:
   - "indices:*"
 
 # for backward compatibility
 ALL:
+ permissions:
   - INDICES_ALL
 
 MANAGE:
+ permissions:
   - "indices:monitor/*"
   - "indices:admin/*"
 
 CREATE_INDEX:
+ permissions:
   - "indices:admin/create"
   - "indices:admin/mapping/put"
 
 MANAGE_ALIASES:
+ permissions:
   - "indices:admin/aliases*"
 
 # for backward compatibility
 MONITOR:
+ permissions:
   - INDICES_MONITOR
 
 INDICES_MONITOR:
+ permissions:
   - "indices:monitor/*"
 
 DATA_ACCESS:
+ permissions:
   - "indices:data/*"
   - CRUD
 
 WRITE:
+ permissions:
   - "indices:data/write*"
   - "indices:admin/mapping/put"
 
 READ:
+ permissions:
   - "indices:data/read*"
   - "indices:admin/mappings/fields/get*"
 
 DELETE:
+ permissions:
   - "indices:data/write/delete*"
 
 CRUD:
+ permissions:
   - READ
   - WRITE
 
 SEARCH:
+ permissions:
   - "indices:data/read/search*"
   - "indices:data/read/msearch*"
   - SUGGEST
 
 SUGGEST:
+ permissions:
   - "indices:data/read/suggest*"
 
 INDEX:
+ permissions:
   - "indices:data/write/index*"
   - "indices:data/write/update*"
   - "indices:admin/mapping/put"
   - "indices:data/write/bulk*"
 
 GET:
+ permissions:
   - "indices:data/read/get*"
   - "indices:data/read/mget*"
 
 ###### CLUSTER LEVEL ######
 
 CLUSTER_ALL:
+ permissions:
   - "cluster:*"
 
 CLUSTER_MONITOR:
+ permissions:
   - "cluster:monitor/*"
 
 CLUSTER_COMPOSITE_OPS_RO:
+ permissions:
   - "indices:data/read/mget"
   - "indices:data/read/msearch"
   - "indices:data/read/mtv"
@@ -82,10 +102,12 @@ CLUSTER_COMPOSITE_OPS_RO:
   - "indices:admin/aliases/get*"
 
 CLUSTER_COMPOSITE_OPS:
+ permissions:
   - "indices:data/write/bulk"
   - "indices:admin/aliases*"
   - CLUSTER_COMPOSITE_OPS_RO
   
 MANAGE_SNAPSHOTS:
+ permissions:
   - "cluster:admin/snapshot/*"
   - "cluster:admin/repository/*"

@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import com.floragunn.searchguard.auth.BackendRegistry;
 import com.floragunn.searchguard.configuration.ConfigurationRepository;
 import com.floragunn.searchguard.configuration.SearchGuardLicense;
+import com.floragunn.searchguard.sgconf.DynamicConfigFactory;
 import com.floragunn.searchguard.sgconf.impl.CType;
 import com.floragunn.searchguard.support.LicenseHelper;
 
@@ -50,18 +51,20 @@ TransportNodesAction<ConfigUpdateRequest, ConfigUpdateResponse, TransportConfigU
     protected Logger logger = LogManager.getLogger(getClass());
     private final Provider<BackendRegistry> backendRegistry;
     private final ConfigurationRepository configurationRepository;
+    private DynamicConfigFactory dynamicConfigFactory;
     
     @Inject
     public TransportConfigUpdateAction(final Settings settings,
             final ThreadPool threadPool, final ClusterService clusterService, final TransportService transportService,
             final ConfigurationRepository configurationRepository, final ActionFilters actionFilters,
-            Provider<BackendRegistry> backendRegistry) {        
+            Provider<BackendRegistry> backendRegistry, DynamicConfigFactory dynamicConfigFactory) {        
         super(ConfigUpdateAction.NAME, threadPool, clusterService, transportService, actionFilters,
                 ConfigUpdateRequest::new, TransportConfigUpdateAction.NodeConfigUpdateRequest::new,
                 ThreadPool.Names.MANAGEMENT, ConfigUpdateNodeResponse.class);
 
         this.configurationRepository = configurationRepository;
         this.backendRegistry = backendRegistry;
+        this.dynamicConfigFactory = dynamicConfigFactory;
     }
 
     public static class NodeConfigUpdateRequest extends BaseNodeRequest {
@@ -121,7 +124,7 @@ TransportNodesAction<ConfigUpdateRequest, ConfigUpdateResponse, TransportConfigU
             }
         }*/
         
-        final String licenseText = CType.getConfig(configurationRepository.getConfiguration(CType.CONFIG)).dynamic.license;
+        final String licenseText = dynamicConfigFactory.getLicenseString();
         
         if(licenseText != null && !licenseText.isEmpty()) {
             try {

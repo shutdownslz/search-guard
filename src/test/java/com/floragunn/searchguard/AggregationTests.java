@@ -101,7 +101,7 @@ public class AggregationTests extends SingleClusterTest {
         assertNotContains(res, "*earchguard*");
         assertNotContains(res, "*vulcangov*");
         assertNotContains(res, "*kirk*");
-        assertNotContains(res, "*starfleet*");
+        assertContains(res, "*starfleet*");
         assertContains(res, "*public*");
         assertContains(res, "*xyz*");
         assertContains(res, "*\"failed\" : 0*");

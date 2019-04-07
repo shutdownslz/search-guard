@@ -24,7 +24,7 @@ import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
 public interface ConfigCallback {
     
     void success(SgDynamicConfiguration<?> dConf);
-    void noData(String id);
+    void noData(String id, String type);
     void singleFailure(Failure failure);
     void failure(Throwable t);
 

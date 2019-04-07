@@ -138,7 +138,7 @@ public class SystemIntegratorsTests extends SingleClusterTest {
         Assert.assertTrue(resc.getBody().contains("\"remote_address\":\"8.8.8.8:8\""));
         Assert.assertTrue(resc.getBody().contains("\"backend_roles\":[\"role1\",\"vulcanadmin\"]"));
         // mapped by backend role "twitter"
-        Assert.assertTrue(resc.getBody().contains("\"sg_roles\":[\"sg_public\",\"sg_role_vulcans_admin\"]"));
+        Assert.assertTrue(resc.getBody(), resc.getBody().contains("\"sg_roles\":[\"sg_public\",\"sg_role_vulcans_admin\"]"));
         Assert.assertTrue(resc.getBody().contains("\"custom_attribute_names\":[\"key1\",\"key2\"]"));
         
         // add requested tenant

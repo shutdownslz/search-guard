@@ -28,13 +28,13 @@ import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
-import com.floragunn.searchguard.sgconf.impl.CType;
-import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
-import com.floragunn.searchguard.sgconf.impl.v6.Config;
+import com.floragunn.searchguard.sgconf.ConfigModel;
+import com.floragunn.searchguard.sgconf.DynamicConfigFactory.DCFListener;
+import com.floragunn.searchguard.sgconf.DynamicConfigModel;
+import com.floragunn.searchguard.sgconf.InternalUsersModel;
 import com.floragunn.searchguard.support.ConfigConstants;
 
-public class XFFResolver implements ConfigurationChangeListener {
+public class XFFResolver implements DCFListener {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     private volatile boolean enabled;
@@ -82,15 +82,14 @@ public class XFFResolver implements ConfigurationChangeListener {
     }
 
     @Override
-    public void onChange(final CType cType, final SgDynamicConfiguration<?> sdc) {
-        Config config = CType.getConfig(sdc);
-        enabled = config.dynamic.http.xff.enabled;
+    public void onChanged(ConfigModel cf, DynamicConfigModel dcf, InternalUsersModel cfff) {
+        enabled = dcf.isXffEnabled();//config.dynamic.http.xff.enabled;
         if(enabled) {
             detector = new RemoteIpDetector();
-            detector.setInternalProxies(config.dynamic.http.xff.internalProxies);
-            detector.setProxiesHeader(config.dynamic.http.xff.proxiesHeader);
-            detector.setRemoteIpHeader(config.dynamic.http.xff.remoteIpHeader);
-            detector.setTrustedProxies(config.dynamic.http.xff.trustedProxies);
+            detector.setInternalProxies(dcf.getInternalProxies());//config.dynamic.http.xff.internalProxies);
+            detector.setProxiesHeader(dcf.getProxiesHeader());
+            detector.setRemoteIpHeader(dcf.getRemoteIpHeader());
+            detector.setTrustedProxies(dcf.getTrustedProxies());
         } else {
             detector = null;
         }

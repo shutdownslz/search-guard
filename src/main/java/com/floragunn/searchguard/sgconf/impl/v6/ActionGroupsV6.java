@@ -5,14 +5,14 @@ import java.util.List;
 
 import com.floragunn.searchguard.sgconf.Hideable;
 
-public class ActionGroups implements Hideable {
+public class ActionGroupsV6 implements Hideable {
 
    
     private boolean readonly;
     private boolean hidden;
     private List<String> permissions = Collections.emptyList();
 
-    public ActionGroups() {
+    public ActionGroupsV6() {
         super();
     }
     public boolean isReadonly() {

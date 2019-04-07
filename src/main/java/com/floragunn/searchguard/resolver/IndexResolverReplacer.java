@@ -88,13 +88,17 @@ import org.elasticsearch.transport.TransportRequest;
 import com.floragunn.searchguard.SearchGuardPlugin;
 import com.floragunn.searchguard.configuration.ClusterInfoHolder;
 import com.floragunn.searchguard.configuration.ConfigurationChangeListener;
+import com.floragunn.searchguard.sgconf.ConfigModel;
+import com.floragunn.searchguard.sgconf.DynamicConfigModel;
+import com.floragunn.searchguard.sgconf.InternalUsersModel;
+import com.floragunn.searchguard.sgconf.DynamicConfigFactory.DCFListener;
 import com.floragunn.searchguard.sgconf.impl.CType;
 import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
 import com.floragunn.searchguard.support.SnapshotRestoreHelper;
 import com.floragunn.searchguard.support.WildcardMatcher;
 import com.google.common.collect.Sets;
 
-public final class IndexResolverReplacer implements ConfigurationChangeListener {
+public final class IndexResolverReplacer implements DCFListener {
 
     private static final Set<String> NULL_SET = Sets.newHashSet((String)null);
     private final Map<Class<?>, Method> typeCache = Collections.synchronizedMap(new HashMap<Class<?>, Method>(100));
@@ -281,12 +285,17 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
        }
 
         return new Resolved.Builder(matchingAliases, matchingIndices, matchingAllIndices, 
-                null, requestedPatterns0, remoteIndices).addTypes(resolveTypes(request)).build();
+                null, requestedPatterns0, remoteIndices)/*.addTypes(resolveTypes(request))*/.build();
 
     }
 
     @SuppressWarnings("rawtypes")
-    private Set<String> resolveTypes(final Object request) {
+    private Set<String> resolveTypes00(final Object request) {
+        
+        if(clusterInfoHolder.getHas6xNodes() == Boolean.FALSE) {
+            return Collections.emptySet();
+        }
+        
         // check if type security is enabled
         final Class<?> requestClass = request.getClass();
         final Set<String> requestTypes = new HashSet<String>();
@@ -364,7 +373,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
         if (log.isTraceEnabled()) {
             log.trace("requestTypes {} for {}", requestTypes, request.getClass());
         }
-
+        
         return Collections.unmodifiableSet(requestTypes);
     }
 
@@ -498,7 +507,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
 
             if(!aliases.isEmpty() || !indices.isEmpty() || !allIndices.isEmpty()) {
                 if(types.isEmpty()) {
-                    throw new ElasticsearchException("Empty types for nonempty indices or aliases");
+                    //throw new ElasticsearchException("Empty types for nonempty indices or aliases");
                 }
             }
         }
@@ -603,7 +612,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
             private final Set<String> aliases = new HashSet<String>();
             private final Set<String> indices = new HashSet<String>();
             private final Set<String> allIndices = new HashSet<String>();
-            private final Set<String> types = new HashSet<String>();
+            //private final Set<String> types = new HashSet<String>();
             private final Set<String> originalRequested = new HashSet<String>();
             private final Set<String> remoteIndices = new HashSet<String>();
             
@@ -627,7 +636,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
                 }
 
                 if(types != null) {
-                    this.types.addAll(types);
+                    //this.types.addAll(types);
                 }
                 
                 if(originalRequested != null) {
@@ -639,7 +648,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
                 }
             }
             
-            public Builder addTypes(Collection<String> types) {
+            /*public Builder addTypes(Collection<String> types) {
                 if(types != null && types.size() > 0) {
                     if(this.types.contains("*")) {
                         this.types.remove("*");
@@ -647,7 +656,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
                     this.types.addAll(types);
                 }
                 return this;
-            }
+            }*/
 
             public Builder add(Resolved r) {
 
@@ -656,17 +665,17 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
                 this.allIndices.addAll(r.allIndices);
                 this.originalRequested.addAll(r.originalRequested);
                 this.remoteIndices.addAll(r.remoteIndices);
-                addTypes(r.types);
+                //addTypes(r.types);
                 return this;
             }
 
             public Resolved build() {
-                if(types.isEmpty()) {
-                    types.add("*");
-                }
+//                if(types.isEmpty()) {
+//                    types.add("*");
+//                }
 
                 return new Resolved(new HashSet<String>(aliases), new HashSet<String>(indices), new HashSet<String>(allIndices), 
-                        new HashSet<String>(types), new HashSet<String>(originalRequested), new HashSet<String>(remoteIndices));
+                        Collections.singleton("*"), new HashSet<String>(originalRequested), new HashSet<String>(remoteIndices));
             }
         }
 
@@ -942,7 +951,7 @@ public final class IndexResolverReplacer implements ConfigurationChangeListener 
     }
 
     @Override
-    public void onChange(CType cType, SgDynamicConfiguration<?> dynamicSgConfig) {
-        respectRequestIndicesOptions = CType.getConfig(dynamicSgConfig).dynamic.respect_request_indices_options;
+    public void onChanged(ConfigModel cf, DynamicConfigModel dcf, InternalUsersModel cfff) {
+        respectRequestIndicesOptions = dcf.isRespectRequestIndicesEnabled();//.dynamic.respect_request_indices_options;
     }
 }

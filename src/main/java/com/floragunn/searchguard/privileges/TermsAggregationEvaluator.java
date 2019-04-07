@@ -30,7 +30,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
-import com.floragunn.searchguard.sgconf.ConfigModel.SgRoles;
+import com.floragunn.searchguard.sgconf.SgRoles;
 import com.floragunn.searchguard.user.User;
 
 public class TermsAggregationEvaluator {

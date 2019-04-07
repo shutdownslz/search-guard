@@ -19,6 +19,7 @@ package com.floragunn.searchguard.test;
 
 import io.netty.handler.ssl.OpenSsl;
 
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -77,8 +78,9 @@ public abstract class AbstractSGUnitTest {
 				+ System.getProperty("java.vm.vendor") + " " + System.getProperty("java.vm.name"));
 		System.out.println("Open SSL available: " + OpenSsl.isAvailable());
 		System.out.println("Open SSL version: " + OpenSsl.versionString());
-		withRemoteCluster = Boolean.parseBoolean(System.getenv("SG_TEST_WITH_REMOTE_CLUSTER"));
+		withRemoteCluster = Boolean.parseBoolean(System.getenv("TESTARG_unittests_with_remote_cluster"));
 		System.out.println("With remote cluster: " + withRemoteCluster);
+        System.out.println("Auto migrate from V6: " + SearchGuardPlugin.AUTO_MIGRATE_FROMV6);
 	    //System.setProperty("sg.display_lic_none","true");
 	}
 	
@@ -180,21 +182,24 @@ public abstract class AbstractSGUnitTest {
             ConfigUpdateResponse cur = tc
                     .execute(ConfigUpdateAction.INSTANCE, new ConfigUpdateRequest(CType.lcStringValues().toArray(new String[0])))
                     .actionGet();
+
             Assert.assertEquals(info.numNodes, cur.getNodes().size());
             
             SearchResponse sr = tc.search(new SearchRequest("searchguard")).actionGet();
             //Assert.assertEquals(5L, sr.getHits().getTotalHits());
-            
+
             sr = tc.search(new SearchRequest("searchguard")).actionGet();
             //Assert.assertEquals(5L, sr.getHits().getTotalHits());
+            
+            String type=SearchGuardPlugin.AUTO_MIGRATE_FROMV6?"_doc":"sg";
 
-            Assert.assertTrue(tc.get(new GetRequest("searchguard", "sg", "config")).actionGet().isExists());
-            Assert.assertTrue(tc.get(new GetRequest("searchguard","sg","internalusers")).actionGet().isExists());
-            Assert.assertTrue(tc.get(new GetRequest("searchguard","sg","roles")).actionGet().isExists());
-            Assert.assertTrue(tc.get(new GetRequest("searchguard","sg","rolesmapping")).actionGet().isExists());
-            Assert.assertTrue(tc.get(new GetRequest("searchguard","sg","actiongroups")).actionGet().isExists());
-            Assert.assertFalse(tc.get(new GetRequest("searchguard","sg","rolesmapping_xcvdnghtu165759i99465")).actionGet().isExists());
-            Assert.assertTrue(tc.get(new GetRequest("searchguard","sg","config")).actionGet().isExists());
+            Assert.assertTrue(tc.get(new GetRequest("searchguard", type, "config")).actionGet().isExists());
+            Assert.assertTrue(tc.get(new GetRequest("searchguard",type,"internalusers")).actionGet().isExists());
+            Assert.assertTrue(tc.get(new GetRequest("searchguard",type,"roles")).actionGet().isExists());
+            Assert.assertTrue(SearchGuardPlugin.AUTO_MIGRATE_FROMV6 || tc.get(new GetRequest("searchguard",type,"rolesmapping")).actionGet().isExists());
+            Assert.assertTrue(tc.get(new GetRequest("searchguard",type,"actiongroups")).actionGet().isExists());
+            Assert.assertFalse(tc.get(new GetRequest("searchguard",type,"rolesmapping_xcvdnghtu165759i99465")).actionGet().isExists());
+            Assert.assertTrue(tc.get(new GetRequest("searchguard",type,"config")).actionGet().isExists());
         }
     }
     

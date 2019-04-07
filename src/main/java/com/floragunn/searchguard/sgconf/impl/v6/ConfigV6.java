@@ -12,7 +12,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.floragunn.searchguard.DefaultObjectMapper;
 import com.floragunn.searchguard.auth.internal.InternalAuthenticationBackend;
 
-public class Config {
+public class ConfigV6 {
 
     public Dynamic dynamic;
 
@@ -53,12 +53,25 @@ public class Config {
         public String server_username = "kibanaserver";
         public String index = ".kibana";
         public boolean do_not_fail_on_forbidden;
+        @Override
+        public String toString() {
+            return "Kibana [multitenancy_enabled=" + multitenancy_enabled + ", server_username=" + server_username + ", index=" + index
+                    + ", do_not_fail_on_forbidden=" + do_not_fail_on_forbidden + "]";
+        }
+        
+        
         
     }
     
     public static class Http {
         public boolean anonymous_auth_enabled = false;
         public Xff xff = new Xff();
+        @Override
+        public String toString() {
+            return "Http [anonymous_auth_enabled=" + anonymous_auth_enabled + ", xff=" + xff + "]";
+        }
+        
+        
     }
     
     public static class Xff {
@@ -74,6 +87,13 @@ public class Config {
         public String remoteIpHeader="X-Forwarded-For";
         public String proxiesHeader="X-Forwarded-By";
         public String trustedProxies;
+        @Override
+        public String toString() {
+            return "Xff [enabled=" + enabled + ", internalProxies=" + internalProxies + ", remoteIpHeader=" + remoteIpHeader + ", proxiesHeader="
+                    + proxiesHeader + ", trustedProxies=" + trustedProxies + "]";
+        }
+        
+        
     }
     
     public static class Authc {
@@ -90,6 +110,12 @@ public class Config {
         public Map<String, AuthcDomain> getDomains() {
             return domains;
         }
+
+        @Override
+        public String toString() {
+            return "Authc [domains=" + domains + "]";
+        }
+        
         
     }
     
@@ -100,6 +126,13 @@ public class Config {
         public int order = 0;
         public HttpAuthenticator http_authenticator = new HttpAuthenticator();
         public AuthcBackend authentication_backend = new AuthcBackend();
+        @Override
+        public String toString() {
+            return "AuthcDomain [http_enabled=" + http_enabled + ", transport_enabled=" + transport_enabled + ", enabled=" + enabled + ", order="
+                    + order + ", http_authenticator=" + http_authenticator + ", authentication_backend=" + authentication_backend + "]";
+        }
+        
+        
     }
 
     public static class HttpAuthenticator {
@@ -115,6 +148,13 @@ public class Config {
                 throw new RuntimeException(e);
             }
         }
+
+        @Override
+        public String toString() {
+            return "HttpAuthenticator [challenge=" + challenge + ", type=" + type + ", config=" + config + "]";
+        }
+        
+        
     }
     
     public static class AuthzBackend {
@@ -129,6 +169,13 @@ public class Config {
                 throw new RuntimeException(e);
             }
         }
+
+        @Override
+        public String toString() {
+            return "AuthzBackend [type=" + type + ", config=" + config + "]";
+        }
+        
+        
     }
     
     public static class AuthcBackend {
@@ -143,6 +190,13 @@ public class Config {
                 throw new RuntimeException(e);
             }
         }
+
+        @Override
+        public String toString() {
+            return "AuthcBackend [type=" + type + ", config=" + config + "]";
+        }
+        
+        
     }
     
     public static class Authz {
@@ -158,6 +212,13 @@ public class Config {
         public Map<String, AuthzDomain> getDomains() {
             return domains;
         }
+
+        @Override
+        public String toString() {
+            return "Authz [domains=" + domains + "]";
+        }
+        
+        
     }
     
     public static class AuthzDomain {
@@ -166,6 +227,13 @@ public class Config {
         public boolean enabled = true;
         public int order;
         public AuthzBackend authorization_backend = new AuthzBackend();
+        @Override
+        public String toString() {
+            return "AuthzDomain [http_enabled=" + http_enabled + ", transport_enabled=" + transport_enabled + ", enabled=" + enabled + ", order="
+                    + order + ", authorization_backend=" + authorization_backend + "]";
+        }
+        
+        
     }
    
 }

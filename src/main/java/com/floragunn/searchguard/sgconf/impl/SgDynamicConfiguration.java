@@ -6,8 +6,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
@@ -25,10 +28,24 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     private long seqNo= -1;
     private long primaryTerm= -1;
     private CType ctype;
-    private int version;
+    private int version = -1;
+    
+    public static <T> SgDynamicConfiguration<T> empty() {
+        return new SgDynamicConfiguration<T>();
+    }
 
     public static <T> SgDynamicConfiguration<T> fromJson(String json, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
-        SgDynamicConfiguration<T> sdc = DefaultObjectMapper.readValue(json, DefaultObjectMapper.getTypeFactory().constructParametricType(SgDynamicConfiguration.class, ctype.getImplementationClass().get(version)));
+        SgDynamicConfiguration<T> sdc = null;
+        if(ctype != null) {
+            final Class<?> implementationClass = ctype.getImplementationClass().get(version);
+            if(implementationClass == null) {
+                throw new IllegalArgumentException("No implementation class found for "+ctype+" and config version "+version);
+            }
+            sdc = DefaultObjectMapper.readValue(json, DefaultObjectMapper.getTypeFactory().constructParametricType(SgDynamicConfiguration.class, implementationClass));
+        } else {
+            sdc = new SgDynamicConfiguration<T>();
+        }
+        
         sdc.ctype = ctype;
         sdc.seqNo = seqNo;
         sdc.primaryTerm = primaryTerm;
@@ -40,8 +57,19 @@ public class SgDynamicConfiguration<T> implements ToXContent {
         return fromJson(DefaultObjectMapper.writeValueAsString(json, false), ctype, version, seqNo, primaryTerm);
     }
     
-    public SgDynamicConfiguration() {
+    //for Jackson
+    private SgDynamicConfiguration() {
         super();
+    }
+    
+    private Meta _sg_meta;
+
+    public Meta get_sg_meta() {
+        return _sg_meta;
+    }
+
+    public void set_sg_meta(Meta _sg_meta) {
+        this._sg_meta = _sg_meta;
     }
 
     @JsonIgnore
@@ -104,7 +132,10 @@ public class SgDynamicConfiguration<T> implements ToXContent {
         return centries.containsKey(key);
     }
 
-    
+    @JsonIgnore
+    public BytesReference toBytesReference() throws IOException {
+        return XContentHelper.toXContent(this, XContentType.JSON, false);
+    }
 
     @Override
     public String toString() {
@@ -139,6 +170,11 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     public CType getCType() {
         return ctype;
     }
+    
+    @JsonIgnore
+    public void setCType(CType ctype) {
+        this.ctype = ctype;
+    }
 
     @JsonIgnore
     public int getVersion() {
@@ -146,8 +182,8 @@ public class SgDynamicConfiguration<T> implements ToXContent {
     }
     
     @JsonIgnore
-    public Class getImplementingClass() {
-        return ctype.getImplementationClass().get(getVersion());
+    public Class<?> getImplementingClass() {
+        return ctype==null?null:ctype.getImplementationClass().get(getVersion());
     }
 
     @JsonIgnore

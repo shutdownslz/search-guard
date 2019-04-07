@@ -38,7 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import com.floragunn.searchguard.SearchGuardPlugin;
 import com.floragunn.searchguard.resolver.IndexResolverReplacer.Resolved;
-import com.floragunn.searchguard.sgconf.ConfigModel.SgRoles;
+import com.floragunn.searchguard.sgconf.SgRoles;
 import com.floragunn.searchguard.support.Base64Helper;
 import com.floragunn.searchguard.support.ConfigConstants;
 import com.floragunn.searchguard.support.HeaderHelper;

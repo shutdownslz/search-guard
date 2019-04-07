@@ -1,17 +1,74 @@
 package com.floragunn.searchguard.sgconf;
 
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import com.floragunn.searchguard.auth.AuthDomain;
+import com.floragunn.searchguard.auth.AuthorizationBackend;
+import com.floragunn.searchguard.auth.internal.InternalAuthenticationBackend;
+import com.floragunn.searchguard.auth.internal.NoOpAuthenticationBackend;
+import com.floragunn.searchguard.auth.internal.NoOpAuthorizationBackend;
+import com.floragunn.searchguard.http.HTTPBasicAuthenticator;
+import com.floragunn.searchguard.http.HTTPClientCertAuthenticator;
+import com.floragunn.searchguard.http.HTTPProxyAuthenticator;
 
-public class DynamicConfigModel {
+public abstract class DynamicConfigModel {
     
-    public List<AuthDomain> getHttpAuthDomains() {
-        return null;
+    protected final Logger log = LogManager.getLogger(this.getClass());
+    public abstract SortedSet<AuthDomain> getRestAuthDomains();
+    public abstract Set<AuthorizationBackend> getRestAuthorizers();
+    public abstract SortedSet<AuthDomain> getTransportAuthDomains();
+    public abstract Set<AuthorizationBackend> getTransportAuthorizers();
+    //public List<Destroyable> getDestroyableComponents();
+    public abstract String getTransportUsernameAttribute();
+    public abstract boolean isAnonymousAuthenticationEnabled();
+    public abstract boolean isXffEnabled();
+    public abstract String getInternalProxies();
+    public abstract String getProxiesHeader();
+    public abstract String getRemoteIpHeader();
+    public abstract String getTrustedProxies();
+    public abstract boolean isRestAuthDisabled();
+    public abstract boolean isInterTransportAuthDisabled();
+    public abstract boolean isRespectRequestIndicesEnabled();
+    public abstract String getKibanaServerUsername();
+    public abstract String getKibanaIndexname();
+    public abstract boolean isKibanaMultitenancyEnabled();
+    public abstract boolean isDnfofEnabled();
+    public abstract boolean isMultiRolespanEnabled();
+    public abstract String getFilteredAliasMode();
+    public abstract String getHostsResolverMode();
+    
+    protected final Map<String, String> authImplMap = new HashMap<>();
+
+    public DynamicConfigModel() {
+        super();
+        
+        authImplMap.put("intern_c", InternalAuthenticationBackend.class.getName());
+        authImplMap.put("intern_z", NoOpAuthorizationBackend.class.getName());
+
+        authImplMap.put("internal_c", InternalAuthenticationBackend.class.getName());
+        authImplMap.put("internal_z", NoOpAuthorizationBackend.class.getName());
+
+        authImplMap.put("noop_c", NoOpAuthenticationBackend.class.getName());
+        authImplMap.put("noop_z", NoOpAuthorizationBackend.class.getName());
+
+        authImplMap.put("ldap_c", "com.floragunn.dlic.auth.ldap.backend.LDAPAuthenticationBackend");
+        authImplMap.put("ldap_z", "com.floragunn.dlic.auth.ldap.backend.LDAPAuthorizationBackend");
+
+        authImplMap.put("basic_h", HTTPBasicAuthenticator.class.getName());
+        authImplMap.put("proxy_h", HTTPProxyAuthenticator.class.getName());
+        authImplMap.put("clientcert_h", HTTPClientCertAuthenticator.class.getName());
+        authImplMap.put("kerberos_h", "com.floragunn.dlic.auth.http.kerberos.HTTPSpnegoAuthenticator");
+        authImplMap.put("jwt_h", "com.floragunn.dlic.auth.http.jwt.HTTPJwtAuthenticator");
+        authImplMap.put("openid_h", "com.floragunn.dlic.auth.http.jwt.keybyoidc.HTTPJwtKeyByOpenIdConnectAuthenticator");
+        authImplMap.put("saml_h", "com.floragunn.dlic.auth.http.saml.HTTPSamlAuthenticator");
     }
     
-    public List<AuthDomain> getTransportAuthDomains() {
-        return null;
-    }
-
+    
+    
 }
