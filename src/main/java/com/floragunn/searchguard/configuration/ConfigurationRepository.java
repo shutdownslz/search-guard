@@ -44,8 +44,12 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -127,10 +131,10 @@ public class ConfigurationRepository {
                         try {
 
                             if(installDefaultConfig.get()) {
-
+                                
                                 try {
                                     String lookupDir = System.getProperty("sg.default_init.dir");
-                                    final String cd = lookupDir != null? (lookupDir+"/") : new Environment(settings, configPath).pluginsFile().toAbsolutePath().toString()+"/search-guard-7/sgconfig/";
+                                    final String cd = lookupDir != null? (lookupDir+"/") : new Environment(settings, configPath).pluginsFile().toAbsolutePath().toString()+"/search-guard-7/sgconfig/v7/";
                                     File confFile = new File(cd+"sg_config.yml");
                                     if(confFile.exists()) {
                                         final ThreadContext threadContext = threadPool.getThreadContext();
@@ -145,20 +149,23 @@ public class ConfigurationRepository {
                                             boolean ok = client.admin().indices().create(new CreateIndexRequest(searchguardIndex)
                                             .settings(indexSettings))
                                             .actionGet().isAcknowledged();
+                                            LOGGER.info("Index {} created?: {}", searchguardIndex, ok);
                                             if(ok) {
-                                                ConfigHelper.uploadFile(client, cd+"sg_config.yml", searchguardIndex, "config");
-                                                ConfigHelper.uploadFile(client, cd+"sg_roles.yml", searchguardIndex, "roles");
-                                                ConfigHelper.uploadFile(client, cd+"sg_roles_mapping.yml", searchguardIndex, "rolesmapping");
-                                                ConfigHelper.uploadFile(client, cd+"sg_internal_users.yml", searchguardIndex, "internalusers");
-                                                ConfigHelper.uploadFile(client, cd+"sg_action_groups.yml", searchguardIndex, "actiongroups");
+                                                ConfigHelper.uploadFileV7(client, cd+"sg_config.yml", searchguardIndex, "config");
+                                                ConfigHelper.uploadFileV7(client, cd+"sg_roles.yml", searchguardIndex, "roles");
+                                                ConfigHelper.uploadFileV7(client, cd+"sg_internal_users.yml", searchguardIndex, "internalusers");
+                                                ConfigHelper.uploadFileV7(client, cd+"sg_action_groups.yml", searchguardIndex, "actiongroups");
+                                                ConfigHelper.uploadFileV7(client, cd+"sg_tenants.yml", searchguardIndex, "tenants");
                                                 LOGGER.info("Default config applied");
+                                            } else {
+                                                LOGGER.error("Can not create {} index", searchguardIndex);
                                             }
                                         }
                                     } else {
                                         LOGGER.error("{} does not exist", confFile.getAbsolutePath());
                                     }
                                 } catch (Exception e) {
-                                    LOGGER.debug("Cannot apply default config (this is not an error!) due to {}", e.getMessage());
+                                    LOGGER.debug("Cannot apply default config (this is maybe not an error!) due to {}", e.getMessage());
                                 }
                             }
 
@@ -215,7 +222,19 @@ public class ConfigurationRepository {
 
                 try {
 
-                    IndicesExistsRequest ier = new IndicesExistsRequest(searchguardIndex)
+                    if(clusterService.state().metaData().hasConcreteIndex(searchguardIndex)) {
+                        LOGGER.info("{} index does already exist, so we try to load the config from it", searchguardIndex);
+                        bgThread.start();
+                    } else {
+                        if(settings.getAsBoolean(ConfigConstants.SEARCHGUARD_ALLOW_DEFAULT_INIT_SGINDEX, false)){
+                            LOGGER.info("{} index does not exist yet, so we create a default config", searchguardIndex);
+                            installDefaultConfig.set(true);
+                            bgThread.start();
+                        } else {
+                            LOGGER.info("{} index does not exist yet, so no need to load config on node startup. Use sgadmin to initialize cluster", searchguardIndex);
+                        }
+                    }
+                    /*IndicesExistsRequest ier = new IndicesExistsRequest(searchguardIndex)
                     .masterNodeTimeout(TimeValue.timeValueMinutes(1));
 
                     final ThreadContext threadContext = threadPool.getThreadContext();
@@ -252,7 +271,7 @@ public class ConfigurationRepository {
                                 bgThread.start();
                             }
                         });
-                    }
+                    }*/
                 } catch (Throwable e2) {
                     LOGGER.error("Failure while executing IndicesExistsRequest {}",e2, e2);
                     bgThread.start();
@@ -274,7 +293,7 @@ public class ConfigurationRepository {
     /**
      * 
      * @param configurationType
-     * @return can also return null in case it was never loaded 
+     * @return can also return empty in case it was never loaded 
      */
     public SgDynamicConfiguration<?> getConfiguration(CType configurationType) {
         //try {
@@ -282,7 +301,7 @@ public class ConfigurationRepository {
         if(conf != null) {
             return conf.deepClone();
         }
-        return null;
+        return SgDynamicConfiguration.empty();
         //} catch (ExecutionException e) {
         //    throw ExceptionsHelper.convertToElastic(e);
         //}
@@ -359,22 +378,22 @@ public class ConfigurationRepository {
             try(StoredContext ctx = threadContext.stashContext()) {
                 threadContext.putHeader(ConfigConstants.SG_CONF_REQUEST_HEADER, "true");
 
-                boolean searchGuardIndexExists = clusterService.state().metaData().hasConcreteIndex(this.searchguardIndex);
+                IndexMetaData searchGuardMetaData = clusterService.state().metaData().index(this.searchguardIndex);
+                MappingMetaData mappingMetaData = searchGuardMetaData==null?null:searchGuardMetaData.mapping();
 
-                if(searchGuardIndexExists) {
-                    //TODO types removal
-                    //if(clusterService.state().metaData().index(this.searchguardIndex)("config") != null) {
-                        //legacy layout
-                    //    LOGGER.debug("sg index exists and was created before ES 6 (legacy layout)");
-                    //    retVal.putAll(validate(legacycl.loadLegacy(configTypes.toArray(new String[0]), 5, TimeUnit.SECONDS), configTypes.size()));
-                    //} else {
-                        LOGGER.debug("sg index exists and was created with ES 6 (new layout)");
-                        retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
-                    //}
+                if(searchGuardMetaData !=null && mappingMetaData !=null ) {
+                    if("sg".equals(mappingMetaData.type())) {
+                        LOGGER.debug("sg index exists and was created before ES 7 (legacy layout)");
+                    } else {
+                        LOGGER.debug("sg index exists and was created with ES 7 (new layout)");
+                    }
+                    
+                    retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
+
                 } else {
                     //wait (and use new layout)
                     LOGGER.debug("sg index not exists (yet)");
-                    retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 30, TimeUnit.SECONDS), configTypes.size()));
+                    retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
                 }
 
             } catch (Exception e) {
@@ -445,7 +464,12 @@ public class ConfigurationRepository {
         
         final IndexMetaData sgIndexMetaData = clusterService.state().metaData().index(searchguardIndex);
         if(sgIndexMetaData == null) {
+            LOGGER.error("Unable to retrieve trial license (or create  a new one) because {} index does not exist", searchguardIndex); 
             throw new RuntimeException(searchguardIndex+" does not exist");
+        }
+        
+        if(LOGGER.isDebugEnabled()) {
+            LOGGER.debug("Create or retrieve trial license from {} created with version {} and mapping type: {}", searchguardIndex, sgIndexMetaData.getCreationVersion(), sgIndexMetaData.mapping().type());
         }
         
         String type = "_doc";

@@ -20,10 +20,12 @@ package com.floragunn.searchguard.tools;
 import java.io.ByteArrayInputStream;
 import java.io.Console;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 import java.io.Writer;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -36,6 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -76,6 +79,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
@@ -90,6 +94,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.transport.Netty4Plugin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.floragunn.searchguard.DefaultObjectMapper;
 import com.floragunn.searchguard.SearchGuardPlugin;
 import com.floragunn.searchguard.action.configupdate.ConfigUpdateAction;
 import com.floragunn.searchguard.action.configupdate.ConfigUpdateNodeResponse;
@@ -101,14 +108,25 @@ import com.floragunn.searchguard.action.licenseinfo.LicenseInfoResponse;
 import com.floragunn.searchguard.action.whoami.WhoAmIAction;
 import com.floragunn.searchguard.action.whoami.WhoAmIRequest;
 import com.floragunn.searchguard.action.whoami.WhoAmIResponse;
+import com.floragunn.searchguard.sgconf.Migration;
+import com.floragunn.searchguard.sgconf.impl.CType;
+import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
+import com.floragunn.searchguard.sgconf.impl.v7.ActionGroupsV7;
+import com.floragunn.searchguard.sgconf.impl.v7.ConfigV7;
+import com.floragunn.searchguard.sgconf.impl.v7.InternalUserV7;
+import com.floragunn.searchguard.sgconf.impl.v7.RoleV7;
+import com.floragunn.searchguard.sgconf.impl.v7.TenantV7;
 import com.floragunn.searchguard.ssl.util.ExceptionUtils;
 import com.floragunn.searchguard.ssl.util.SSLConfigConstants;
 import com.floragunn.searchguard.support.ConfigConstants;
+import com.floragunn.searchguard.support.ConfigHelper;
 import com.floragunn.searchguard.support.SearchGuardDeprecationHandler;
 import com.google.common.io.Files;
 
 public class SearchGuardAdmin {
-    
+
+    private static final boolean CREATE_AS_LEGACY = Boolean.parseBoolean(System.getenv("TESTARG_migration_sgadmin_create_as_legacy"));
+    private static final boolean ALLOW_MIXED = Boolean.parseBoolean(System.getenv("SG_ADMIN_ALLOW_MIXED_CLUSTER"));
     private static final String SG_TS_PASS = "SG_TS_PASS";
     private static final String SG_KS_PASS = "SG_KS_PASS";
     private static final String SG_KEYPASS = "SG_KEYPASS";
@@ -158,7 +176,7 @@ public class SearchGuardAdmin {
 
     public static int execute(final String[] args) throws Exception {
         
-        System.out.println("Search Guard Admin v6");
+        System.out.println("Search Guard Admin v7");
         System.setProperty("sg.nowarn.client","true");
         System.setProperty("jdk.tls.rejectClientInitiatedRenegotiation","true");
 
@@ -212,6 +230,9 @@ public class SearchGuardAdmin {
 
         options.addOption(Option.builder("er").longOpt("explicit-replicas").hasArg().argName("number of replicas").desc("Set explicit number of replicas or autoexpand expression for searchguard index").build());
 
+        options.addOption(Option.builder("backup").hasArg().argName("folder").desc("Backup configuration to folder").build());
+
+        options.addOption(Option.builder("migrate").hasArg().argName("folder").desc("Migrate and use folder to store migrated files").build());
         
         //when adding new options also adjust validate(CommandLine line)
         
@@ -256,6 +277,8 @@ public class SearchGuardAdmin {
         boolean whoami;
         final boolean promptForPassword;
         String explicitReplicas = null;
+        String backup = null;
+        String migrate = null;
         
         CommandLineParser parser = new DefaultParser();
         try {
@@ -340,6 +363,9 @@ public class SearchGuardAdmin {
             
             explicitReplicas = line.getOptionValue("er", explicitReplicas);
             
+            backup = line.getOptionValue("backup");
+            
+            migrate = line.getOptionValue("migrate");
         }
         catch( ParseException exp ) {
             System.out.println("ERR: Parsing failed.  Reason: " + exp.getMessage());
@@ -447,9 +473,12 @@ public class SearchGuardAdmin {
                 .addTransportAddress(new TransportAddress(new InetSocketAddress(hostname, port)))) {
 
             try {
-                issueWarnings(tc);
+                if(issueWarnings(tc) != 0) {
+                    return (-1);
+                }
             } catch (Exception e1) {
                 System.out.println("Unable to check whether cluster is sane: "+e1.getMessage());
+                return (-1);
             }
             
             final WhoAmIResponse whoAmIRes = tc.execute(WhoAmIAction.INSTANCE, new WhoAmIRequest()).actionGet();
@@ -617,45 +646,14 @@ public class SearchGuardAdmin {
             final NodesInfoResponse nodesInfo = tc.admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet();
 
             if(deleteConfigIndex) {
-                
-                boolean success = true;
-                
-                if(indexExists) {
-                    success = tc.admin().indices().delete(new DeleteIndexRequest(index)).actionGet().isAcknowledged();
-                    System.out.print("Deleted index '"+index+"'");
-                } else {
-                    System.out.print("No index '"+index+"' exists, so no need to delete it");
-                }
-                
-                return (success?0:-1);
+                return deleteConfigIndex(tc, index, indexExists);
             }
                
             if (!indexExists) {
                 System.out.print(index +" index does not exists, attempt to create it ... ");
-                
-                Map<String, Object> indexSettings = new HashMap<>();
-                indexSettings.put("index.number_of_shards", 1);
-                
-                if(explicitReplicas != null) {
-                    if(explicitReplicas.contains("-")) {
-                        indexSettings.put("index.auto_expand_replicas", explicitReplicas);
-                    } else {
-                        indexSettings.put("index.number_of_replicas", Integer.parseInt(explicitReplicas));
-                    }
-                } else {
-                    indexSettings.put("index.auto_expand_replicas", "0-all");
-                }
-
-                final boolean indexCreated = tc.admin().indices().create(new CreateIndexRequest(index)
-                .settings(indexSettings))
-                        .actionGet().isAcknowledged();
-
-                if (indexCreated) {
-                    System.out.println("done ("+(explicitReplicas!=null?explicitReplicas:"0-all")+" replicas)");
-                } else {
-                    System.out.println("failed!");
-                    System.out.println("FAIL: Unable to create the "+index+" index. See elasticsearch logs for more details");
-                    return (-1);
+                final int created = createConfigIndex(tc, index, explicitReplicas);
+                if(created != 0) {
+                    return created;
                 }
 
             } else {
@@ -686,14 +684,22 @@ public class SearchGuardAdmin {
                 }
             }
             
-            final boolean legacy = indexExists 
+            final boolean createLegacyMode = !indexExists && CREATE_AS_LEGACY;
+
+            if(createLegacyMode) {
+                System.out.println("We forcibly create the new index in legacy mode so that ES 6 config can be uploaded. To move to v7 configs youneed to migrate.");
+            }
+            
+            final boolean legacy = createLegacyMode || (indexExists 
                     && sgIndex.getMappings() != null
                     && sgIndex.getMappings().get(index) != null
-                    && sgIndex.getMappings().get(index).containsKey("config");
+                    && sgIndex.getMappings().get(index).containsKey("sg"));
+            
+            
             
             if(legacy) {
-                System.out.println("Legacy index '"+index+"' detected.");
-                System.out.println("See https://docs.search-guard.com/latest/upgrading-5-6 for more details.");
+                System.out.println("Legacy index '"+index+"' (ES 6) detected (or forced). You should migrate the configuration!");
+                System.out.println("See https://docs.search-guard.com/latest/upgrading-6-7 for more details.");
             }
             
             if(retrieve) {
@@ -707,6 +713,18 @@ public class SearchGuardAdmin {
                 return (success?0:-1);
             }
             
+            if(backup != null) {
+                return backup(tc, index, new File(backup), legacy);
+            }
+            
+            if(migrate != null) {
+                if(!legacy) {
+                    System.out.println("ERR: Seems cluster is already migrated");
+                    return -1;
+                }
+                return migrate(tc, index, new File(migrate), nodesInfo);
+            }
+            
             boolean isCdAbs = new File(cd).isAbsolute();
              
             System.out.println("Populate config from "+(isCdAbs?cd:new File(".", cd).getCanonicalPath()));
@@ -717,7 +735,7 @@ public class SearchGuardAdmin {
                     return (-1);
                 }
                 
-                if(!Arrays.asList(new String[]{"config", "roles", "rolesmapping", "internalusers","actiongroups" }).contains(type)) {
+                if(!CType.lcStringValues().contains(type)) {
                     System.out.println("ERR: Invalid type '"+type+"'");
                     return (-1);
                 }
@@ -725,29 +743,19 @@ public class SearchGuardAdmin {
                 boolean success = uploadFile(tc, file, index, type, legacy);
                 ConfigUpdateResponse cur = tc.execute(ConfigUpdateAction.INSTANCE, new ConfigUpdateRequest(new String[]{type})).actionGet();
                 
+                if(!success) {
+                    System.out.println("ERR: cannot upload configuration, see errors above");
+                    return -1;
+                }
+                
                 success = checkConfigUpdateResponse(cur, nodesInfo, 1) && success;
                 
                 System.out.println("Done with "+(success?"success":"failures"));
                 return (success?0:-1);
             }
-
-            boolean success = uploadFile(tc, cd+"sg_config.yml", index, "config", legacy);
-            success = uploadFile(tc, cd+"sg_roles.yml", index, "roles", legacy) && success;
-            success = uploadFile(tc, cd+"sg_roles_mapping.yml", index, "rolesmapping", legacy) && success;
-            success = uploadFile(tc, cd+"sg_internal_users.yml", index, "internalusers", legacy) && success;
-            success = uploadFile(tc, cd+"sg_action_groups.yml", index, "actiongroups", legacy) && success;
             
-            if(failFast && !success) {
-                System.out.println("ERR: cannot upload configuration, see errors above");
-                return -1;
-            }
             
-            ConfigUpdateResponse cur = tc.execute(ConfigUpdateAction.INSTANCE, new ConfigUpdateRequest(new String[]{"config","roles","rolesmapping","internalusers","actiongroups"})).actionGet();
-            
-            success = checkConfigUpdateResponse(cur, nodesInfo, 5) && success;
-            
-            System.out.println("Done with "+(success?"success":"failures"));
-            return (success?0:-1);
+            return upload(tc, index, cd, legacy, nodesInfo);
         }
         // TODO audit changes to searchguard index
     }
@@ -767,15 +775,14 @@ public class SearchGuardAdmin {
 
         boolean success = response.getNodes().size() == expectedNodeCount;
         if(!success) {
-            System.out.println("FAIL: Expected "+expectedNodeCount+" nodes to return response, but got only "+response.getNodes().size());
+            System.out.println("FAIL: Expected "+expectedNodeCount+" nodes to return response, but got "+response.getNodes().size());
         }
-        
+
         for(String nodeId: response.getNodesMap().keySet()) {
             ConfigUpdateNodeResponse node = response.getNodesMap().get(nodeId);
             boolean successNode = (node.getUpdatedConfigTypes() != null && node.getUpdatedConfigTypes().length == expectedConfigCount);
-            
             if(!successNode) {
-                System.out.println("FAIL: Expected "+expectedConfigCount+" config types for node "+nodeId+" but got only "+Arrays.toString(node.getUpdatedConfigTypes()) + " due to: "+node.getMessage()==null?"unknown reason":node.getMessage());
+                System.out.println("FAIL: Expected "+expectedConfigCount+" config types for node "+nodeId+" but got "+node.getUpdatedConfigTypes().length+" ("+Arrays.toString(node.getUpdatedConfigTypes()) + ") due to: "+(node.getMessage()==null?"unknown reason":node.getMessage()));
             }
             
             success = success && successNode;
@@ -786,18 +793,32 @@ public class SearchGuardAdmin {
     
     private static boolean uploadFile(final Client tc, final String filepath, final String index, final String _id, final boolean legacy) {
         
-        String type = "sg";
+        String type = "_doc";
         String id = _id;
                 
         if(legacy) {
-            type = _id;
-            id = "0";
+            type = "sg";
+            id = _id;
+            
+            try {
+                ConfigHelper.fromYamlFile(filepath, CType.fromString(_id), 1, 0, 0);
+            } catch (Exception e) {
+                System.out.println("ERR: Seems "+filepath+" is not in legacy format: "+e);
+                return false;
+            }
+            
+        } else {
+            try {
+                ConfigHelper.fromYamlFile(filepath, CType.fromString(_id), 2, 0, 0);
+            } catch (Exception e) {
+                System.out.println("ERR: Seems "+filepath+" is not in SG 7 format: "+e);
+                return false;
+            }
         }
         
         System.out.println("Will update '"+type+"/" + id + "' with " + filepath+" "+(legacy?"(legacy mode)":""));
         
         try (Reader reader = new FileReader(filepath)) {
-
             final String res = tc
                     .index(new IndexRequest(index).type(type).id(id).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                             .source(_id, readXContent(reader, XContentType.YAML))).actionGet().getId();
@@ -818,13 +839,14 @@ public class SearchGuardAdmin {
     
     private static boolean retrieveFile(final Client tc, final String filepath, final String index, final String _id, final boolean legacy) {
         
-        String type = "sg";
+        String type = "_doc";
         String id = _id;
                 
         if(legacy) {
-            type = _id;
-            id = "0";
-        }
+            type = "sg";
+            id = _id;
+
+        } 
         
         System.out.println("Will retrieve '"+type+"/" +id+"' into "+filepath+" "+(legacy?"(legacy mode)":""));
         try (Writer writer = new FileWriter(filepath)) {
@@ -838,6 +860,23 @@ public class SearchGuardAdmin {
                 }
                 
                 String yaml = convertToYaml(_id, response.getSourceAsBytesRef(), true);
+                
+                if(legacy) {
+                    try {
+                        ConfigHelper.fromYamlString(yaml, CType.fromString(_id), 1, 0, 0);
+                    } catch (Exception e) {
+                        System.out.println("ERR: Seems "+_id+" from cluster is not in legacy format: "+e);
+                        return false;
+                    }
+                } else {
+                    try {
+                        ConfigHelper.fromYamlString(yaml, CType.fromString(_id), 2, 0, 0);
+                    } catch (Exception e) {
+                        System.out.println("ERR: Seems "+_id+" from cluster is not in SG 7 format: "+e);
+                        return false;
+                    }
+                }
+                
                 writer.write(yaml);
                 System.out.println("   SUCC: Configuration for '"+_id+"' stored in "+filepath);
                 return true;
@@ -867,7 +906,6 @@ public class SearchGuardAdmin {
         }
         
         //validate
-        Settings.builder().loadFromStream("dummy.json", new ByteArrayInputStream(BytesReference.toBytes(retVal)), true).build();
         return retVal;
     }
     
@@ -1031,17 +1069,26 @@ public class SearchGuardAdmin {
         return new String(console.readPassword("[%s]", passwordName+" password:"));
     }
     
-    private static void issueWarnings(Client tc) {
+    private static int issueWarnings(Client tc) {
         NodesInfoResponse nir = tc.admin().cluster().nodesInfo(new NodesInfoRequest()).actionGet();
         Version maxVersion = nir.getNodes().stream().max((n1,n2) -> n1.getVersion().compareTo(n2.getVersion())).get().getVersion();
         Version minVersion = nir.getNodes().stream().min((n1,n2) -> n1.getVersion().compareTo(n2.getVersion())).get().getVersion();
         
         if(!maxVersion.equals(minVersion)) {
-            System.out.println("WARNING: Your cluster consists of different node versions. It is not recommended to run sgadmin against a mixed cluster. This may fail.");
+            System.out.println("ERR: Your cluster consists of different node versions. It is not allowed to run sgadmin against a mixed cluster.");
             System.out.println("         Minimum node version is "+minVersion.toString());
             System.out.println("         Maximum node version is "+maxVersion.toString());
+            if(!ALLOW_MIXED) {
+                return -1;
+            }
+           
         } else {
             System.out.println("Elasticsearch Version: "+minVersion.toString());
+            
+            if(minVersion.before(Version.V_7_0_0)) {
+                System.out.println("ERR: Can use this version of sgadmin not for ES 6 clusters");
+                return -1;
+            }
         }
         
         if(nir.getNodes().size() > 0) {
@@ -1049,5 +1096,154 @@ public class SearchGuardAdmin {
             String sgVersion = pluginInfos.stream().filter(p->p.getClassname().equals("com.floragunn.searchguard.SearchGuardPlugin")).map(p->p.getVersion()).findFirst().orElse("<unknown>");
             System.out.println("Search Guard Version: "+sgVersion);
         }
+        
+        return 0;
     }
+    
+    private static int deleteConfigIndex(TransportClient tc, String index, boolean indexExists) {
+        boolean success = true;
+        
+        if(indexExists) {
+            success = tc.admin().indices().delete(new DeleteIndexRequest(index)).actionGet().isAcknowledged();
+            System.out.print("Deleted index '"+index+"'");
+        } else {
+            System.out.print("No index '"+index+"' exists, so no need to delete it");
+        }
+        
+        return (success?0:-1);
+    }
+    
+    private static int createConfigIndex(TransportClient tc, String index, String explicitReplicas) {
+        Map<String, Object> indexSettings = new HashMap<>();
+        indexSettings.put("index.number_of_shards", 1);
+        
+        if(explicitReplicas != null) {
+            if(explicitReplicas.contains("-")) {
+                indexSettings.put("index.auto_expand_replicas", explicitReplicas);
+            } else {
+                indexSettings.put("index.number_of_replicas", Integer.parseInt(explicitReplicas));
+            }
+        } else {
+            indexSettings.put("index.auto_expand_replicas", "0-all");
+        }
+
+        final boolean indexCreated = tc.admin().indices().create(new CreateIndexRequest(index)
+        .settings(indexSettings))
+                .actionGet().isAcknowledged();
+
+        if (indexCreated) {
+            System.out.println("done ("+(explicitReplicas!=null?explicitReplicas:"0-all")+" replicas)");
+            return 0;
+        } else {
+            System.out.println("failed!");
+            System.out.println("FAIL: Unable to create the "+index+" index. See elasticsearch logs for more details");
+            return (-1);
+        }
+    }
+    
+    private static int backup(TransportClient tc, String index, File backupDir, boolean legacy) {
+        backupDir.mkdirs();
+        
+        boolean success = retrieveFile(tc, backupDir.getAbsolutePath()+"/sg_config.yml", index, "config", legacy);
+        success = retrieveFile(tc, backupDir.getAbsolutePath()+"/sg_roles.yml", index, "roles", legacy) && success;
+        
+        if(legacy) {
+            success = retrieveFile(tc, backupDir.getAbsolutePath()+"/sg_roles_mapping.yml", index, "rolesmapping", legacy) && success;
+        }
+        success = retrieveFile(tc, backupDir.getAbsolutePath()+"/sg_internal_users.yml", index, "internalusers", legacy) && success;
+        success = retrieveFile(tc, backupDir.getAbsolutePath()+"/sg_action_groups.yml", index, "actiongroups", legacy) && success;
+        
+        if(!legacy) {
+            success = retrieveFile(tc, backupDir.getAbsolutePath()+"/sg_tenants.yml", index, "tenants", legacy) && success;
+        }
+        
+        return success?0:-1;
+    }
+    
+    private static int upload(TransportClient tc, String index, String cd, boolean legacy, NodesInfoResponse nodesInfo) {
+        boolean success = uploadFile(tc, cd+"sg_config.yml", index, "config", legacy);
+        success = uploadFile(tc, cd+"sg_roles.yml", index, "roles", legacy) && success;
+        if(legacy) {
+            success = uploadFile(tc, cd+"sg_roles_mapping.yml", index, "rolesmapping", legacy) && success;
+        }
+        
+        success = uploadFile(tc, cd+"sg_internal_users.yml", index, "internalusers", legacy) && success;
+        success = uploadFile(tc, cd+"sg_action_groups.yml", index, "actiongroups", legacy) && success;
+
+        
+        if(!legacy) {
+            success = uploadFile(tc, cd+"sg_tenants.yml", index, "tenants", legacy) && success;
+        }
+        
+        if(!success) {
+            System.out.println("ERR: cannot upload configuration, see errors above");
+            return -1;
+        }
+        
+        ConfigUpdateResponse cur = tc.execute(ConfigUpdateAction.INSTANCE, new ConfigUpdateRequest(CType.lcStringValues().toArray(new String[0]))).actionGet();
+
+        success = checkConfigUpdateResponse(cur, nodesInfo, 6) && success;
+
+        System.out.println("Done with "+(success?"success":"failures"));
+        return (success?0:-1);
+    }
+    
+    private static int migrate(TransportClient tc, String index, File backupDir, NodesInfoResponse nodesInfo) {
+        
+        System.out.println("== Migration started ==");
+        System.out.println("=======================");
+        
+        System.out.println("-> Backup current configuration to "+backupDir.getAbsolutePath());
+        
+        if(backup(tc, index, backupDir, true) != 0) {
+            return -1;
+        }
+
+        System.out.println("  done");
+        
+        File v7Dir = new File(backupDir,"v7");
+        v7Dir.mkdirs();
+        
+        try {
+
+            System.out.println("-> Migrate configuration to new format and store it here: "+v7Dir.getAbsolutePath());
+            SgDynamicConfiguration<ActionGroupsV7> actionGroupsV7 = Migration.migrateActionGroups(SgDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"sg_action_groups.yml")), CType.ACTIONGROUPS, 1, 0, 0));
+            SgDynamicConfiguration<ConfigV7> configV7 = Migration.migrateConfig(SgDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"sg_config.yml")), CType.CONFIG, 1, 0, 0));
+            SgDynamicConfiguration<InternalUserV7> internalUsersV7 = Migration.migrateInternalUsers(SgDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"sg_internal_users.yml")), CType.INTERNALUSERS, 1, 0, 0));
+            Tuple<SgDynamicConfiguration<RoleV7>, SgDynamicConfiguration<TenantV7>> rolesTenantsV7 = Migration.migrateRoles(SgDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"sg_roles.yml")), CType.ROLES, 1, 0, 0),
+                    SgDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(new File(backupDir,"sg_roles_mapping.yml")), CType.ROLESMAPPING, 1, 0, 0)
+                    );
+            
+            
+            DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/sg_action_groups.yml"), actionGroupsV7);
+            DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/sg_config.yml"), configV7);
+            DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/sg_internal_users.yml"), internalUsersV7);
+            DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/sg_roles.yml"), rolesTenantsV7.v1());
+            DefaultObjectMapper.YAML_MAPPER.writeValue(new File(v7Dir, "/sg_tenants.yml"), rolesTenantsV7.v2());
+        } catch (Exception e) {
+            System.out.println("ERR: Unable to migrate config files due to "+e);
+            e.printStackTrace();
+            return -1;
+        }
+        
+        System.out.println("  done");
+        
+        System.out.println("-> Delete old "+index+" index");
+        deleteConfigIndex(tc, index, true);
+        System.out.println("  done");
+        
+        System.out.println("-> Upload new configuration into Elasticsearch cluster");
+        
+        int uploadResult = upload(tc, index, v7Dir.getAbsolutePath()+"/", false, nodesInfo);
+        
+        if(uploadResult == 0) {
+            System.out.println("  done");
+        }else {
+            System.out.println("  ERR: unable to upload");
+        }
+        
+        return uploadResult;
+    }
+    
+    
 }

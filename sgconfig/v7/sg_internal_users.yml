@@ -1,26 +1,63 @@
 ---
 _sg_meta:
-    type: "internalusers"
-    config_version: 2
-
-admin:
-  readonly: true
-  hidden: true
-  description: "..."
-  hash: $2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG
+  type: "internalusers"
+  config_version: 2
+logstash:
+  hash: "$2a$12$u1ShR4l4uBS3Uv59Pa2y5.1uQuZBrZtmNfqB3iM/.jL0XoV9sghS2"
+  readonly: false
+  hidden: false
   backend_roles:
-    - admin
+  - "logstash"
+  attributes: {}
+  description: "Migrated from v6"
+comp:
+  hash: "$2a$12$ae4ycwzwvLtZxwZ82RmiEunBbIPiAmGZduBAjKN0TXdwQFtCwARz2"
+  readonly: false
+  hidden: false
+  backend_roles:
+  - "kibanauser"
+  attributes: {}
+  description: "Migrated from v6"
+snapshotrestore:
+  hash: "$2y$12$DpwmetHKwgYnorbgdvORCenv4NAK8cPUg8AI6pxLCuWf/ALc0.v7W"
+  readonly: false
+  hidden: false
+  backend_roles:
+  - "snapshotrestore"
+  attributes: {}
+  description: "Migrated from v6"
+admin:
+  hash: "$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG"
+  readonly: true
+  hidden: false
+  backend_roles:
+  - "admin"
   attributes:
     attribute1: "value1"
-    attribute2: true
-    attribute3: 123456
+    attribute2: "value2"
+    attribute3: "value3"
+  description: "Migrated from v6"
 kibanaserver:
+  hash: "$2a$12$4AcgAt3xwOWadA5s5blL6ev39OXDNhmOesEoo33eZtrq2N0YrU3H."
   readonly: true
   hidden: false
-  description: "..."
-  hash: $2a$12$4AcgAt3xwOWadA5s5blL6ev39OXDNhmOesEoo33eZtrq2N0YrU3H.
-.dot.user:
-  readonly: true
+  backend_roles: []
+  attributes: {}
+  description: "Migrated from v6"
+kibanaro:
+  hash: "$2a$12$JJSXNfTowz7Uu5ttXfeYpeYE0arACvcwlPBStB1F.MI7f0U9Z4DGC"
+  readonly: false
   hidden: false
-  description: "..."
-  hash: $2a$12$4AcgAt3xwOWadA5s5blL6ev39OXDNhmOesEoo33eZtrq2N0YrU3H.
+  backend_roles:
+  - "kibanauser"
+  - "readall"
+  attributes: {}
+  description: "Migrated from v6"
+readall:
+  hash: "$2a$12$ae4ycwzwvLtZxwZ82RmiEunBbIPiAmGZduBAjKN0TXdwQFtCwARz2"
+  readonly: false
+  hidden: false
+  backend_roles:
+  - "readall"
+  attributes: {}
+  description: "Migrated from v6"

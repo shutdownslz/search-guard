@@ -1,6 +1,7 @@
 package com.floragunn.searchguard.sgconf.impl;
 
 import java.io.IOException;
+import java.io.Reader;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;

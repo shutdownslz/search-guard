@@ -59,7 +59,7 @@ public final class ClusterHelper {
 
     static {
         System.setProperty("es.enforce.bootstrap.checks", "true");
-        System.setProperty("sg.default_init.dir", new File("./sgconfig").getAbsolutePath());
+        System.setProperty("sg.default_init.dir", new File("./sgconfig/v7").getAbsolutePath());
     }
     
 	protected final Logger log = LogManager.getLogger(ClusterHelper.class);

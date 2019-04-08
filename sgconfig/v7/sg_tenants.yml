@@ -1,18 +1,22 @@
 ---
 _sg_meta:
-    type: "tenants"
-    config_version: 2
-
-admin_tenant: 
-  readonly: true
-  hidden: false
-  description: "The admin tenant"
-  applications: 
-    - kibana:saved_objects/visualizations/read
-    - kibana:saved_objects/dashboards/delete
-.other.tenant: 
+  type: "tenants"
+  config_version: 2
+department1:
   readonly: false
   hidden: false
-  description: "An othertenant"
-  applications: 
-    - kibana:saved_objects/visualizations/*
+  applications:
+  - "kibana:saved_objects/*"
+  description: "Migrated from v6"
+admin_tenant:
+  readonly: false
+  hidden: false
+  applications:
+  - "kibana:saved_objects/*"
+  description: "Migrated from v6"
+department2:
+  readonly: false
+  hidden: false
+  applications:
+  - "kibana:saved_objects/*"
+  description: "Migrated from v6"

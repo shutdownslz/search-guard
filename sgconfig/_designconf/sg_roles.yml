@@ -1,0 +1,108 @@
+---
+_sg_meta:
+    type: "roles"
+    config_version: 2
+
+sg_all_access:
+  readonly: true
+  hidden: true
+  description: "..."
+  cluster_permissions:
+    - UNLIMITED
+  indices_permissions:
+    - index_patterns: 
+        - '*'
+        - '/abc/'
+      allowed_actions:
+        - UNLIMITED
+      fls:
+        - field1
+        - field2
+      dls: |
+              thequery
+      masked_fields:
+        - field3
+        - field4
+    - index_patterns: 
+        - 'abc'
+      allowed_actions:
+        - indices:/read/*
+      fls:
+        - field3
+        - field4
+      dls: |
+              anotherquery
+      masked_fields:
+        - field88
+        - field99 
+  tenants:
+    t1: RW
+    t2: ro
+    t3: IMPLICIT
+  applications: #(perms for global tenant only/or no MT)
+    - kibana:saved_objects/canvas/read
+    - kibana:saved_objects/canvas/delete
+  mapto:
+    users:
+      - admin
+    hosts:
+      - admin.company.com
+    backend_roles:
+      - 'cn=ldaprole,ou=groups,dc=example,dc=com'
+    and_backend_roles:
+      - a
+      - b
+
+
+sg_kibana_user:
+  readonly: true
+  description: "..."
+  cluster_permissions:
+    - INDICES_MONITOR
+    - CLUSTER_COMPOSITE_OPS
+  indices_permissions:
+    - index_patterns: #or
+        - '.kibana'
+        - '.kibana-6'
+        - '.kibana_*'
+      allowed_actions:
+        - MANAGE
+        - INDEX
+        - READ
+        - DELETE
+    - index_patterns: 
+        - '.tasks'
+      allowed_actions:
+        - INDICES_ALL
+    - index_patterns: 
+        - '.management-beats'
+      allowed_actions:
+        - INDICES_ALL        
+    - index_patterns: 
+        - '*'
+      allowed_actions:
+        - indices:data/read/field_caps*
+        - indices:data/read/xpack/rollup*
+        - indices:admin/mappings/get*
+        - indices:admin/get
+  mapto:
+      users:
+        - admin
+      hosts:
+        - admin.company.com
+      backend_roles:
+        - 'cn=ldaprole,ou=groups,dc=example,dc=com'
+      and_backend_roles:
+        - a
+        - b
+.with.dots:
+  readonly: true
+  description: "..."
+  indices_permissions:
+    - index_patterns: 
+        - '${user.name}'
+      allowed_actions:
+        - '*'
+  tenants:
+    t1: RO
+    .ten.t2: RW

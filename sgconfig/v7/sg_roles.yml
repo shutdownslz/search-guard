@@ -1,108 +1,571 @@
 ---
 _sg_meta:
-    type: "roles"
-    config_version: 2
-
-sg_all_access:
-  readonly: true
-  hidden: true
-  description: "..."
+  type: "roles"
+  config_version: 2
+sg_own_index:
+  readonly: false
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
   cluster_permissions:
-    - UNLIMITED
+  - "CLUSTER_COMPOSITE_OPS"
   indices_permissions:
-    - index_patterns: 
-        - '*'
-        - '/abc/'
-      allowed_actions:
-        - UNLIMITED
-      fls:
-        - field1
-        - field2
-      dls: |
-              thequery
-      masked_fields:
-        - field3
-        - field4
-    - index_patterns: 
-        - 'abc'
-      allowed_actions:
-        - indices:/read/*
-      fls:
-        - field3
-        - field4
-      dls: |
-              anotherquery
-      masked_fields:
-        - field88
-        - field99 
-  tenants:
-    t1: RW
-    t2: ro
-    t3: IMPLICIT
-  applications: #(perms for global tenant only/or no MT)
-    - kibana:saved_objects/canvas/read
-    - kibana:saved_objects/canvas/delete
+  - index_patterns:
+    - "${user_name}"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  tenants: {}
+  applications: []
   mapto:
     users:
-      - admin
-    hosts:
-      - admin.company.com
-    backend_roles:
-      - 'cn=ldaprole,ou=groups,dc=example,dc=com'
-    and_backend_roles:
-      - a
-      - b
-
-
+    - "*"
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_xp_monitoring:
+  readonly: true
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "cluster:monitor/xpack/info"
+  - "cluster:monitor/main"
+  - "cluster:admin/xpack/monitoring/bulk"
+  indices_permissions:
+  - index_patterns:
+    - "?monitor*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_alerting:
+  readonly: false
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "indices:data/read/scroll"
+  - "cluster:admin/xpack/watcher/watch/put"
+  - "cluster:admin/xpack/watcher*"
+  - "CLUSTER_MONITOR"
+  - "CLUSTER_COMPOSITE_OPS"
+  indices_permissions:
+  - index_patterns:
+    - "?kibana*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+  - index_patterns:
+    - "?watches*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?watcher-history-*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?triggered_watches"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_readonly_and_monitor:
+  readonly: false
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "CLUSTER_MONITOR"
+  - "CLUSTER_COMPOSITE_OPS_RO"
+  indices_permissions:
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_dlsflscomp:
+  readonly: false
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "*"
+  indices_permissions:
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "indices:admin/shards/search_shards"
+  - index_patterns:
+    - "remotecluster"
+    dls: null
+    fls:
+    - "~message"
+    masked_fields:
+    - "user"
+    allowed_actions:
+    - "*"
+  - index_patterns:
+    - "ccordcluster"
+    dls: null
+    fls:
+    - "~user"
+    masked_fields:
+    - "message"
+    allowed_actions:
+    - "*"
+  - index_patterns:
+    - "kibana_sample_data_ecommerce"
+    dls: "{\n  \"term\": {\n    \"geoip.country_iso_code\": \"US\"\n  }\n}\n"
+    fls: null
+    masked_fields:
+    - "customer*::MD5"
+    - "user::BLAKE2S-128"
+    - "email::/^\\w+@/::<redaced>@"
+    allowed_actions:
+    - "*"
+  tenants:
+    department1: "RO"
+    department2: "RW"
+  applications: []
+  mapto:
+    users:
+    - "comp"
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_monitor:
+  readonly: false
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "cluster:admin/xpack/monitoring/*"
+  - "cluster:admin/ingest/pipeline/put"
+  - "cluster:admin/ingest/pipeline/get"
+  - "indices:admin/template/get"
+  - "indices:admin/template/put"
+  - "CLUSTER_MONITOR"
+  - "CLUSTER_COMPOSITE_OPS"
+  indices_permissions:
+  - index_patterns:
+    - "?monitor*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?marvel*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?kibana*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "indices:data/read/field_caps"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
 sg_kibana_user:
   readonly: true
-  description: "..."
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
   cluster_permissions:
-    - INDICES_MONITOR
-    - CLUSTER_COMPOSITE_OPS
+  - "INDICES_MONITOR"
+  - "CLUSTER_COMPOSITE_OPS"
   indices_permissions:
-    - index_patterns: #or
-        - '.kibana'
-        - '.kibana-6'
-        - '.kibana_*'
-      allowed_actions:
-        - MANAGE
-        - INDEX
-        - READ
-        - DELETE
-    - index_patterns: 
-        - '.tasks'
-      allowed_actions:
-        - INDICES_ALL
-    - index_patterns: 
-        - '.management-beats'
-      allowed_actions:
-        - INDICES_ALL        
-    - index_patterns: 
-        - '*'
-      allowed_actions:
-        - indices:data/read/field_caps*
-        - indices:data/read/xpack/rollup*
-        - indices:admin/mappings/get*
-        - indices:admin/get
+  - index_patterns:
+    - "?kibana"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+    - "DELETE"
+    - "MANAGE"
+    - "INDEX"
+  - index_patterns:
+    - "?kibana-6"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+    - "DELETE"
+    - "MANAGE"
+    - "INDEX"
+  - index_patterns:
+    - "?kibana_*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+    - "DELETE"
+    - "MANAGE"
+    - "INDEX"
+  - index_patterns:
+    - "?tasks"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?management-beats"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "indices:data/read/xpack/rollup*"
+    - "indices:admin/mappings/get*"
+    - "indices:admin/get"
+    - "indices:data/read/field_caps*"
+  tenants: {}
+  applications: []
   mapto:
-      users:
-        - admin
-      hosts:
-        - admin.company.com
-      backend_roles:
-        - 'cn=ldaprole,ou=groups,dc=example,dc=com'
-      and_backend_roles:
-        - a
-        - b
-.with.dots:
-  readonly: true
-  description: "..."
+    users: []
+    hosts: []
+    backend_roles:
+    - "kibanauser"
+    and_backend_roles: []
+sg_manage_snapshots:
+  readonly: false
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "MANAGE_SNAPSHOTS"
   indices_permissions:
-    - index_patterns: 
-        - '${user.name}'
-      allowed_actions:
-        - '*'
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "indices:data/write/index"
+    - "indices:admin/create"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles:
+    - "snapshotrestore"
+    and_backend_roles: []
+sg_xp_alerting:
+  readonly: true
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "indices:data/read/scroll"
+  - "cluster:admin/xpack/watcher*"
+  - "cluster:monitor/xpack/watcher*"
+  indices_permissions:
+  - index_patterns:
+    - "?watches*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?watcher-history-*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?triggered_watches"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+    - "indices:admin/aliases/get"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_xp_machine_learning:
+  readonly: true
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "cluster:admin/persistent*"
+  - "cluster:internal/xpack/ml*"
+  - "indices:data/read/scroll*"
+  - "cluster:admin/xpack/ml*"
+  - "cluster:monitor/xpack/ml*"
+  indices_permissions:
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+    - "indices:admin/get*"
+  - index_patterns:
+    - "?ml-*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "*"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_kibana_server:
+  readonly: true
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "CLUSTER_MONITOR"
+  - "CLUSTER_COMPOSITE_OPS"
+  - "cluster:admin/xpack/monitoring*"
+  - "indices:admin/template*"
+  - "indices:data/read/scroll*"
+  indices_permissions:
+  - index_patterns:
+    - "?kibana"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?kibana-6"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?kibana_*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?reporting*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?monitoring*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?tasks"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "?management-beats*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "INDICES_ALL"
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "indices:admin/aliases*"
+  tenants: {}
+  applications: []
+  mapto:
+    users:
+    - "kibanaserver"
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_all_access:
+  readonly: true
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "UNLIMITED"
+  indices_permissions:
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "UNLIMITED"
   tenants:
-    t1: RO
-    .ten.t2: RW
+    admin_tenant: "RW"
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles:
+    - "admin"
+    and_backend_roles: []
+sg_logstash:
+  readonly: false
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "CLUSTER_MONITOR"
+  - "CLUSTER_COMPOSITE_OPS"
+  - "indices:admin/template/get"
+  - "indices:admin/template/put"
+  indices_permissions:
+  - index_patterns:
+    - "logstash-*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "CRUD"
+    - "CREATE_INDEX"
+  - index_patterns:
+    - "*beat*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "CRUD"
+    - "CREATE_INDEX"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles:
+    - "logstash"
+    and_backend_roles: []
+sg_readall_and_monitor:
+  readonly: false
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "CLUSTER_MONITOR"
+  - "CLUSTER_COMPOSITE_OPS_RO"
+  indices_permissions:
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles: []
+    and_backend_roles: []
+sg_readall:
+  readonly: true
+  hidden: false
+  description: "Migrated from v6 (all types mapped)"
+  cluster_permissions:
+  - "CLUSTER_COMPOSITE_OPS_RO"
+  indices_permissions:
+  - index_patterns:
+    - "*"
+    dls: null
+    fls: null
+    masked_fields: null
+    allowed_actions:
+    - "READ"
+  tenants: {}
+  applications: []
+  mapto:
+    users: []
+    hosts: []
+    backend_roles:
+    - "readall"
+    and_backend_roles: []

@@ -93,16 +93,16 @@ public class ConfigurationLoaderSG7 {
             @Override
             public void noData(String id, String type) {
                 
-                //TODO only for testing
-                if(CType.fromString(id) == CType.TENANTS) {
-                    rs.put(CType.fromString(id), SgDynamicConfiguration.empty());
-                    latch.countDown();
-                    return;
-                }
-
-                if(cs.state().metaData().index(searchguardIndex).getCreationVersion().before(Version.V_7_0_0)) {
+                //when index was created with ES 6 there are no separate tenants. So we load just empty ones.
+               //when index was created with ES 7 and type not "sg" (ES 6 type) there are no rolemappings anymore.
+                if(cs.state().metaData().index(searchguardIndex).getCreationVersion().before(Version.V_7_0_0) || "sg".equals(type)) {
                     //created with SG 6
                     //skip tenants
+                    
+                    if(log.isDebugEnabled()) {
+                        log.debug("Skip tenants because we not yet migrated to ES 7 (index was created with ES 6 and type is legacy [{}])", type);
+                    }
+                    
                     if(CType.fromString(id) == CType.TENANTS) {
                         rs.put(CType.fromString(id), SgDynamicConfiguration.empty());
                         latch.countDown();
@@ -111,6 +111,11 @@ public class ConfigurationLoaderSG7 {
                 } else {
                     //created with SG 7
                     //skip rolemapping
+                    
+                    if(log.isDebugEnabled()) {
+                        log.debug("Skip rolemapping because we are migrated to ES 7 (index was created  with ES 7 and type is not legacy [sg])");
+                    }
+                    
                     if(CType.fromString(id) == CType.ROLESMAPPING) {
                         rs.put(CType.fromString(id), SgDynamicConfiguration.empty());
                         latch.countDown();
@@ -228,10 +233,17 @@ public class ConfigurationLoaderSG7 {
                 configVersion = jsonNode.get("_sg_meta").get("config_version").asInt();
             }
 
+            if(log.isDebugEnabled()) {
+                log.debug("Load "+id+" with version "+configVersion);
+            }
+            
             if (CType.ACTIONGROUPS.toLCString().equals(id)) {
                 try {
                     return SgDynamicConfiguration.fromJson(jsonAsString, CType.fromString(id), configVersion, seqNo, primaryTerm);
                 } catch (Exception e) {
+                    if(log.isDebugEnabled()) {
+                        log.debug("Unable to load "+id+" with version "+configVersion+" - Try loading legacy format ...");
+                    }
                     return SgDynamicConfiguration.fromJson(jsonAsString, CType.fromString(id), 0, seqNo, primaryTerm);
                 }
             }

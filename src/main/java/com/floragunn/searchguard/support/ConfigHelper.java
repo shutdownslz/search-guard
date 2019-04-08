@@ -17,10 +17,10 @@
 
 package com.floragunn.searchguard.support;
 
-import java.io.ByteArrayInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.StringReader;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -28,23 +28,31 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import com.floragunn.searchguard.DefaultObjectMapper;
+import com.floragunn.searchguard.sgconf.impl.CType;
+import com.floragunn.searchguard.sgconf.impl.SgDynamicConfiguration;
+
 public class ConfigHelper {
     
     private static final Logger LOGGER = LogManager.getLogger(ConfigHelper.class);
     
-    public static void uploadFile(Client tc, String filepath, String index, String id) throws Exception {
+    public static void uploadFileV7(Client tc, String filepath, String index, String id) throws Exception {
         LOGGER.info("Will update '" + id + "' with " + filepath);
+        
+
+        ConfigHelper.fromYamlFile(filepath, CType.fromString(id), 2, 0, 0);
+        
+        
         try (Reader reader = new FileReader(filepath)) {
 
             final String res = tc
-                    .index(new IndexRequest(index).type("sg").id(id).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                    .index(new IndexRequest(index).id(id).setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                             .source(id, readXContent(reader, XContentType.YAML))).actionGet().getId();
 
             if (!id.equals(res)) {
@@ -70,10 +78,25 @@ public class ConfigHelper {
                 parser.close();
             }
         }
-        
-        //validate
-        Settings.builder().loadFromStream("dummy.json", new ByteArrayInputStream(BytesReference.toBytes(retVal)), true).build();
         return retVal;
+    }
+    
+    public static <T> SgDynamicConfiguration<T> fromYamlReader(Reader yamlReader, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
+        try {
+            return SgDynamicConfiguration.fromNode(DefaultObjectMapper.YAML_MAPPER.readTree(yamlReader), ctype, version, seqNo, primaryTerm);
+        } finally {
+            if(yamlReader != null) {
+                yamlReader.close();
+            }
+        }
+    }
+    
+    public static <T> SgDynamicConfiguration<T> fromYamlFile(String filepath, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
+        return fromYamlReader(new FileReader(filepath), ctype, version, seqNo, primaryTerm);
+    }
+    
+    public static <T> SgDynamicConfiguration<T> fromYamlString(String yamlString, CType ctype, int version, long seqNo, long primaryTerm) throws IOException {
+        return fromYamlReader(new StringReader(yamlString), ctype, version, seqNo, primaryTerm);
     }
 
 }

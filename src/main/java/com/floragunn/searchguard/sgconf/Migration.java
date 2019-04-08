@@ -101,7 +101,7 @@ public class Migration {
         c7.get_sg_meta().setConfig_version(2);
         c7.get_sg_meta().setType("config");
         
-        assert r6cs.getCEntries().size() == 1;
+        assert r6cs.getCEntries().size() == 1: "Expected a size of 1, but found "+r6cs.getCEntries().size();
         
         for(final Entry<String, ConfigV6> r6c: r6cs.getCEntries().entrySet()) {
             c7.putCEntry("sg_config", new ConfigV7(r6c.getValue()));

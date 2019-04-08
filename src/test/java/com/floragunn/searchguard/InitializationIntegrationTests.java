@@ -49,7 +49,7 @@ import com.floragunn.searchguard.test.helper.rest.RestHelper;
 import com.floragunn.searchguard.test.helper.rest.RestHelper.HttpResponse;
 
 public class InitializationIntegrationTests extends SingleClusterTest {
-
+    
     @Test
     public void testEnsureInitViaRestDoesWork() throws Exception {
         
@@ -158,8 +158,6 @@ public class InitializationIntegrationTests extends SingleClusterTest {
 
     @Test
     public void testDefaultConfig() throws Exception {
-        
-        System.setProperty("sg.default_init.dir", new File("./sgconfig").getAbsolutePath());
         final Settings settings = Settings.builder()
                 .put(ConfigConstants.SEARCHGUARD_ALLOW_DEFAULT_INIT_SGINDEX, true)
                 .build();
@@ -199,7 +197,7 @@ public class InitializationIntegrationTests extends SingleClusterTest {
         RestHelper rh = nonSslRestHelper();
         HttpResponse res;
         Thread.sleep(5000);
-        Assert.assertEquals(HttpStatus.SC_OK, (res = rh.executeGetRequest("_searchguard/license?pretty", encodeBasicHeader("admin", "admin"))).getStatusCode());
+        Assert.assertEquals(HttpStatus.SC_OK, (res = rh.executeGetRequest("_searchguard/license?pretty")).getStatusCode());
         System.out.println(res.getBody());
         assertContains(res, "*TRIAL*");
         assertNotContains(res, "*FULL*");
