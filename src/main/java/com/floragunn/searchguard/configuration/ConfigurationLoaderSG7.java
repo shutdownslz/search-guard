@@ -27,7 +27,6 @@ import java.util.concurrent.TimeoutException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
@@ -168,7 +167,7 @@ public class ConfigurationLoaderSG7 {
                                 if(dConf != null) {
                                     callback.success(dConf.deepClone());
                                 } else {
-                                    log.error("Cannot parse settings for "+singleGetResponse.getId());
+                                    callback.failure(new Exception("Cannot parse settings for "+singleGetResponse.getId()));
                                 }
                             } catch (Exception e) {
                                 log.error(e.toString(),e);
@@ -193,7 +192,7 @@ public class ConfigurationLoaderSG7 {
         
     }
 
-    private SgDynamicConfiguration<?> toConfig(GetResponse singleGetResponse) {
+    private SgDynamicConfiguration<?> toConfig(GetResponse singleGetResponse) throws Exception {
         final BytesReference ref = singleGetResponse.getSourceAsBytesRef();
         final String id = singleGetResponse.getId();
         final long seqNo = singleGetResponse.getSeqNo();
@@ -239,9 +238,6 @@ public class ConfigurationLoaderSG7 {
 
             return SgDynamicConfiguration.fromJson(jsonAsString, CType.fromString(id), configVersion, seqNo, primaryTerm);
 
-        } catch (final Exception e) {
-            log.error(e.toString(),e);
-            throw ExceptionsHelper.convertToElastic(e);
         } finally {
             if(parser != null) {
                 try {

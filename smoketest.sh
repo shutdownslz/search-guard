@@ -33,7 +33,7 @@ rm -f netty-tcnative-$NETTY_NATIVE_VERSION-$NETTY_NATIVE_CLASSIFIER.jar
 
 chmod +x elasticsearch-$ES_VERSION/plugins/search-guard-7/tools/install_demo_configuration.sh
 ./elasticsearch-$ES_VERSION/plugins/search-guard-7/tools/install_demo_configuration.sh -y -i
-elasticsearch-$ES_VERSION/bin/elasticsearch &
+elasticsearch-$ES_VERSION/bin/elasticsearch -p /tmp/elasticsearch-smoke-pid &
 
 while ! nc -z 127.0.0.1 9200; do
   sleep 0.1 # wait for 1/10 of the second before check again
@@ -51,4 +51,5 @@ else
   echo ok
 fi
 
-killall java
+./sgadmin_demo.sh
+kill -SIGTERM $(cat /tmp/elasticsearch-smoke-pid)
