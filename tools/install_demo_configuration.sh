@@ -429,7 +429,7 @@ echo "### Success"
 echo "### Execute this script now on all your nodes and then start all nodes"
 #Generate sgadmin_demo.sh
 echo "#!/bin/bash" | $SUDO_CMD tee sgadmin_demo.sh > /dev/null 
-echo $SUDO_CMD \""$ES_PLUGINS_DIR/search-guard-7/tools/sgadmin.sh"\" -cd \""$ES_PLUGINS_DIR/search-guard-7/sgconfig"\" -icl -key \""$ES_CONF_DIR/kirk-key.pem"\" -cert \""$ES_CONF_DIR/kirk.pem"\" -cacert \""$ES_CONF_DIR/root-ca.pem"\" -nhnv | $SUDO_CMD tee -a sgadmin_demo.sh > /dev/null
+echo $SUDO_CMD \""$ES_PLUGINS_DIR/search-guard-7/tools/sgadmin.sh"\" -cd \""$ES_PLUGINS_DIR/search-guard-7/sgconfig/v7"\" -icl -key \""$ES_CONF_DIR/kirk-key.pem"\" -cert \""$ES_CONF_DIR/kirk.pem"\" -cacert \""$ES_CONF_DIR/root-ca.pem"\" -nhnv | $SUDO_CMD tee -a sgadmin_demo.sh > /dev/null
 $SUDO_CMD chmod +x sgadmin_demo.sh
 
 if [ "$initsg" == 0 ]; then
