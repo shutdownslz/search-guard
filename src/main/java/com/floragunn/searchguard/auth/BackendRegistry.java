@@ -97,6 +97,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
     
     private Cache<User, Set<String>> transportRoleCache; //
     private Cache<User, Set<String>> restRoleCache; //
+    private Cache<String, User> transportImpersonationCache; //used for transport impersonation
     
     private volatile String transportUsernameAttribute = null;
     
@@ -156,6 +157,16 @@ public class BackendRegistry implements ConfigurationChangeListener {
                         log.debug("Clear user cache for {} due to {}", notification.getKey(), notification.getCause());
                     }
                 }).build();
+        
+        transportImpersonationCache = CacheBuilder.newBuilder()
+                .expireAfterWrite(ttlInMin, TimeUnit.MINUTES)
+                .removalListener(new RemovalListener<String, User>() {
+                    @Override
+                    public void onRemoval(RemovalNotification<String, User> notification) {
+                        log.debug("Clear user cache for {} due to {}", notification.getKey(), notification.getCause());
+                    }
+                }).build();
+        
     }
 
     public BackendRegistry(final Settings settings, final Path configPath, final AdminDNs adminDns,
@@ -205,6 +216,7 @@ public class BackendRegistry implements ConfigurationChangeListener {
         restImpersonationCache.invalidateAll();
         restRoleCache.invalidateAll();
         transportRoleCache.invalidateAll();
+        transportImpersonationCache.invalidateAll();
     }
 
     @Override
@@ -741,10 +753,24 @@ public class BackendRegistry implements ConfigurationChangeListener {
             if (impersonatedUser != null && !adminDns.isTransportImpersonationAllowed(new LdapName(origPKIuser.getName()), impersonatedUser)) {
                 throw new ElasticsearchSecurityException("'"+origPKIuser.getName() + "' is not allowed to impersonate as '" + impersonatedUser+"'");
             } else if (impersonatedUser != null) {
-                aU = new User(impersonatedUser);
-                if(log.isDebugEnabled()) {
-                    log.debug("Impersonate from '{}' to '{}'",origPKIuser.getName(), impersonatedUser);
+                //loop over all http/rest auth domains
+                for (final AuthDomain authDomain: transportAuthDomains) {
+                    final AuthenticationBackend authenticationBackend = authDomain.getBackend();
+                    final User impersonatedUserObject = checkExistsAndAuthz(transportImpersonationCache, new User(impersonatedUser), authenticationBackend, transportAuthorizers);
+
+                    if(impersonatedUserObject == null) {
+                        log.debug("Unable to impersonate transport user from '{}' to '{}' because the impersonated user does not exists in {}, try next ...", origPKIuser.getName(), impersonatedUser, authenticationBackend.getType());
+                        continue;
+                    }
+
+                    if(log.isDebugEnabled()) {
+                        log.debug("Impersonate from '{}' to '{}'",origPKIuser.getName(), impersonatedUser);
+                    }
+                    return impersonatedUserObject;
                 }
+
+                log.debug("Unable to impersonate rest user from '{}' to '{}' because the impersonated user does not exists", origPKIuser.getName(), impersonatedUser);
+                throw new ElasticsearchSecurityException("No such user:" + impersonatedUser, RestStatus.FORBIDDEN);
             }
         } catch (final InvalidNameException e1) {
             throw new ElasticsearchSecurityException("PKI does not have a valid name ('" + origPKIuser.getName() + "'), should never happen",
